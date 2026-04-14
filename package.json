@@ -1,0 +1,25 @@
+{
+  "name": "cms-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev:gateway",
+    "start": "npm run dev:all",
+    "dev:gateway": "npm run dev --prefix api-gateway",
+    "dev:auth": "npm run dev --prefix services/auth-service",
+    "dev:tenant": "npm run dev --prefix services/tenant-service",
+    "dev:admission": "npm run dev --prefix services/admission-service",
+    "dev:student": "npm run dev --prefix services/student-service",
+    "dev:academic": "npm run dev --prefix services/academic-service",
+    "dev:attendance": "npm run dev --prefix services/attendance-service",
+    "dev:finance": "npm run dev --prefix services/finance-service",
+    "dev:exam": "npm run dev --prefix services/exam-service",
+    "dev:hr": "npm run dev --prefix services/hr-payroll-service",
+    "dev:comm": "npm run dev --prefix services/communication-service",
+    "dev:all": "concurrently \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:tenant\" \"npm run dev:admission\" \"npm run dev:student\" \"npm run dev:academic\" \"npm run dev:attendance\" \"npm run dev:finance\" \"npm run dev:exam\" \"npm run dev:hr\" \"npm run dev:comm\"",
+    "install:all": "npm install --prefix api-gateway && npm install --prefix services/auth-service && npm install --prefix services/tenant-service && npm install --prefix services/admission-service && npm install --prefix services/student-service && npm install --prefix services/academic-service && npm install --prefix services/attendance-service && npm install --prefix services/finance-service && npm install --prefix services/exam-service && npm install --prefix services/hr-payroll-service && npm install --prefix services/communication-service"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
