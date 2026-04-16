@@ -1,21 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError, ErrorCode } from './errors';
+import { AppError } from './errors';
+import { ErrorCode } from '@shared/core';
+import { errorResponse } from '@shared/core';
 
 export const globalErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-    console.error(`[Error] ${new Date().toISOString()}:`, err);
+    console.error(`[Auth Service Error] ${new Date().toISOString()} ${req.method} ${req.path}:`, err);
 
     if (err instanceof AppError) {
-        return res.status(err.statusCode).json({
-            status: 'error',
-            code: err.errorCode,
-            message: err.message
-        });
+        return errorResponse(res, err.message, err.errorCode, err.statusCode);
     }
 
     // Default error
-    return res.status(500).json({
-        status: 'error',
-        code: ErrorCode.INTERNAL_SERVER_ERROR,
-        message: 'Something went incredibly wrong'
-    });
+    return errorResponse(
+        res, 
+        'Internal Server Error', 
+        ErrorCode.INTERNAL_SERVER_ERROR, 
+        500,
+        process.env.NODE_ENV === 'development' ? err.message : undefined
+    );
 };
+
