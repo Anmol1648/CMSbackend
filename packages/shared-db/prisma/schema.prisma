@@ -8,11 +8,22 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// Example User Model - We can expand this later
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  is_active     Boolean  @default(true)
+  mfa_enabled   Boolean  @default(false)
+  mfa_secret    String?
+  tenant_id     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model RefreshToken {
+  token      String   @id
+  user_id    String
+  expires_at DateTime
+  revoked    Boolean  @default(false)
+  createdAt  DateTime @default(now())
 }
