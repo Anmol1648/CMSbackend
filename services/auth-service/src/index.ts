@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
+import userRoutes from './routes/user.routes';
 import { globalErrorHandler } from './utils/errorHandler';
+import { contextMiddleware } from './middlewares/context.middleware';
 
 dotenv.config();
 
@@ -11,6 +13,8 @@ const PORT = process.env.PORT || 4001;
 
 app.use(cors());
 app.use(express.json());
+app.use(contextMiddleware);
+
 
 // Request Logger
 app.use((req, res, next) => {
@@ -20,6 +24,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/', authRoutes);
+app.use('/users', userRoutes);
 
 app.get('/health', (req, res) => {
     res.json({

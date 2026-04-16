@@ -10,7 +10,13 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(cors());
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // Basic request logger
@@ -35,6 +41,7 @@ app.use(proxyRoutes);
 // ─── Global Error Handler ─────────────────────────────────────────────────────
 app.use(globalErrorHandler);
 
-app.listen(PORT, () => {
-    console.log(`[Gateway] API Gateway running on http://localhost:${PORT}`);
+app.listen(8000, '0.0.0.0', () => {
+    console.log(`[Gateway] API Gateway running on http://0.0.0.0:8000`);
 });
+

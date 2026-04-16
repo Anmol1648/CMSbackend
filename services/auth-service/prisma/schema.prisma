@@ -18,6 +18,10 @@ model User {
   mfa_secret    String?
   tenant_id     String
   
+  // Audit fields
+  created_by    String?
+  updated_by    String?
+
   // Relations
   profile       UserProfile?
   
@@ -41,8 +45,12 @@ model UserProfile {
   state         String?
   country       String?
   pincode       String?
+  
+  created_by    String?
+  updated_by    String?
 
   createdAt     DateTime  @default(now())
+
   updatedAt     DateTime  @updatedAt
 
   @@map("user_profiles")
@@ -58,3 +66,17 @@ model RefreshToken {
 
   @@map("refresh_tokens")
 }
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  table_name  String
+  record_id   String
+  operation   String   
+  old_values  Json?
+  new_values  Json?
+  user_id     String   
+  timestamp   DateTime @default(now())
+
+  @@map("audit_logs")
+}
+

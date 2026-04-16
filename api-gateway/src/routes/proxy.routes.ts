@@ -5,10 +5,12 @@ import { authenticate } from '../middlewares/auth.middleware';
 const router = Router();
 
 // ─── Helper: create a proxy with lazy target resolution ──────────────────────
-const makeProxy = (getTarget: () => string, name: string) =>
+const makeProxy = (getTarget: () => string, name: string, prefixToStrip?: string) =>
     createProxyMiddleware({
+        target: getTarget(), // default target
         router: () => getTarget(),   // resolved per-request, not at boot time
         changeOrigin: true,
+        pathRewrite: prefixToStrip ? { [`^${prefixToStrip}`]: '' } : undefined,
         on: {
             proxyReq: fixRequestBody,
             error: (err, req, res: any) => {
@@ -22,11 +24,16 @@ const makeProxy = (getTarget: () => string, name: string) =>
         },
     });
 
-// ─── Public: Auth Service (NO authentication) ─────────────────────────────────
-router.use('/api/auth', makeProxy(() => process.env.AUTH_SERVICE_URL!, 'Auth Service'));
-
 // ─── Protected Routes (JWT required) ──────────────────────────────────────────
-router.use('/api/students', authenticate, makeProxy(() => process.env.STUDENT_SERVICE_URL!, 'Student Service'));
-router.use('/api/rbac', authenticate, makeProxy(() => process.env.RBAC_SERVICE_URL!, 'RBAC Service'));
+// 1. Authenticate user-specific auth routes first
+router.use('/api/auth/users', authenticate); 
+
+// 2. Generic protected routes for other services
+router.use('/api/students', authenticate, makeProxy(() => process.env.STUDENT_SERVICE_URL!, 'Student Service', '/api/students'));
+router.use('/api/rbac', authenticate, makeProxy(() => process.env.RBAC_SERVICE_URL!, 'RBAC Service', '/api/rbac'));
+
+// ─── Auth Service Proxy (Handles both Public and Authenticated routes) ────────
+// This will forward /api/auth/login -> /login and /api/auth/users/profile -> /users/profile
+router.use('/api/auth', makeProxy(() => process.env.AUTH_SERVICE_URL!, 'Auth Service', '/api/auth'));
 
 export default router;
