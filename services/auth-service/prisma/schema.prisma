@@ -39,7 +39,7 @@ model UserProfile {
   phone         String?
   avatar_url    String?
   gender        String?
-  date_of_birth DateTime?
+  date_of_birth DateTime? @db.Date
   address       String?
   city          String?
   state         String?

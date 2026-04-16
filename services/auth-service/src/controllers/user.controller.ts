@@ -1,20 +1,20 @@
 import { Request, Response } from 'express';
 import * as userService from '../services/user.service';
-import { successResponse, StorageFactory } from '@shared/core';
+import { asyncHandler, successResponse, StorageFactory } from '@shared/core';
 
-export const getProfile = async (req: Request, res: Response) => {
+export const getProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = (req as any).user.userId;
     const profile = await userService.getProfile(userId);
     return successResponse(res, profile, 'Profile retrieved successfully');
-};
+});
 
-export const updateProfile = async (req: Request, res: Response) => {
+export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = (req as any).user.userId;
     const profile = await userService.updateProfile(userId, req.body);
     return successResponse(res, profile, 'Profile updated successfully');
-};
+});
 
-export const updateAvatar = async (req: Request, res: Response) => {
+export const updateAvatar = asyncHandler(async (req: Request, res: Response) => {
     const userId = (req as any).user.userId;
     
     if (!req.file) {
@@ -32,5 +32,14 @@ export const updateAvatar = async (req: Request, res: Response) => {
     });
 
     return successResponse(res, profile, 'Avatar updated successfully');
-};
+});
+
+export const changePassword = asyncHandler(async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId;
+    const { oldPassword, newPassword } = req.body;
+    
+    await userService.changePassword(userId, oldPassword, newPassword);
+    return successResponse(res, null, 'Password changed successfully');
+});
+
 
