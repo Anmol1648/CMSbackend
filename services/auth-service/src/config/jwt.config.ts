@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import { v4 as uuidv4 } from 'uuid';
 import { JwtPayload } from '@shared/core';
 
 dotenv.config();
@@ -24,7 +25,8 @@ export const generateAccessToken = (payload: JwtPayload): string => {
     try {
         return jwt.sign(payload, PRIVATE_KEY, {
             algorithm: 'RS256',
-            expiresIn: '15m'
+            expiresIn: '15m',
+            jwtid: uuidv4()
         });
     } catch (error: any) {
         console.error('[JWT Error] Access token generation failed:', error.message);
@@ -36,10 +38,24 @@ export const generateRefreshToken = (payload: JwtPayload): string => {
     try {
         return jwt.sign(payload, PRIVATE_KEY, {
             algorithm: 'RS256',
-            expiresIn: '7d'
+            expiresIn: '7d',
+            jwtid: uuidv4()
         });
     } catch (error: any) {
         console.error('[JWT Error] Refresh token generation failed:', error.message);
+        throw error;
+    }
+};
+
+export const generateMfaChallengeToken = (userId: string): string => {
+    try {
+        return jwt.sign({ userId, mfa_pending: true }, PRIVATE_KEY, {
+            algorithm: 'RS256',
+            expiresIn: '5m',
+            jwtid: uuidv4()
+        });
+    } catch (error: any) {
+        console.error('[JWT Error] MFA challenge token generation failed:', error.message);
         throw error;
     }
 };

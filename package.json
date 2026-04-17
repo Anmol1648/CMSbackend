@@ -17,7 +17,8 @@
     "dev:hr": "npm run dev --prefix services/hr-payroll-service",
     "dev:comm": "npm run dev --prefix services/communication-service",
     "dev:all": "concurrently \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:tenant\" \"npm run dev:admission\" \"npm run dev:student\" \"npm run dev:academic\" \"npm run dev:attendance\" \"npm run dev:finance\" \"npm run dev:exam\" \"npm run dev:hr\" \"npm run dev:comm\"",
-    "install:all": "npm install --prefix api-gateway && npm install --prefix services/auth-service && npm install --prefix services/tenant-service && npm install --prefix services/admission-service && npm install --prefix services/student-service && npm install --prefix services/academic-service && npm install --prefix services/attendance-service && npm install --prefix services/finance-service && npm install --prefix services/exam-service && npm install --prefix services/hr-payroll-service && npm install --prefix services/communication-service && npm install --prefix packages/shared-db",
+    "install:all": "npm install --prefix api-gateway && npm install --prefix services/auth-service && npm install --prefix services/tenant-service && npm install --prefix services/admission-service && npm install --prefix services/student-service && npm install --prefix services/academic-service && npm install --prefix services/attendance-service && npm install --prefix services/finance-service && npm install --prefix services/exam-service && npm install --prefix services/hr-payroll-service && npm install --prefix services/communication-service && npm install --prefix packages/shared-db && npm install --prefix packages/shared-core",
+    "build:shared": "npm run build --workspace=@shared/core && npm run build --workspace=@shared/db",
     "db:generate": "npm run generate --prefix packages/shared-db",
     "db:push": "npm run db:push --prefix packages/shared-db",
     "migrate:all": "node scripts/migrate.all.js"

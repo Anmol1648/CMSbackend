@@ -8,7 +8,12 @@ export interface JwtPayload {
     userId: string;
     email: string;
     tenantId: string;
+    jti?: string;
+    exp?: number;
+    iat?: number;
 }
+
+
 
 // Standard Error Codes for the whole system
 export enum ErrorCode {
@@ -23,4 +28,5 @@ export enum ErrorCode {
     AUTH_INVALID_CREDENTIALS = 'AUTH_INVALID_CREDENTIALS',
     AUTH_TOKEN_EXPIRED = 'AUTH_TOKEN_EXPIRED',
     AUTH_INVALID_TOKEN = 'AUTH_INVALID_TOKEN',
+    AUTH_MFA_REQUIRED = 'AUTH_MFA_REQUIRED',
 }

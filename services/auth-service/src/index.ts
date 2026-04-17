@@ -5,6 +5,15 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import { globalErrorHandler } from './utils/errorHandler';
 import { contextMiddleware } from './middlewares/context.middleware';
+import { db } from './models/prisma';
+
+declare global {
+    namespace Express {
+        interface Request {
+            db: typeof db;
+        }
+    }
+}
 
 dotenv.config();
 
@@ -13,6 +22,10 @@ const PORT = process.env.PORT || 4001;
 
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+    req.db = db;
+    next();
+});
 app.use(contextMiddleware);
 
 

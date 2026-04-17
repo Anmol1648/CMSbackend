@@ -12,5 +12,10 @@ router.put('/profile', protect, userController.updateProfile);
 router.post('/profile/avatar', protect, upload.single('avatar'), userController.updateAvatar);
 router.post('/change-password', protect, validate(changePasswordSchema), userController.changePassword);
 
+// MFA Routes
+router.post('/mfa/setup', protect, userController.setupMfa);
+router.post('/mfa/enable', protect, userController.enableMfa);
+router.post('/mfa/disable', protect, userController.disableMfa);
+
 export default router;
 

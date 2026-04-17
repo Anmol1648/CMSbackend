@@ -1,8 +1,42 @@
 import { Router } from 'express';
 import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
 import { authenticate } from '../middlewares/auth.middleware';
+import { createRateLimiter } from '../middlewares/rateLimiter.middleware';
 
 const router = Router();
+
+// ─── Rate Limiters ──────────────────────────────────────────────────────────
+const authLimiter = createRateLimiter({
+    windowInMinutes: 15,
+    maxAttempts: 10,
+    keyPrefix: 'auth'
+});
+
+const mfaLimiter = createRateLimiter({
+    windowInMinutes: 15,
+    maxAttempts: 5,
+    keyPrefix: 'mfa'
+});
+
+const forgotPasswordLimiter = createRateLimiter({
+    windowInMinutes: 60,
+    maxAttempts: 3,
+    keyPrefix: 'forgot-password'
+});
+
+const resetPasswordLimiter = createRateLimiter({
+    windowInMinutes: 15,
+    maxAttempts: 5,
+    keyPrefix: 'reset-password'
+});
+
+// Apply rate limiters to specific endpoints
+router.post('/api/auth/login', authLimiter);
+router.post('/api/auth/verify-mfa', mfaLimiter);
+router.post('/api/auth/forgot-password', forgotPasswordLimiter);
+router.post('/api/auth/reset-password', resetPasswordLimiter);
+
+
 
 // ─── Helper: create a proxy with lazy target resolution ──────────────────────
 const makeProxy = (getTarget: () => string, name: string, prefixToStrip?: string) =>
@@ -26,7 +60,8 @@ const makeProxy = (getTarget: () => string, name: string, prefixToStrip?: string
 
 // ─── Protected Routes (JWT required) ──────────────────────────────────────────
 // 1. Authenticate user-specific auth routes first
-router.use('/api/auth/users', authenticate); 
+router.use(['/api/auth/users', '/api/auth/logout', '/api/auth/logout-all'], authenticate);
+
 
 // 2. Generic protected routes for other services
 router.use('/api/students', authenticate, makeProxy(() => process.env.STUDENT_SERVICE_URL!, 'Student Service', '/api/students'));

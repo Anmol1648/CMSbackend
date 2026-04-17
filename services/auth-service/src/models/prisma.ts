@@ -8,7 +8,7 @@ const db = prisma.$extends({
         $allModels: {
             async $allOperations({ model, operation, args, query }) {
                 // 1. Skip auditing for specified models to avoid infinite loops or schema mismatches
-                if (model === 'AuditLog' || model === 'RefreshToken') {
+                if (model === 'AuditLog' || model === 'RefreshToken' || model === 'PasswordResetToken') {
                     return query(args);
                 }
 

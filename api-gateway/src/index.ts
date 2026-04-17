@@ -17,8 +17,6 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json());
-
 // Basic request logger
 app.use((req, _res, next) => {
     console.log(`[Gateway] ${new Date().toISOString()} ${req.method} ${req.path}`);

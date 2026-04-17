@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from './errors';
-import { ErrorCode } from '@shared/core';
-import { errorResponse } from '@shared/core';
+import { ErrorCode, errorResponse } from '@shared/core';
 
 export const globalErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
     console.error(`[Auth Service Error] ${new Date().toISOString()} ${req.method} ${req.path}:`, err);

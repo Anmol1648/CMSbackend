@@ -42,4 +42,25 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
     return successResponse(res, null, 'Password changed successfully');
 });
 
+export const setupMfa = asyncHandler(async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId;
+    const response = await userService.enableMfaSetup(userId);
+    return successResponse(res, response, 'MFA Setup initiated');
+});
+
+export const enableMfa = asyncHandler(async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId;
+    const { token } = req.body;
+    const response = await userService.verifyAndEnableMfa(userId, token);
+    return successResponse(res, response, 'MFA Enabled successfully');
+});
+
+export const disableMfa = asyncHandler(async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId;
+    const { password, token } = req.body;
+    const response = await userService.disableMfa(userId, password, token);
+    return successResponse(res, response, 'MFA Disabled successfully');
+});
+
+
 
