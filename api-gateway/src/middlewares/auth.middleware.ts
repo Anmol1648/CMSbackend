@@ -53,6 +53,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         req.headers['x-user-id'] = payload.userId;
         req.headers['x-user-email'] = payload.email;
         req.headers['x-tenant-id'] = payload.tenantId;
+        req.headers['x-user-roles'] = JSON.stringify(payload.roleIds || []);
         req.headers['x-internal-secret'] = process.env.INTERNAL_SECRET || '';
 
         return next();

@@ -24,6 +24,7 @@ model User {
 
   // Relations
   profile       UserProfile?
+  userRoles     UserRole[]
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -89,5 +90,124 @@ model PasswordResetToken {
   createdAt  DateTime @default(now())
 
   @@map("password_reset_tokens")
+}
+
+// ─── RBAC Models ──────────────────────────────────────────────────────────────
+
+model Role {
+  id             String    @id @default(uuid())
+  name           String
+  slug           String
+  description    String?
+  scope          String    @default("tenant") // global | tenant | department | self
+  parent_role_id String?
+  is_system      Boolean   @default(false)
+  tenant_id      String
+  created_by     String?
+  updated_by     String?
+  deleted_at     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  parent           Role?             @relation("RoleHierarchy", fields: [parent_role_id], references: [id])
+  children         Role[]            @relation("RoleHierarchy")
+  userRoles        UserRole[]
+  rolePermissions  RolePermission[]
+  roleMenus        RoleMenu[]
+  fieldPermissions FieldPermission[]
+
+  @@unique([slug, tenant_id])
+  @@index([tenant_id])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  resource    String   // e.g., 'student', 'course', 'user'
+  action      String   // create | read | update | delete | approve | export
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id            String  @id @default(uuid())
+  role_id       String
+  permission_id String
+  condition     Json?   // e.g., { "own_data": true, "own_department": true }
+
+  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  user_id   String
+  role_id   String
+  tenant_id String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role_id, tenant_id])
+  @@index([tenant_id])
+  @@index([user_id])
+  @@map("user_roles")
+}
+
+model Menu {
+  id         String   @id @default(uuid())
+  label      String
+  icon       String?
+  route      String?
+  module     String?
+  is_active  Boolean  @default(true)
+  parent_id  String?
+  sort_order Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  parent    Menu?      @relation("MenuTree", fields: [parent_id], references: [id])
+  children  Menu[]     @relation("MenuTree")
+  roleMenus RoleMenu[]
+
+  @@map("menus")
+}
+
+model RoleMenu {
+  id      String  @id @default(uuid())
+  role_id String
+  menu_id String
+  visible Boolean @default(true)
+
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  menu Menu @relation(fields: [menu_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, menu_id])
+  @@map("role_menus")
+}
+
+model FieldPermission {
+  id         String  @id @default(uuid())
+  role_id    String
+  model_name String
+  field_name String
+  can_read   Boolean @default(true)
+  can_write  Boolean @default(true)
+
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, model_name, field_name])
+  @@map("field_permissions")
 }
 

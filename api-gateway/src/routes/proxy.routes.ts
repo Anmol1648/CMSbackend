@@ -65,7 +65,24 @@ router.use(['/api/auth/users', '/api/auth/logout', '/api/auth/logout-all'], auth
 
 // 2. Generic protected routes for other services
 router.use('/api/students', authenticate, makeProxy(() => process.env.STUDENT_SERVICE_URL!, 'Student Service', '/api/students'));
-router.use('/api/rbac', authenticate, makeProxy(() => process.env.RBAC_SERVICE_URL!, 'RBAC Service', '/api/rbac'));
+router.use('/api/rbac', authenticate, createProxyMiddleware({
+    target: process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:4001',
+    changeOrigin: true,
+    pathRewrite: {
+        '^/': '/rbac/'
+    },
+    on: {
+        proxyReq: fixRequestBody,
+        error: (err, req, res: any) => {
+            console.error(`[Gateway] RBAC proxy error:`, err.message);
+            res.status(502).json({
+                status: 'error',
+                code: 'BAD_GATEWAY',
+                message: `RBAC Service is unavailable`,
+            });
+        },
+    },
+}));
 
 // ─── Auth Service Proxy (Handles both Public and Authenticated routes) ────────
 // This will forward /api/auth/login -> /login and /api/auth/users/profile -> /users/profile

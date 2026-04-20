@@ -8,7 +8,7 @@ const db = prisma.$extends({
         $allModels: {
             async $allOperations({ model, operation, args, query }) {
                 // 1. Skip auditing for specified models to avoid infinite loops or schema mismatches
-                if (model === 'AuditLog' || model === 'RefreshToken' || model === 'PasswordResetToken') {
+                if (model === 'AuditLog' || model === 'RefreshToken' || model === 'PasswordResetToken' || model === 'Menu' || model === 'Permission') {
                     return query(args);
                 }
 
@@ -38,18 +38,28 @@ const db = prisma.$extends({
                 const result = await query(args);
 
                 // 5. Create Audit Log (Asynchronous)
-                if (['create', 'update', 'delete'].includes(operation)) {
+                const auditOperations = ['create', 'update', 'delete', 'createMany', 'deleteMany', 'updateMany'];
+                if (auditOperations.includes(operation)) {
                     const user = getCurrentUser();
-                    
-                    // We use a separate prisma instance (without extensions) to write the log
-                    // to avoid infinite recursion and ensure the log is saved.
+
+                    // Construct record_id carefully for bulk operations
+                    let recordId = 'unknown';
+                    if ((result as any)?.id) {
+                        recordId = (result as any).id;
+                    } else if ((args as any).where?.id) {
+                        recordId = (args as any).where.id;
+                    } else if (operation.includes('Many')) {
+                        // For bulk ops, record the scope of the operation
+                        recordId = JSON.stringify((args as any).where || 'bulk');
+                    }
+
                     prisma.auditLog.create({
                         data: {
                             table_name: model,
-                            record_id: (result as any)?.id || (args as any).where?.id || 'unknown',
+                            record_id: recordId,
                             operation: operation.toUpperCase(),
-                            old_values: previousData || undefined,
-                            new_values: operation === 'delete' ? undefined : (result as any),
+                            old_values: previousData || (operation.includes('Delete') ? (args as any) : undefined),
+                            new_values: operation.includes('delete') ? undefined : (result || (args as any).data),
                             user_id: user?.id || 'system'
                         }
                     }).catch(err => console.error('[AuditLog Error]', err));

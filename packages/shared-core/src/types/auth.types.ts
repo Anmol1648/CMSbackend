@@ -2,12 +2,14 @@ export interface AccessTokenPayload {
     userId: string;
     email: string;
     tenantId: string;
+    roleIds?: string[];
 }
 
 export interface JwtPayload {
     userId: string;
     email: string;
     tenantId: string;
+    roleIds?: string[];
     jti?: string;
     exp?: number;
     iat?: number;
@@ -29,4 +31,6 @@ export enum ErrorCode {
     AUTH_TOKEN_EXPIRED = 'AUTH_TOKEN_EXPIRED',
     AUTH_INVALID_TOKEN = 'AUTH_INVALID_TOKEN',
     AUTH_MFA_REQUIRED = 'AUTH_MFA_REQUIRED',
+    RBAC_FORBIDDEN = 'RBAC_FORBIDDEN',
+    RBAC_ROLE_NOT_FOUND = 'RBAC_ROLE_NOT_FOUND',
 }

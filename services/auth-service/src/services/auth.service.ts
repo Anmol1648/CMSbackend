@@ -70,10 +70,16 @@ export const login = serviceHandler(async (email: string, password: string) => {
         };
     }
 
+    const userRoles = await db.userRole.findMany({
+        where: { user_id: user.id, tenant_id: user.tenant_id },
+        select: { role_id: true }
+    });
+
     const payload = {
         userId: user.id,
         email: user.email,
-        tenantId: user.tenant_id
+        tenantId: user.tenant_id,
+        roleIds: userRoles.map(ur => ur.role_id)
     };
 
     const accessToken = generateAccessToken(payload);
@@ -149,11 +155,17 @@ export const verifyMfaLogin = serviceHandler(async (mfaToken: string, otpToken: 
 
 
 
+    const userRoles = await db.userRole.findMany({
+        where: { user_id: user.id, tenant_id: user.tenant_id },
+        select: { role_id: true }
+    });
+
     // 4. Issue real tokens
     const payload = {
         userId: user.id,
         email: user.email,
-        tenantId: user.tenant_id
+        tenantId: user.tenant_id,
+        roleIds: userRoles.map(ur => ur.role_id)
     };
 
     const accessToken = generateAccessToken(payload);
@@ -216,11 +228,17 @@ export const refresh = serviceHandler(async (oldRefreshToken: string) => {
         throw new AppError('User not found or disabled', 403, ErrorCode.AUTH_USER_DISABLED);
     }
 
+    const userRoles = await db.userRole.findMany({
+        where: { user_id: user.id, tenant_id: user.tenant_id },
+        select: { role_id: true }
+    });
+
     // 4. Generate new tokens (Token rotation)
     const payload = {
         userId: user.id,
         email: user.email,
-        tenantId: user.tenant_id
+        tenantId: user.tenant_id,
+        roleIds: userRoles.map(ur => ur.role_id)
     };
 
     const newAccessToken = generateAccessToken(payload);

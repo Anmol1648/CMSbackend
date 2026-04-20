@@ -35,9 +35,12 @@ app.use((req, res, next) => {
     next();
 });
 
+import rbacRoutes from './routes/rbac.routes';
+
 // Routes
 app.use('/', authRoutes);
 app.use('/users', userRoutes);
+app.use('/rbac', rbacRoutes);
 
 app.get('/health', (req, res) => {
     res.json({
