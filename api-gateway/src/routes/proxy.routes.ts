@@ -64,7 +64,7 @@ router.use(['/api/auth/users', '/api/auth/logout', '/api/auth/logout-all'], auth
 
 
 // 2. Generic protected routes for other services
-router.use('/api/students', authenticate, makeProxy(() => process.env.STUDENT_SERVICE_URL!, 'Student Service', '/api/students'));
+router.use('/api/tenants', authenticate, makeProxy(() => process.env.TENANT_SERVICE_URL || 'http://127.0.0.1:4002', 'Tenant Service', '/api/tenants'));
 router.use('/api/rbac', authenticate, createProxyMiddleware({
     target: process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:4001',
     changeOrigin: true,

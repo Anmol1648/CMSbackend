@@ -5,10 +5,16 @@ import { JwtPayload, ErrorCode } from '@shared/core';
 
 import { isTokenBlacklisted, redis } from '../config/redis.config';
 
+type AuthPayload = JwtPayload & {
+    jti?: string;
+    iat?: number;
+    roleIds?: string[];
+};
+
 declare global {
     namespace Express {
         interface Request {
-            user?: JwtPayload;
+            user?: AuthPayload;
         }
     }
 }
@@ -28,7 +34,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     }
 
     try {
-        const payload = jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as JwtPayload;
+        const payload = jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as AuthPayload;
 
         // 1. Check Redis Blacklist (Specific Token)
         if (payload.jti) {
@@ -47,8 +53,6 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         }
 
         req.user = payload;
-
-
 
         req.headers['x-user-id'] = payload.userId;
         req.headers['x-user-email'] = payload.email;

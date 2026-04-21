@@ -17,7 +17,12 @@ app.get('/health', (req, res) => {
     });
 });
 
-app.use('/api/tenants', tenantRouter);
+app.use((req, res, next) => {
+    console.log(`[Tenant Service] ${new Date().toISOString()} ${req.method} ${req.path}`);
+    next();
+});
+
+app.use('/', tenantRouter);
 
 const PORT = process.env.PORT || 4002;
 

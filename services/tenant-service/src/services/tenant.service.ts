@@ -22,8 +22,9 @@ export class TenantService {
   async provisionTenant(data: { name: string; slug: string; domain: string }) {
     // 1. Generate unique DB name and credentials
     const tenantId = uuidv4();
-    const dbName = `tenant_${data.slug}_${Date.now()}`;
-    const dbUser = `usr_${data.slug}_${crypto.randomBytes(4).toString('hex')}`;
+    const safeSlug = data.slug.replace(/-/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    const dbName = `tenant_${safeSlug}_${Date.now()}`;
+    const dbUser = `usr_${safeSlug}_${crypto.randomBytes(4).toString('hex')}`;
     const dbPassword = crypto.randomBytes(16).toString('hex');
 
     // 2. Connect to Master DB to create the new Database and User
@@ -31,10 +32,11 @@ export class TenantService {
     await client.connect();
 
     try {
-      // Postgres doesn't allow parameters for CREATE DATABASE/USER, so we must safely inject
-      // Only alphanumeric and underscores are allowed in our generated names
-      await client.query(`CREATE USER ${dbUser} WITH PASSWORD '${dbPassword}'`);
-      await client.query(`CREATE DATABASE ${dbName} OWNER ${dbUser}`);
+      // Wrap generated identifiers in double quotes to prevent syntax errors
+      await client.query(`CREATE USER "${dbUser}" WITH PASSWORD '${dbPassword}'`);
+      // Since cloud DBs like Neon restrict SET ROLE, explicitly separate creation and grant
+      await client.query(`CREATE DATABASE "${dbName}"`);
+      await client.query(`GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${dbUser}"`);
     } catch (err) {
       await client.end();
       throw new Error(`Failed to create database or user: ${(err as Error).message}`);
@@ -49,7 +51,7 @@ export class TenantService {
       id: tenantId,
       name: data.name,
       slug: data.slug,
-      db_host: this.masterDbConfig.host,
+      db_host: (this.masterDbConfig as any).host || ((this.masterDbConfig as any).connectionString ? new URL((this.masterDbConfig as any).connectionString).hostname : 'localhost'),
       db_name: dbName,
       db_credentials_encrypted: encryptedCredentials,
       domain: data.domain,
