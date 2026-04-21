@@ -1,5 +1,8 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
+import { connectCentralDb } from './central-db';
+import { tenantRouter } from './routes/tenants.router';
+import { startTenantHealthCheck } from './jobs/tenantHealthCheck.job';
 
 const app = express();
 app.use(cors());
@@ -14,7 +17,17 @@ app.get('/health', (req, res) => {
     });
 });
 
-const PORT = 4002;
-app.listen(PORT, () => {
-    console.log('tenant-service microservice listening on http://localhost:' + PORT);
-});
+app.use('/api/tenants', tenantRouter);
+
+const PORT = process.env.PORT || 4002;
+
+async function start() {
+    await connectCentralDb();
+    startTenantHealthCheck();
+
+    app.listen(PORT, () => {
+        console.log('tenant-service microservice listening on http://localhost:' + PORT);
+    });
+}
+
+start();
