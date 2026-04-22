@@ -36,12 +36,21 @@ app.use((req, res, next) => {
 });
 
 import rbacRoutes from './routes/rbac.routes';
+import widgetRoutes from './routes/widget.routes';
+import roleWidgetMappingRoutes from './routes/roleWidgetMapping.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 
 // Routes
 app.use('/', authRoutes);
 app.use('/users', userRoutes);
 app.use('/rbac', rbacRoutes);
-
+app.use('/widgets', widgetRoutes);
+app.use('/role-widget-mappings', roleWidgetMappingRoutes);
+app.use('/dashboard', dashboardRoutes);
+app.use((req, res, next) => {
+    console.log(`[DEBUG] path: "${req.path}" | originalUrl: "${req.originalUrl}"`);
+    next();
+});
 app.get('/health', (req, res) => {
     res.json({
         service: 'auth-service',

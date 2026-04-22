@@ -110,12 +110,13 @@ model Role {
   updatedAt      DateTime  @updatedAt
 
   // Relations
-  parent           Role?             @relation("RoleHierarchy", fields: [parent_role_id], references: [id])
-  children         Role[]            @relation("RoleHierarchy")
-  userRoles        UserRole[]
-  rolePermissions  RolePermission[]
-  roleMenus        RoleMenu[]
-  fieldPermissions FieldPermission[]
+  parent              Role?             @relation("RoleHierarchy", fields: [parent_role_id], references: [id])
+  children            Role[]            @relation("RoleHierarchy")
+  userRoles           UserRole[]
+  rolePermissions     RolePermission[]
+  roleMenus           RoleMenu[]
+  fieldPermissions    FieldPermission[]
+  roleWidgetMappings  RoleWidgetMapping[]
 
   @@unique([slug, tenant_id])
   @@index([tenant_id])
@@ -210,4 +211,49 @@ model FieldPermission {
   @@unique([role_id, model_name, field_name])
   @@map("field_permissions")
 }
+
+// ─── Dashboard Widget Models ──────────────────────────────────────────────────
+
+model Widget {
+  id             String   @id @default(uuid())
+  title          String
+  widget_type    String   // stat | chart | table | calendar | feed
+  sub_type       String?  // bar | line | pie | donut | stat_card | audit_log | user_list
+  config         Json?    // chart colors, axes config, thresholds, etc.
+  query          String   @db.Text  // raw SQL for data-fetching
+  display_name   String?
+  customization  Json?    // icon, color, border-radius, custom CSS class
+  range_enabled  Boolean  @default(false)
+  is_active      Boolean  @default(true)
+  created_by     String?
+  updated_by     String?
+  created_on     DateTime @default(now())
+  updated_on     DateTime @updatedAt
+
+  roleMappings   RoleWidgetMapping[]
+
+  @@map("widgets")
+}
+
+model RoleWidgetMapping {
+  id             String   @id @default(uuid())
+  role_id        String
+  widget_id      String
+  enabled        Boolean  @default(true)
+  display_order  Int      @default(0)
+  height         Int      @default(1)  // grid units
+  width          Int      @default(1)  // grid units (1=quarter, 2=half, 4=full)
+  created_by     String?
+  updated_by     String?
+  created_on     DateTime @default(now())
+  updated_on     DateTime @updatedAt
+
+  role           Role     @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  widget         Widget   @relation(fields: [widget_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, widget_id])
+  @@index([role_id])
+  @@map("role_widget_mapping")
+}
+
 
