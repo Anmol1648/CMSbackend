@@ -19,7 +19,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:status": "prisma migrate status",
     "db:studio": "prisma studio",
-    "tenant:create": "tsx src/scripts/tenant-create.ts"
+    "tenant:create": "tsx src/scripts/tenant-create.ts",
+    "user:reset-password": "tsx src/scripts/reset-password.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
