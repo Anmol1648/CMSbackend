@@ -1,30 +1,28 @@
 import { Request, Response, NextFunction } from 'express';
+import type { DataScope } from '@prisma/client';
 import { AppError } from '../core/errors';
 import { ErrorCode } from '../core/index';
 import { db } from '../core/db';
+import { getUserAccess } from '../modules/rbac/access.service';
 
-/**
- * Interim permission checks (F2). F4 replaces these with the permission registry, data scopes
- * and a per-user cache; the route-level API (can / hasRole) stays the same.
- */
+declare global {
+    namespace Express {
+        interface Request {
+            /** Data scope the user holds for the route's permission (all / assigned / own). */
+            permissionScope?: DataScope;
+        }
+    }
+}
 
-/** True if one of the user's roles is the system role (Super Admin) or grants `key`. */
-export const userHasPermission = async (userId: string, key: string): Promise<boolean> => {
-    const roles = await db.userRole.findMany({
-        where: { userId, role: { deletedAt: null } },
-        select: { role: { select: { isSystem: true, permissions: { where: { permissionKey: key }, select: { scope: true } } } } },
-    });
-    return roles.some((r) => r.role.isSystem || r.role.permissions.length > 0);
-};
-
+/** Allows the request if the user holds `resource.action`; records the scope for the service to apply. */
 export const requirePermission = (resource: string, action: string) => {
     const key = `${resource}.${action}`;
     return async (req: Request, _res: Response, next: NextFunction) => {
         try {
             if (!req.user) return next(new AppError('Unauthorized', 401, ErrorCode.UNAUTHORIZED));
-            if (!(await userHasPermission(req.user.userId, key))) {
-                return next(new AppError('You do not have permission to do this', 403, ErrorCode.FORBIDDEN));
-            }
+            const scope = (await getUserAccess(req.user.userId)).permissions[key];
+            if (!scope) return next(new AppError('You do not have permission to do this', 403, ErrorCode.FORBIDDEN));
+            req.permissionScope = scope;
             next();
         } catch (error) {
             next(error);

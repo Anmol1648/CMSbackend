@@ -1,0 +1,46 @@
+import type { DataScope } from '@prisma/client';
+import { db, Tx } from '../../core/db';
+import { findPermissionDef } from '../../core/registry/permissions';
+
+/**
+ * Starting permissions of the default roles (least privilege). Schools edit them freely afterwards.
+ * Modules add their own entries here as they are built (e.g. Teacher → attendance.mark, scope assigned).
+ * Super Admin isn't listed: it always has everything.
+ */
+export const DEFAULT_GRANTS: Record<string, { key: string; scope?: DataScope }[]> = {
+    'school-admin': [
+        { key: 'school_profile.update' },
+        { key: 'user.view' },
+        { key: 'user.create' },
+        { key: 'user.update' },
+        { key: 'user.reset_password' },
+        { key: 'role.view' },
+    ],
+    principal: [{ key: 'user.view' }, { key: 'role.view' }],
+    teacher: [],
+    'class-teacher': [],
+    'office-staff': [],
+    accountant: [],
+    student: [],
+    guardian: [],
+};
+
+/**
+ * Adds the default grants that are missing for the current school's default roles. Never removes
+ * anything, so it is safe to run again after a module adds new defaults.
+ */
+export const applyDefaultGrants = async (tenantId: string, client: typeof db | Tx = db) => {
+    // tenantId explicitly: this also runs inside runAsSystem (creating a school), where scoping is off.
+    const roles = await client.role.findMany({ where: { tenantId, slug: { in: Object.keys(DEFAULT_GRANTS) } }, select: { id: true, slug: true } });
+    let added = 0;
+    for (const role of roles) {
+        const wanted = (DEFAULT_GRANTS[role.slug] ?? []).filter((g) => findPermissionDef(g.key));
+        if (!wanted.length) continue;
+        const res = await client.rolePermission.createMany({
+            data: wanted.map((g) => ({ tenantId, roleId: role.id, permissionKey: g.key, scope: g.scope ?? 'all' })),
+            skipDuplicates: true,
+        });
+        added += res.count;
+    }
+    return added;
+};

@@ -5,12 +5,16 @@ import { env, isProduction } from './config/env';
 import { globalErrorHandler } from './core/error-handler';
 import { errorResponse } from './core/response';
 import { getRequestId } from './core/context';
-import { assertRoutesProtected } from './core/http/route-guard';
+import { assertRoutesProtected, listRoutes } from './core/http/route-guard';
+import { findPermissionDef } from './core/registry/permissions';
 import { publicRoute } from './middlewares/access';
 import { requestContext } from './middlewares/request-context';
 import { tenantFromHost } from './middlewares/tenant';
+import './modules/registry';
 import { publicSchoolRoutes, schoolProfileRoutes } from './modules/school-profile';
 import { authRoutes } from './modules/auth';
+import { meRoutes, roleRoutes } from './modules/rbac/rbac.routes';
+import { userRoutes } from './modules/users/users.routes';
 
 export const app = express();
 
@@ -49,6 +53,9 @@ app.use('/api', tenantFromHost);
 app.use('/api/auth', authRoutes);
 app.use('/api/public/school', publicSchoolRoutes);
 app.use('/api/school-profile', schoolProfileRoutes);
+app.use('/api/me', meRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/users', userRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());
@@ -57,5 +64,9 @@ app.use((req: Request, res: Response) => {
 // ─── Global Error Handler ────────────────────────────────────────────────────
 app.use(globalErrorHandler);
 
-// Refuse to start if any route lacks an access rule.
+// Refuse to start if any route lacks an access rule, or checks a permission nobody registered (a typo).
 assertRoutesProtected(app);
+const unknownPermissions = listRoutes(app)
+    .filter((r) => r.access?.startsWith('can:') && !findPermissionDef(r.access.slice(4)))
+    .map((r) => `  - ${r.method} ${r.path} checks "${r.access!.slice(4)}"`);
+if (unknownPermissions.length) throw new Error(`Routes check permissions that are not registered:\n${unknownPermissions.join('\n')}`);

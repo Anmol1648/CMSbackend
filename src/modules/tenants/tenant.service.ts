@@ -5,6 +5,9 @@ import { runAsSystem } from '../../core/context';
 import { conflict, validationError } from '../../core/errors';
 import { generateTemporaryPassword, hashPassword } from '../../core/password';
 import { DEFAULT_ROLES, SUPER_ADMIN_SLUG } from './default-roles';
+import { applyDefaultGrants } from '../rbac/default-grants';
+import { syncPermissions } from '../../core/registry/permissions';
+import '../registry';
 
 /**
  * Schools (tenants). A school is a row here; all its data lives in the shared tables with its tenant_id.
@@ -49,6 +52,9 @@ export const createTenant = async (input: CreateTenantInput): Promise<CreatedTen
     const temporaryPassword = generateTemporaryPassword();
     const passwordHash = await hashPassword(temporaryPassword);
 
+    // Default grants point at permissions, so the catalogue must exist first (e.g. from the command line).
+    await syncPermissions();
+
     return runAsSystem(async () => {
         const clash = await db.tenant.findFirst({
             where: { OR: [{ code: data.code }, ...(data.domain ? [{ domain: data.domain }] : [])] },
@@ -84,6 +90,7 @@ export const createTenant = async (input: CreateTenantInput): Promise<CreatedTen
                 },
             });
             await tx.userRole.create({ data: { tenantId: tenant.id, userId: admin.id, roleId: superAdmin.id } });
+            await applyDefaultGrants(tenant.id, tx);
 
             return { tenant, admin: { id: admin.id, username: admin.username, temporaryPassword } };
         });
