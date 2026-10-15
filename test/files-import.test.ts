@@ -75,6 +75,8 @@ describe('school logo', () => {
         const img = await request(app).get('/api/public/school/logo').set('Origin', ORIGIN).buffer(true).parse(binary);
         expect(img.status).toBe(200);
         expect(img.headers['content-type']).toBe('image/png');
+        // The frontend is on another origin; the browser must be allowed to show the image.
+        expect(img.headers['cross-origin-resource-policy']).toBe('cross-origin');
         expect(Buffer.compare(img.body as Buffer, PNG)).toBe(0);
 
         const removed = await request(app).delete('/api/school-profile/logo').set('Origin', ORIGIN).set('Authorization', superAdmin);

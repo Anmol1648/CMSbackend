@@ -23,7 +23,9 @@ export const app = express();
 
 // ─── Platform ────────────────────────────────────────────────────────────────
 app.set('trust proxy', env.TRUST_PROXY);
-app.use(helmet());
+// The frontend runs on another origin of the same site (localhost:3000 / erp.school.in vs the API on
+// localhost:8000 / api.erp.school.in), so responses such as the logo may be used "same-site".
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'same-site' } }));
 
 // Development default: localhost and LAN addresses on any port. Production: only CORS_ORIGINS.
 const devOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3})(:\d+)?$/;

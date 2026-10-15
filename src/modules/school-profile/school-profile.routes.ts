@@ -42,5 +42,7 @@ publicSchoolRoutes.get('/logo', publicRoute, asyncHandler(async (req: Request, r
     const tenant = code && /^[a-z0-9-]{2,40}$/.test(code) ? await findTenantByCode(code) : null;
     const load = () => service.schoolLogo();
     const { file, data } = tenant?.status === 'active' ? await runAsTenant(tenant.id, load) : await load();
+    // The logo is public branding: any page (even on another domain) may show it.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     sendFile(res, file.originalName, file.mimeType, data, { inline: true, cacheSeconds: 86_400 });
 }));
