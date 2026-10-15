@@ -1,0 +1,62 @@
+import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { AppError } from '../core/errors';
+import { ErrorCode } from '../core/index';
+
+
+export const validate = (schema: z.ZodObject<any>) => {
+    return async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            await schema.parseAsync({
+                body: req.body, 
+                query: req.query,
+                params: req.params,
+            });
+            return next();
+        } catch (error) {
+            if (error instanceof z.ZodError) {
+                return next(new AppError(
+                    "Validation failed",
+                    400,
+                    ErrorCode.VALIDATION_ERROR
+                ));
+            }
+            return next(error);
+        }
+    };
+};
+
+export const loginSchema = z.object({
+    body: z.object({
+        email: z.string().email("Invalid email format").min(1, "Email is required"),
+        password: z.string().min(1, "Password is required"),
+    }),
+});
+
+export const refreshSchema = z.object({
+    body: z.object({
+        refreshToken: z.string().min(1, "Refresh token is required"),
+    }),
+});
+
+export const changePasswordSchema = z.object({
+    body: z.object({
+        oldPassword: z.string().min(1, "Current password is required"),
+        newPassword: z.string().min(6, "New password must be at least 6 characters"),
+    }),
+});
+
+export const forgotPasswordSchema = z.object({
+    body: z.object({
+        email: z.string().email("Invalid email format").min(1, "Email is required"),
+    }),
+});
+
+export const resetPasswordSchema = z.object({
+    body: z.object({
+        email: z.string().email("Invalid email format").min(1, "Email is required"),
+        otp: z.string().length(6, "OTP must be exactly 6 digits"),
+        newPassword: z.string().min(8, "New password must be at least 8 characters"),
+    }),
+});
+
