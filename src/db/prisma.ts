@@ -1,3 +1,4 @@
+import { logger } from '../core/logger';
 import { PrismaClient } from '@prisma/client';
 import { setAuditFields, getCurrentUser } from '../core/index';
 
@@ -62,7 +63,7 @@ const db = prisma.$extends({
                             new_values: operation.includes('delete') ? undefined : (result || (args as any).data),
                             user_id: user?.id || 'system'
                         }
-                    }).catch(err => console.error('[AuditLog Error]', err));
+                    }).catch(err => logger.error('Audit log write failed', { error: err }));
                 }
 
                 return result;

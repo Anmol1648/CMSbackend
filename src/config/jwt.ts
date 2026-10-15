@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import { JwtPayload } from '../core/index';
+import { logger } from '../core/logger';
 
-dotenv.config();
+import './env';
 
 const rawKey = process.env.JWT_PRIVATE_KEY || '';
 const PRIVATE_KEY = Buffer.from(
@@ -16,10 +16,8 @@ const PRIVATE_KEY = Buffer.from(
     'utf-8'
 );
 
-if (PRIVATE_KEY.length > 0) {
-    console.log('[JWT-OK] Private key loaded. Starts with:', PRIVATE_KEY.slice(0, 20).toString());
-} else {
-    console.error('[JWT-ERROR] Private key is EMPTY.');
+if (PRIVATE_KEY.length === 0) {
+    logger.error('JWT_PRIVATE_KEY is empty: tokens cannot be issued');
 }
 
 // Public half of the signing key, used to verify access tokens.
@@ -36,7 +34,7 @@ export const generateAccessToken = (payload: JwtPayload): string => {
             jwtid: uuidv4()
         });
     } catch (error: any) {
-        console.error('[JWT Error] Access token generation failed:', error.message);
+        logger.error('Access token generation failed', { error: error.message });
         throw error;
     }
 };
@@ -49,7 +47,7 @@ export const generateRefreshToken = (payload: JwtPayload): string => {
             jwtid: uuidv4()
         });
     } catch (error: any) {
-        console.error('[JWT Error] Refresh token generation failed:', error.message);
+        logger.error('Refresh token generation failed', { error: error.message });
         throw error;
     }
 };
@@ -62,7 +60,7 @@ export const generateMfaChallengeToken = (userId: string): string => {
             jwtid: uuidv4()
         });
     } catch (error: any) {
-        console.error('[JWT Error] MFA challenge token generation failed:', error.message);
+        logger.error('MFA challenge token generation failed', { error: error.message });
         throw error;
     }
 };

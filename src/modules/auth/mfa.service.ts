@@ -1,3 +1,4 @@
+import { logger } from '../../core/logger';
 import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from 'otplib';
 import * as QRCode from 'qrcode';
 
@@ -39,7 +40,7 @@ export const verifyMfaToken = async (token: string, secret: string): Promise<boo
         });
         return result.valid;
     } catch (error) {
-        console.error('[MFA] Verification error:', error);
+        logger.error('MFA verification error', { error });
         return false;
     }
 };

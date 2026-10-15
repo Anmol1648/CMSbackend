@@ -212,8 +212,6 @@ export const previewWidgetQuery = serviceHandler(async (
             executionTime
         };
     } catch (error: any) {
-        const executionTime = Date.now() - startTime;
-
         // Check for timeout
         if (error.message?.includes('statement timeout') || error.message?.includes('canceling statement')) {
             throw new AppError(

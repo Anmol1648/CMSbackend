@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { redis } from '../config/redis';
+import { cache } from '../core/cache';
 import { AppError } from '../core/errors';
 import { ErrorCode } from '../core/index';
+import { logger } from '../core/logger';
 
 interface RateLimitOptions {
     windowInMinutes: number;
@@ -10,37 +11,26 @@ interface RateLimitOptions {
 }
 
 /**
- * Enhanced Redis-based Rate Limiter for sensitive endpoints (MFA, Login)
+ * Counts requests per client IP in a fixed window (cache store: Redis or in-memory).
+ * Used on sensitive endpoints (login, MFA, password reset).
  */
 export const createRateLimiter = (options: RateLimitOptions) => {
     return async (req: Request, res: Response, next: NextFunction) => {
-        // Use IP address + optional user identifier as the key
-        const identifier = req.ip || req.headers['x-forwarded-for'] || 'unknown';
-        const key = `ratelimit:${options.keyPrefix}:${identifier}`;
+        const key = `ratelimit:${options.keyPrefix}:${req.ip || 'unknown'}`;
 
         try {
-            const currentAttempts = await redis.get(key);
-            const attempts = currentAttempts ? parseInt(currentAttempts) : 0;
-
-            if (attempts >= options.maxAttempts) {
+            const attempts = await cache.incr(key, options.windowInMinutes * 60);
+            if (attempts > options.maxAttempts) {
                 return next(new AppError(
-                    `Too many attempts. Please try again in ${options.windowInMinutes} minutes.`, 
-                    429, 
-                    ErrorCode.INTERNAL_SERVER_ERROR // Use a generic 429 later
+                    `Too many attempts. Please try again in ${options.windowInMinutes} minutes.`,
+                    429,
+                    ErrorCode.TOO_MANY_REQUESTS
                 ));
             }
-
-            // Increment and set expiry if it's the first attempt
-            if (attempts === 0) {
-                await redis.set(key, '1', 'EX', options.windowInMinutes * 60);
-            } else {
-                await redis.incr(key);
-            }
-
             next();
         } catch (error) {
-            // If Redis fails, we allow the request but log it (don't block the user due to infra issues)
-            console.error('[RateLimiter] Redis error:', error);
+            // Don't lock users out because the cache is down; log it instead.
+            logger.error('Rate limiter cache error', { error: (error as Error).message });
             next();
         }
     };

@@ -1,38 +1,26 @@
-import Redis from 'ioredis';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-
-export const redis = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-});
-
-redis.on('connect', () => {
-    console.log('[Redis] Connected successfully');
-});
-
-redis.on('error', (err) => {
-    console.error('[Redis] Connection error:', err);
-});
+import { cache } from '../core/cache';
 
 /**
- * Blacklist a token by its jti
- * @param jti The unique ID of the token
- * @param expirySeconds Expiry time in seconds (matching the token's remaining life)
+ * Token revocation helpers on top of the cache store (Redis when configured, otherwise in-memory).
  */
+
+/** Blacklist a token by its jti until it would have expired anyway. */
 export const blacklistToken = async (jti: string, expirySeconds: number) => {
     if (expirySeconds > 0) {
-        await redis.set(`blacklist:${jti}`, 'true', 'EX', expirySeconds);
+        await cache.set(`blacklist:${jti}`, 'true', expirySeconds);
     }
 };
 
-/**
- * Check if a token's jti is blacklisted
- * @param jti The unique ID of the token
- */
 export const isTokenBlacklisted = async (jti: string): Promise<boolean> => {
-    const result = await redis.get(`blacklist:${jti}`);
-    return result === 'true';
+    return (await cache.get(`blacklist:${jti}`)) === 'true';
+};
+
+/** Tokens issued before this moment (seconds) are rejected — "log out everywhere". */
+export const revokeTokensIssuedBefore = async (userId: string, epochSeconds: number, ttlSeconds: number) => {
+    await cache.set(`user:revoke_before:${userId}`, String(epochSeconds), ttlSeconds);
+};
+
+export const getRevokeBefore = async (userId: string): Promise<number | null> => {
+    const value = await cache.get(`user:revoke_before:${userId}`);
+    return value ? parseInt(value, 10) : null;
 };

@@ -1,5 +1,5 @@
 import { db } from '../../db/prisma';
-import { redis } from '../../config/redis';
+import { cache } from '../../core/cache';
 import { serviceHandler } from '../../core/index';
 
 export interface RBACCondition {
@@ -45,7 +45,7 @@ export const getPermissionSet = serviceHandler(async (userId: string, tenantId: 
     const cacheKey = `rbac:${tenantId}:${userId}`;
 
     // 1. Try Cache
-    const cached = await redis.get(cacheKey);
+    const cached = await cache.get(cacheKey);
     if (cached) {
         return JSON.parse(cached);
     }
@@ -114,7 +114,7 @@ export const getPermissionSet = serviceHandler(async (userId: string, tenantId: 
     const resolvedPermissions = Array.from(permissionsMap.values());
 
     // 4. Cache it (300 seconds = 5 minutes)
-    await redis.set(cacheKey, JSON.stringify(resolvedPermissions), 'EX', 300);
+    await cache.set(cacheKey, JSON.stringify(resolvedPermissions), 300);
 
     return resolvedPermissions;
 });
@@ -184,22 +184,8 @@ export const evaluateCondition = (condition: RBACCondition | null, userContext: 
 
 export const invalidateCache = serviceHandler(async (tenantId: string, userId?: string) => {
     if (userId) {
-        await redis.del(`rbac:${tenantId}:${userId}`);
+        await cache.del(`rbac:${tenantId}:${userId}`);
     } else {
-        // Find all keys starting with rbac:{tenantId}:
-        const stream = redis.scanStream({
-            match: `rbac:${tenantId}:*`,
-            count: 100
-        });
-
-        stream.on('data', async (keys: string[]) => {
-            if (keys.length) {
-                const pipeline = redis.pipeline();
-                keys.forEach(key => pipeline.del(key));
-                await pipeline.exec();
-            }
-        });
-        
-        await new Promise((resolve) => stream.on('end', resolve));
+        await cache.delPrefix(`rbac:${tenantId}:`);
     }
 });

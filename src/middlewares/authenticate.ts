@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError, JwtPayload, ErrorCode, runWithUser } from '../core/index';
 import { verifyAccessToken } from '../config/jwt';
-import { isTokenBlacklisted, redis } from '../config/redis';
+import { isTokenBlacklisted, getRevokeBefore } from '../config/redis';
 
 declare global {
     namespace Express {
@@ -37,8 +37,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
         // 2. Check Global Revocation (Logout from All Devices)
         if (payload.userId && payload.iat) {
-            const revokeBefore = await redis.get(`user:revoke_before:${payload.userId}`);
-            if (revokeBefore && payload.iat < parseInt(revokeBefore)) {
+            const revokeBefore = await getRevokeBefore(payload.userId);
+            if (revokeBefore && payload.iat < revokeBefore) {
                 return next(new AppError('Session has been invalidated globally. Please login again.', 401, ErrorCode.UNAUTHORIZED));
             }
         }

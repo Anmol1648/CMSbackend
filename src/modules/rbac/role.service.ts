@@ -1,6 +1,6 @@
 import { db } from '../../db/prisma';
 import { serviceHandler, ErrorCode } from '../../core/index';
-import { invalidateCache, getPermissionSet, buildMenuTree } from './rbac.service';
+import { invalidateCache, buildMenuTree } from './rbac.service';
 import { AppError } from '../../core/errors';
 
 export const createRole = serviceHandler(async (tenantId: string, data: any) => {

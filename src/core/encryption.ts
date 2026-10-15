@@ -1,12 +1,9 @@
 import crypto from 'crypto';
-import dotenv from 'dotenv';
 
-dotenv.config();
 
 const ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY || ''; // 32 bytes hex
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // Standard for GCM
-const AUTH_TAG_LENGTH = 16;
 
 /**
  * Encrypt a plain text secret using AES-256-GCM

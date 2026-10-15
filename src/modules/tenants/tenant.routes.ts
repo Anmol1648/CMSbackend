@@ -3,11 +3,12 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { asyncHandler, AppError, ErrorCode } from '../../core/index';
 import { db } from '../../db/prisma';
+import { hasRole } from '../../middlewares/access';
 
 /**
  * Tenants (schools) live as rows in the one shared database — no database is created per tenant.
  * Interim module kept on the existing `tenants` table; the foundation redesign replaces it with a Prisma model.
- * Mounted behind authenticate + requireRole('super-admin').
+ * Super Admin only.
  */
 
 const router = Router();
@@ -29,13 +30,13 @@ const findTenant = async (id: string) => {
 };
 
 // GET /api/tenants — list all
-router.get('/', asyncHandler(async (req: Request, res: Response) => {
+router.get('/', hasRole('super-admin'), asyncHandler(async (req: Request, res: Response) => {
     const tenants = await db.$queryRawUnsafe<any[]>(`SELECT ${SAFE_COLUMNS} FROM tenants ORDER BY "createdAt"`);
     res.json({ success: true, data: tenants });
 }));
 
 // POST /api/tenants — onboard a new school
-router.post('/', asyncHandler(async (req: Request, res: Response) => {
+router.post('/', hasRole('super-admin'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) throw new AppError(parsed.error.issues[0]?.message || 'Missing required fields', 400, ErrorCode.VALIDATION_ERROR);
     const { name, slug, domain } = parsed.data;
@@ -53,19 +54,19 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // GET /api/tenants/:id — detail + health status
-router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id', hasRole('super-admin'), asyncHandler(async (req: Request, res: Response) => {
     const tenant = await findTenant(req.params.id);
     res.json({ success: true, data: { ...tenant, isHealthy: tenant.status === 'active' } });
 }));
 
 // POST /api/tenants/:id/migrate — kept for the existing UI; migrations run once for the shared database
-router.post('/:id/migrate', asyncHandler(async (req: Request, res: Response) => {
+router.post('/:id/migrate', hasRole('super-admin'), asyncHandler(async (req: Request, res: Response) => {
     await findTenant(req.params.id);
     res.json({ success: true, message: 'All schools share one database; migrations are applied once with `npm run db:migrate`.' });
 }));
 
 // PATCH /api/tenants/:id/status — activate/suspend
-router.patch('/:id/status', asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/status', hasRole('super-admin'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = statusSchema.safeParse(req.body);
     if (!parsed.success) throw new AppError('Invalid status', 400, ErrorCode.VALIDATION_ERROR);
     await findTenant(req.params.id);

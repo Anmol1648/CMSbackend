@@ -1,25 +1,19 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { AppError } from '../core/errors';
-import { ErrorCode } from '../core/index';
-
+import { validationError } from '../core/errors';
 
 export const validate = (schema: z.ZodObject<any>) => {
     return async (req: Request, res: Response, next: NextFunction) => {
         try {
             await schema.parseAsync({
-                body: req.body, 
+                body: req.body,
                 query: req.query,
                 params: req.params,
             });
             return next();
         } catch (error) {
             if (error instanceof z.ZodError) {
-                return next(new AppError(
-                    "Validation failed",
-                    400,
-                    ErrorCode.VALIDATION_ERROR
-                ));
+                return next(validationError(error, true));
             }
             return next(error);
         }

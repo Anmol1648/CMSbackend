@@ -1,21 +1,21 @@
 import { Router } from 'express';
 import * as userController from './user.controller';
-import { authenticate } from '../../middlewares/authenticate';
+import { authenticated } from '../../middlewares/access';
 import { validate, changePasswordSchema } from '../../middlewares/validate';
 import multer from 'multer';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.get('/profile', authenticate, userController.getProfile);
-router.put('/profile', authenticate, userController.updateProfile);
-router.post('/profile/avatar', authenticate, upload.single('avatar'), userController.updateAvatar);
-router.post('/change-password', authenticate, validate(changePasswordSchema), userController.changePassword);
+router.get('/profile', authenticated, userController.getProfile);
+router.put('/profile', authenticated, userController.updateProfile);
+router.post('/profile/avatar', authenticated, upload.single('avatar'), userController.updateAvatar);
+router.post('/change-password', authenticated, validate(changePasswordSchema), userController.changePassword);
 
 // MFA Routes
-router.post('/mfa/setup', authenticate, userController.setupMfa);
-router.post('/mfa/enable', authenticate, userController.enableMfa);
-router.post('/mfa/disable', authenticate, userController.disableMfa);
+router.post('/mfa/setup', authenticated, userController.setupMfa);
+router.post('/mfa/enable', authenticated, userController.enableMfa);
+router.post('/mfa/disable', authenticated, userController.disableMfa);
 
 export default router;
 

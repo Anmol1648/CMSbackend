@@ -431,7 +431,7 @@ export const logoutAll = serviceHandler(async (userId: string) => {
     // 2. Set "Revoke Before" timestamp in Redis (Global Revocation)
     // We set it to expire in 15 minutes (max access token lifespan)
     const now = Math.floor(Date.now() / 1000);
-    await redis.redis.set(`user:revoke_before:${userId}`, now.toString(), 'EX', 15 * 60);
+    await redis.revokeTokensIssuedBefore(userId, now, 15 * 60);
 
     return { message: "Successfully logged out from all devices" };
 });

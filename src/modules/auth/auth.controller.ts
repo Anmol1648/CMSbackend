@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import * as authService from './auth.service';
 import { asyncHandler, successResponse } from '../../core/index';
 
@@ -42,7 +43,6 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
     }
 
     // Decode token to get jti and exp
-    const jwt = require('jsonwebtoken');
     const decoded = jwt.decode(accessToken) as any;
 
     const response = await authService.logout(

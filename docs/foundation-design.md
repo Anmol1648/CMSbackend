@@ -91,8 +91,8 @@ cmsbackend/
 ### 3.3 API conventions
 
 - **Base path** `/api`. Resources are plural and kebab-case (`/api/users`, `/api/roles`, `/api/system-settings`).
-- **Success response** `{ "data": … , "message"?: "…" }`
-- **Error response** `{ "error": { "code": "VALIDATION_ERROR", "message": "…", "details"?: [{ "field": "email", "message": "Invalid email" }] }, "requestId": "…" }`
+- **Success response** `{ "status": "success", "data": … , "message"?: "…", "timestamp": "…" }` (the envelope the frontend already reads)
+- **Error response** `{ "status": "error", "error": { "code": "VALIDATION_ERROR", "message": "…", "details"?: [{ "field": "email", "message": "Invalid email" }] }, "requestId": "…", "timestamp": "…" }`
   - Validation errors list the bad fields. The current code only says "Validation failed".
   - 500 errors never expose internal messages. The `requestId` matches the server log line.
 - **Lists:** `GET /api/users?page=1&pageSize=25&sort=name&order=asc&search=ram&filter[status]=active`
