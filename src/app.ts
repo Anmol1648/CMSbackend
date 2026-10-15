@@ -15,6 +15,7 @@ import { publicSchoolRoutes, schoolProfileRoutes } from './modules/school-profil
 import { authRoutes } from './modules/auth';
 import { meRoutes, roleRoutes } from './modules/rbac/rbac.routes';
 import { userRoutes } from './modules/users/users.routes';
+import { settingsRoutes } from './modules/settings/settings.routes';
 
 export const app = express();
 
@@ -56,6 +57,7 @@ app.use('/api/school-profile', schoolProfileRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

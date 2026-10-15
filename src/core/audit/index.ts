@@ -8,7 +8,8 @@ import { logger } from '../logger';
  * An audit failure is logged but never fails the user's request.
  */
 
-const SECRET_FIELDS = /password|secret|token|hash|code/i;
+// Field names holding secrets. Dotted keys are settings (e.g. passwords.min_length) and are kept.
+const SECRET_FIELDS = /^(password|passwordHash|password_hash|mfaSecretEnc|mfa_secret_enc|secret|token|refreshToken|codeHash|code_hash|code)$/i;
 
 export interface AuditEvent {
     action: string;

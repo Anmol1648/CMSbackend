@@ -85,3 +85,91 @@ export const setSetting = async <T>(def: SettingDef<T>, value: T | undefined, us
     }
     await cache.del(cacheKey(tenantId));
 };
+
+// ─── For the System Settings screen ──────────────────────────────────────────
+
+/** Number limits read from the zod schema (for the input's min / max). */
+const numberLimits = (def: SettingDef) => {
+    const s = def.schema as unknown as { minValue?: number | null; maxValue?: number | null };
+    return def.type === 'number' ? { min: s.minValue ?? null, max: s.maxValue ?? null } : {};
+};
+
+/** Every visible setting with the school's current value, grouped in declaration order. */
+export const settingsSnapshot = async () => {
+    const tenantId = getTenantId();
+    if (!tenantId) throw new Error('settingsSnapshot needs a school in context');
+    const rows = await db.tenantSetting.findMany();
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    const groups: { group: string; settings: unknown[] }[] = [];
+    for (const def of listSettingDefs().filter((d) => !d.hidden)) {
+        const row = byKey.get(def.key);
+        const stored = row ? def.schema.safeParse(row.value) : null;
+        const item = {
+            key: def.key,
+            label: def.label,
+            help: def.help ?? null,
+            type: def.type,
+            options: def.options ?? null,
+            default: def.default,
+            value: stored?.success ? stored.data : def.default,
+            isDefault: !stored?.success,
+            updatedAt: stored?.success ? row!.updatedAt : null,
+            updatedBy: stored?.success ? row!.updatedBy : null,
+            ...numberLimits(def),
+        };
+        let group = groups.find((g) => g.group === def.group);
+        if (!group) groups.push((group = { group: def.group, settings: [] }));
+        group.settings.push(item);
+    }
+    return groups;
+};
+
+/**
+ * Saves several settings at once (all or nothing). `null` resets a setting to its default.
+ * Returns what actually changed as { key: [old, new] }.
+ */
+export const saveSettings = async (changes: Record<string, unknown>, userId: string) => {
+    const tenantId = getTenantId();
+    if (!tenantId) throw new Error('saveSettings needs a school in context');
+    const issues: { field: string; message: string }[] = [];
+    const parsed: { def: SettingDef; value: unknown | null }[] = [];
+    for (const [key, raw] of Object.entries(changes)) {
+        const def = findSettingDef(key);
+        if (!def || def.hidden) {
+            issues.push({ field: key, message: 'is not a known setting' });
+            continue;
+        }
+        if (raw === null) {
+            parsed.push({ def, value: null });
+            continue;
+        }
+        const result = def.schema.safeParse(raw);
+        if (result.success) parsed.push({ def, value: result.data });
+        else issues.push({ field: key, message: result.error.issues[0]?.message ?? 'is not valid' });
+    }
+    if (issues.length) {
+        const err = new Error('Some settings are not valid') as Error & { issues: typeof issues };
+        err.issues = issues;
+        throw err;
+    }
+
+    const before = new Map((await db.tenantSetting.findMany({ where: { key: { in: parsed.map((p) => p.def.key) } } })).map((r) => [r.key, r.value]));
+    const diff: Record<string, [unknown, unknown]> = {};
+    await db.$transaction(
+        parsed.map(({ def, value }) => {
+            const old = before.has(def.key) ? before.get(def.key) : def.default;
+            const next = value === null ? def.default : value;
+            if (JSON.stringify(old) !== JSON.stringify(next)) diff[def.key] = [old, next];
+            // Storing a value equal to the default is the same as resetting it.
+            return value === null || JSON.stringify(value) === JSON.stringify(def.default)
+                ? db.tenantSetting.deleteMany({ where: { key: def.key } })
+                : db.tenantSetting.upsert({
+                      where: { tenantId_key: { tenantId, key: def.key } },
+                      create: { tenantId, key: def.key, value: value as object, updatedBy: userId },
+                      update: { value: value as object, updatedBy: userId },
+                  });
+        })
+    );
+    await cache.del(cacheKey(tenantId));
+    return diff;
+};
