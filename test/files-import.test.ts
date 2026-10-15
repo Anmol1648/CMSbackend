@@ -64,7 +64,7 @@ describe('file type checks', () => {
 
 describe('school logo', () => {
     it('uploads, shows publicly for the sign-in page, and can be removed', async () => {
-        const up = await request(app).post('/api/school-profile/logo').set('Origin', ORIGIN).set('Authorization', superAdmin).attach('logo', PNG, 'crest.png');
+        const up = await request(app).post('/api/school-profile/logo').set('Origin', ORIGIN).set('Authorization', superAdmin).attach('image', PNG, 'crest.png');
         expect(up.status).toBe(200);
         expect(up.body.data.logoFileId).toBeTruthy();
 
@@ -84,14 +84,43 @@ describe('school logo', () => {
         expect((await request(app).get('/api/public/school/logo').set('Origin', ORIGIN)).status).toBe(404);
     });
 
+    it('sets the sign-in page background, focus, darkening and quote', async () => {
+        const up = await request(app).post('/api/school-profile/login-background').set('Origin', ORIGIN).set('Authorization', superAdmin).attach('image', PNG, 'campus.png');
+        expect(up.status).toBe(200);
+        const saved = await request(app)
+            .patch('/api/school-profile')
+            .set('Origin', ORIGIN)
+            .set('Authorization', superAdmin)
+            .send({ loginBackgroundFocus: 'top', loginOverlay: 40, loginQuote: 'Tamaso ma jyotirgamaya', loginQuoteAuthor: 'Upanishads' });
+        expect(saved.status).toBe(200);
+
+        const branding = await request(app).get('/api/public/school').set('Origin', ORIGIN);
+        expect(branding.body.data.login).toEqual({
+            backgroundUrl: `public/school/login-background?school=alpha&v=${up.body.data.loginBackgroundFileId}`,
+            backgroundFocus: 'top',
+            overlay: 40,
+            quote: 'Tamaso ma jyotirgamaya',
+            quoteAuthor: 'Upanishads',
+        });
+        const img = await request(app).get('/api/public/school/login-background?school=alpha');
+        expect(img.status).toBe(200);
+        expect(img.headers['cross-origin-resource-policy']).toBe('cross-origin');
+
+        const bad = await request(app).patch('/api/school-profile').set('Origin', ORIGIN).set('Authorization', superAdmin).send({ loginOverlay: 95, loginBackgroundFocus: 'middle' });
+        expect(bad.body.error.details.map((d: { field: string }) => d.field).sort()).toEqual(['loginBackgroundFocus', 'loginOverlay']);
+
+        await request(app).delete('/api/school-profile/login-background').set('Origin', ORIGIN).set('Authorization', superAdmin);
+        expect((await request(app).get('/api/public/school').set('Origin', ORIGIN)).body.data.login.backgroundUrl).toBeNull();
+    });
+
     it('refuses files that are not images, whatever their name', async () => {
-        const res = await request(app).post('/api/school-profile/logo').set('Origin', ORIGIN).set('Authorization', superAdmin).attach('logo', Buffer.from('not an image'), 'fake.png');
+        const res = await request(app).post('/api/school-profile/logo').set('Origin', ORIGIN).set('Authorization', superAdmin).attach('image', Buffer.from('not an image'), 'fake.png');
         expect(res.status).toBe(400);
         expect(res.body.error.message).toContain('not accepted');
     });
 
     it('needs permission to change', async () => {
-        expect((await request(app).post('/api/school-profile/logo').set('Origin', ORIGIN).set('Authorization', teacher).attach('logo', PNG, 'x.png')).status).toBe(403);
+        expect((await request(app).post('/api/school-profile/logo').set('Origin', ORIGIN).set('Authorization', teacher).attach('image', PNG, 'x.png')).status).toBe(403);
     });
 });
 

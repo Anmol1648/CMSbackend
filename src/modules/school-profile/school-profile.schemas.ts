@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 const TIME_ZONES = new Set(Intl.supportedValuesOf('timeZone'));
 export const DATE_FORMATS = ['DD-MM-YYYY', 'DD/MM/YYYY', 'MM-DD-YYYY', 'YYYY-MM-DD'] as const;
+/** Which part of the sign-in background stays visible when the photo is cropped to the panel. */
+export const LOGIN_FOCUS = ['center', 'top', 'bottom', 'left', 'right'] as const;
 
 /** Optional text: trimmed, empty string clears the value (null). */
 const text = (max: number, pattern?: RegExp, message?: string) => {
@@ -52,6 +54,11 @@ export const updateSchoolProfileSchema = z
             .regex(/^[A-Z]{3}$/, 'must be a 3-letter code like INR')
             .optional(),
         academicYearStartMonth: z.number().int().min(1).max(12).optional(),
+        // Sign-in page
+        loginBackgroundFocus: z.enum(LOGIN_FOCUS).optional(),
+        loginOverlay: z.number().int().min(0).max(90).optional(),
+        loginQuote: text(300),
+        loginQuoteAuthor: text(100),
         /** The updatedAt the editor loaded; if the profile changed since, the save is refused (409). */
         updatedAt: z.string().datetime({ offset: true }).optional(),
     })

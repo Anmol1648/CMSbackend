@@ -104,7 +104,15 @@ describe('GET /api/public/school (sign-in page branding)', () => {
     it("shows the school matching the page's address", async () => {
         const res = await request(app).get('/api/public/school').set('Origin', 'https://alpha.test.in');
         expect(res.status).toBe(200);
-        expect(res.body.data).toEqual({ code: 'alpha', name: 'Alpha', legalName: 'Alpha School', logoUrl: null, dateFormat: 'DD-MM-YYYY', timeZone: 'Asia/Kolkata' });
+        expect(res.body.data).toEqual({
+            code: 'alpha',
+            name: 'Alpha',
+            legalName: 'Alpha School',
+            logoUrl: null,
+            dateFormat: 'DD-MM-YYYY',
+            timeZone: 'Asia/Kolkata',
+            login: { backgroundUrl: null, backgroundFocus: 'center', overlay: 60, quote: null, quoteAuthor: null },
+        });
     });
 
     it('is 404 when no school matches and no default is set', async () => {

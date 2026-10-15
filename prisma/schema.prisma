@@ -72,13 +72,22 @@ model SchoolProfile {
   currency               String   @default("INR")
   /// 1 = January … 12 = December
   academicYearStartMonth Int      @default(4) @map("academic_year_start_month") @db.SmallInt
+  // Sign-in page (left panel)
+  loginBackgroundFileId  String?  @map("login_background_file_id") @db.Uuid
+  /// Which part of the photo stays visible when it is cropped: center / top / bottom / left / right
+  loginBackgroundFocus   String   @default("center") @map("login_background_focus")
+  /// Darkening over the photo so white text stays readable, 0–90 (%)
+  loginOverlay           Int      @default(60) @map("login_overlay") @db.SmallInt
+  loginQuote             String?  @map("login_quote")
+  loginQuoteAuthor       String?  @map("login_quote_author")
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy              String?  @map("created_by") @db.Uuid
   updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy              String?  @map("updated_by") @db.Uuid
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  logo   File?  @relation(fields: [logoFileId], references: [id], onDelete: SetNull)
+  tenant          Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  logo            File?  @relation(fields: [logoFileId], references: [id], onDelete: SetNull)
+  loginBackground File?  @relation("SchoolLoginBackground", fields: [loginBackgroundFileId], references: [id], onDelete: SetNull)
 
   @@map("school_profiles")
 }
@@ -369,8 +378,9 @@ model File {
   deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  schoolLogos SchoolProfile[]
-  userAvatars User[]          @relation("UserAvatar")
+  schoolLogos            SchoolProfile[]
+  schoolLoginBackgrounds SchoolProfile[] @relation("SchoolLoginBackground")
+  userAvatars            User[]          @relation("UserAvatar")
   importJobs  ImportJob[]
 
   @@index([tenantId, purpose])
