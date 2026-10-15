@@ -10,6 +10,7 @@ import { publicRoute } from './middlewares/access';
 import { requestContext } from './middlewares/request-context';
 import { tenantFromHost } from './middlewares/tenant';
 import { publicSchoolRoutes, schoolProfileRoutes } from './modules/school-profile';
+import { authRoutes } from './modules/auth';
 
 export const app = express();
 
@@ -45,6 +46,7 @@ app.get('/health', publicRoute, (_req: Request, res: Response) => {
 app.use('/api', tenantFromHost);
 
 // ─── Modules (every route declares its own access rule) ──────────────────────
+app.use('/api/auth', authRoutes);
 app.use('/api/public/school', publicSchoolRoutes);
 app.use('/api/school-profile', schoolProfileRoutes);
 

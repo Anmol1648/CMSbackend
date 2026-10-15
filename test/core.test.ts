@@ -124,6 +124,22 @@ describe('memory cache', () => {
     });
 });
 
+describe('rate limiter', () => {
+    it('allows the configured number of attempts per window, then answers 429', async () => {
+        const { createRateLimiter } = await import('../src/middlewares/rate-limit');
+        const { globalErrorHandler } = await import('../src/core/error-handler');
+        const request = (await import('supertest')).default;
+        const mini = express();
+        mini.post('/try', createRateLimiter({ windowInMinutes: 1, maxAttempts: 2, keyPrefix: `unit-${Date.now()}` }), (_req, res) => res.json({ ok: true }));
+        mini.use(globalErrorHandler);
+        expect((await request(mini).post('/try')).status).toBe(200);
+        expect((await request(mini).post('/try')).status).toBe(200);
+        const third = await request(mini).post('/try');
+        expect(third.status).toBe(429);
+        expect(third.body.error.code).toBe('TOO_MANY_REQUESTS');
+    });
+});
+
 describe('route guard', () => {
     it('finds routes whose first handler is not an access rule', () => {
         const app = express();

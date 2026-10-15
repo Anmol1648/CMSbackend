@@ -255,6 +255,14 @@ A cache-store interface backs login rate limits, the MFA attempt counters, the p
 - `REDIS_URL` set → Redis. Required if the backend ever runs more than one server process.
 - Not set → in-memory store. Fine for one server process; counters reset when it restarts.
 
+### 6.4a Built in F3 — notes
+- Endpoints under `/api/auth`: `login`, `mfa/verify`, `refresh`, `logout`, `logout-all`, `me`, `change-password`, `forgot-password`, `reset-password`, `sessions` (list / `DELETE :id`), `mfa/setup|enable|disable`.
+- Refresh cookie `cms_rt`: httpOnly, `SameSite=Lax`, `Path=/api/auth`, `Secure` in production. Two tabs refreshing at the same moment get `409` (retry), not a sign-out; a copied token used later ends the session.
+- A locked account answers `423` with the minutes left. A disabled account is told so only after the right password.
+- Per-address rate limits are generous (60 sign-ins / 15 min) because a school lab shares one address; the per-account lockout is the real guard.
+- Authenticator codes use `otplib` 12. Version 13 needs ESM-only packages and breaks the compiled server.
+- Neon: the pooled `DATABASE_URL` must **not** carry `pgbouncer=true`. Neon's pooler supports prepared statements, and the flag made every query about 5× slower (1.4 s instead of 0.27 s from India).
+
 ### 6.5 Creating logins for people (used by the Staff / Student / Guardian modules)
 The account service `createLogin({ kind, personName, email?, mobile?, preferredUsername? })` works like this:
 - **username** follows the setting for that kind (admission no / name / mobile / email), made unique with a number suffix;

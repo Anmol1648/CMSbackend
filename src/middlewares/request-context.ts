@@ -15,7 +15,7 @@ export const requestContext = (req: Request, res: Response, next: NextFunction) 
     res.setHeader('X-Request-Id', requestId);
 
     // The same object is the request's context; authenticate adds the user to it.
-    const ctx: RequestContext = { requestId };
+    const ctx: RequestContext = { requestId, ip: req.ip, userAgent: req.header('user-agent')?.slice(0, 300) };
     const started = process.hrtime.bigint();
     res.on('finish', () => {
         const ms = Number(process.hrtime.bigint() - started) / 1e6;

@@ -9,7 +9,7 @@ export default defineConfig({
         // Integration tests share one database; keep files sequential.
         fileParallelism: false,
         // The test database is remote (Neon); setup creates whole schools.
-        testTimeout: 30_000,
+        testTimeout: 120_000,
         hookTimeout: 120_000,
     },
 });

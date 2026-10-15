@@ -1,4 +1,6 @@
+import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { cache } from '../src/core/cache';
 import { db } from '../src/core/db';
 import { runAsSystem, runAsTenant } from '../src/core/context';
 import { generateAccessToken } from '../src/config/jwt';
@@ -29,7 +31,26 @@ export const makeUser = async (tenantId: string, username: string, roleSlug: str
         return user;
     });
 
-export const tokenFor = (user: { id: string; tenantId: string }) => `Bearer ${generateAccessToken({ userId: user.id, tenantId: user.tenantId })}`;
+/** A signed access token for a user (with a made-up session id; no sign-in needed). */
+export const tokenFor = (user: { id: string; tenantId: string }) =>
+    `Bearer ${generateAccessToken({ userId: user.id, tenantId: user.tenantId, sessionId: randomUUID() })}`;
+
+/** Gives a user a known password (and optionally clears "must change password"). */
+export const setPasswordFor = (user: { id: string; tenantId: string }, password: string, mustChangePassword = false) =>
+    runAsTenant(user.tenantId, async () =>
+        db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password), mustChangePassword } })
+    );
+
+/** The refresh-token cookie value from a response (undefined if none / cleared). */
+export const refreshCookieFrom = (res: { headers: Record<string, unknown> }): string | undefined => {
+    const raw = res.headers['set-cookie'];
+    const cookies = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
+    const c = cookies.find((x) => x.startsWith('cms_rt='));
+    const value = c?.split(';')[0].slice('cms_rt='.length);
+    return value ? decodeURIComponent(value) : undefined;
+};
+
+export const resetRateLimits = () => cache.delPrefix('ratelimit:');
 
 export const suspendTenant = (id: string) =>
     runAsSystem(async () => {

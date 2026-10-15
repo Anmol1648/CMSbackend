@@ -1,8 +1,10 @@
+/** A verified access token. */
 export interface JwtPayload {
     userId: string;
-    email?: string;
     tenantId: string;
-    roleIds?: string[];
+    sessionId: string;
+    /** Signed in with a password that must be changed first. */
+    pwdChange?: boolean;
     jti?: string;
     exp?: number;
     iat?: number;
@@ -27,6 +29,9 @@ export enum ErrorCode {
     AUTH_TOKEN_EXPIRED = 'AUTH_TOKEN_EXPIRED',
     AUTH_INVALID_TOKEN = 'AUTH_INVALID_TOKEN',
     AUTH_MFA_REQUIRED = 'AUTH_MFA_REQUIRED',
+    AUTH_ACCOUNT_LOCKED = 'AUTH_ACCOUNT_LOCKED',
+    PASSWORD_CHANGE_REQUIRED = 'PASSWORD_CHANGE_REQUIRED',
+    PASSWORD_POLICY = 'PASSWORD_POLICY',
     RBAC_FORBIDDEN = 'RBAC_FORBIDDEN',
     RBAC_ROLE_NOT_FOUND = 'RBAC_ROLE_NOT_FOUND',
 }

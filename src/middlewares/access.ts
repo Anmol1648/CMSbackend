@@ -1,6 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { tagAccess } from '../core/http/route-guard';
-import { authenticate } from './authenticate';
+import { authenticate, authenticateWith } from './authenticate';
 import { requirePermission, requireRole } from './require-permission';
 
 /**
@@ -31,6 +31,9 @@ export const publicRoute = tagAccess('public', (_req, _res, next) => next());
 
 /** Any signed-in user (own profile, own menu, logout). */
 export const authenticated = tagAccess('authenticated', chain(authenticate));
+
+/** Any signed-in user, even one who must change their password first (change password, who am I, logout). */
+export const authenticatedSelf = tagAccess('authenticated-self', chain(authenticateWith({ allowPasswordChange: true })));
 
 /** Signed-in user holding the permission, written `resource.action` (e.g. `role.update`). */
 export const can = (permission: string) => {

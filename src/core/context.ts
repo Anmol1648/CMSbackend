@@ -10,8 +10,8 @@ import { AsyncLocalStorage } from 'async_hooks';
 
 export interface UserContext {
     id: string;
-    email?: string;
     tenantId: string;
+    sessionId?: string;
 }
 
 export interface RequestContext {
@@ -19,6 +19,8 @@ export interface RequestContext {
     tenantId?: string;
     user?: UserContext;
     system?: boolean;
+    ip?: string;
+    userAgent?: string;
 }
 
 const contextStorage = new AsyncLocalStorage<RequestContext>();
