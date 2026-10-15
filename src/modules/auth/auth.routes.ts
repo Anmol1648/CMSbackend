@@ -8,6 +8,7 @@ import * as auth from './auth.service';
 import * as schemas from './auth.schemas';
 import { listOpenSessions, revokeSession } from './session.service';
 import { clearRefreshCookie, readRefreshCookie, setRefreshCookie } from './auth.cookies';
+import { myAccess } from '../rbac/my-access';
 
 export const authRoutes = Router();
 
@@ -27,10 +28,10 @@ const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
 const meta = (req: Request) => ({ ip: req.ip, userAgent: req.header('user-agent')?.slice(0, 300) });
 
 /** Sends tokens: access token in the body, refresh token in the httpOnly cookie. */
-const signedIn = (res: Response, result: auth.SignedIn, message: string) => {
+const signedIn = (res: Response, result: auth.SignedIn, message: string, extra: object = {}) => {
     setRefreshCookie(res, result.refreshToken, result.refreshExpiresAt);
     const { refreshToken: _r, refreshExpiresAt: _e, ...body } = result;
-    return successResponse(res, { mfaRequired: false, ...body }, message);
+    return successResponse(res, { mfaRequired: false, ...body, ...extra }, message);
 };
 
 // ─── Sign in / out ───────────────────────────────────────────────────────────
@@ -47,9 +48,13 @@ authRoutes.post('/mfa/verify', publicRoute, mfaLimiter, asyncHandler(async (req:
     return signedIn(res, await auth.verifyMfaLogin(input, meta(req)), 'Signed in');
 }));
 
+// ?with=profile also returns "who am I" and "my access": a page load restores everything in one request.
 authRoutes.post('/refresh', publicRoute, asyncHandler(async (req: Request, res: Response) => {
     try {
-        return signedIn(res, await auth.refresh(readRefreshCookie(req), req.hostTenant), 'Session renewed');
+        const result = await auth.refresh(readRefreshCookie(req), req.hostTenant);
+        if (req.query.with !== 'profile') return signedIn(res, result, 'Session renewed');
+        const [me, access] = await Promise.all([auth.me(result.user.id), result.mustChangePassword ? null : myAccess(result.user.id)]);
+        return signedIn(res, result, 'Session renewed', { me: { ...me, mustChangePassword: result.mustChangePassword }, access });
     } catch (err) {
         if ((err as { statusCode?: number }).statusCode === 401) clearRefreshCookie(res);
         throw err;

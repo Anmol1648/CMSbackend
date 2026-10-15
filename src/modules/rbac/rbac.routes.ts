@@ -2,11 +2,9 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, successResponse } from '../../core/index';
 import { validationError } from '../../core/errors';
-import { db } from '../../core/db';
-import { listMenuGroups, listMenuItems } from '../../core/registry/menu';
 import { authenticated, can } from '../../middlewares/access';
 import * as roles from './role.service';
-import { getUserAccess } from './access.service';
+import { myAccess } from './my-access';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const parsed = schema.safeParse(body ?? {});
@@ -62,14 +60,5 @@ roleRoutes.delete('/:id', can('role.manage'), asyncHandler(async (req: Request, 
 export const meRoutes = Router();
 
 meRoutes.get('/access', authenticated, asyncHandler(async (req: Request, res: Response) => {
-    const access = await getUserAccess(req.user!.userId);
-    const custom = new Map((await db.menuCustomization.findMany()).map((c) => [c.menuKey, c]));
-    const visible = listMenuItems()
-        .filter((i) => !i.permission || access.permissions[i.permission])
-        .filter((i) => !custom.get(i.key)?.hidden)
-        .map((i) => ({ ...i, label: custom.get(i.key)?.label ?? i.label, order: custom.get(i.key)?.sortOrder ?? i.order }));
-    const menu = listMenuGroups()
-        .map((g) => ({ key: g.key, label: g.label, items: visible.filter((i) => i.group === g.key).sort((a, b) => a.order - b.order).map(({ key, label, icon, href }) => ({ key, label, icon, href })) }))
-        .filter((g) => g.items.length);
-    successResponse(res, { isSuperAdmin: access.isSuperAdmin, permissions: access.permissions, menu }, 'Your access');
+    successResponse(res, await myAccess(req.user!.userId), 'Your access');
 }));
