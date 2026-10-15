@@ -9,11 +9,11 @@ import { requestContext } from '../src/middlewares/request-context';
 describe('app wiring', () => {
     it('every route declares an access rule', () => {
         const routes = listRoutes(app);
-        expect(routes.length).toBeGreaterThan(30);
         expect(routes.filter((r) => !r.access)).toEqual([]);
-        expect(routes).toContainEqual({ method: 'GET', path: '/api/rbac/roles', access: 'can:role.read' });
-        expect(routes).toContainEqual({ method: 'POST', path: '/api/auth/login', access: 'public' });
-        expect(routes).toContainEqual({ method: 'GET', path: '/api/tenants/', access: 'role:super-admin' });
+        expect(routes).toContainEqual({ method: 'GET', path: '/health', access: 'public' });
+        expect(routes).toContainEqual({ method: 'GET', path: '/api/school-profile/', access: 'authenticated' });
+        expect(routes).toContainEqual({ method: 'PATCH', path: '/api/school-profile/', access: 'can:school_profile.update' });
+        expect(routes).toContainEqual({ method: 'GET', path: '/api/public/school/', access: 'public' });
     });
 
     it('health check answers with a request id and security headers', async () => {
@@ -47,28 +47,25 @@ describe('error format', () => {
     });
 
     it('protected routes without a token return 401', async () => {
-        const res = await request(app).get('/api/rbac/roles');
+        const res = await request(app).get('/api/school-profile');
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHORIZED');
     });
 
     it('spoofed identity headers are ignored', async () => {
-        const res = await request(app).get('/api/rbac/my-permissions').set('x-user-id', 'someone').set('x-tenant-id', 't');
+        const res = await request(app).get('/api/school-profile').set('x-user-id', 'someone').set('x-tenant-id', 't');
+        expect(res.status).toBe(401);
+    });
+
+    it('a garbage token is a 401', async () => {
+        const res = await request(app).get('/api/school-profile').set('Authorization', 'Bearer not.a.token');
         expect(res.status).toBe(401);
     });
 
     it('invalid JSON is a 400, not a 500', async () => {
-        const res = await request(app).post('/api/auth/login').set('Content-Type', 'application/json').send('{"email":');
+        const res = await request(app).patch('/api/school-profile').set('Content-Type', 'application/json').send('{"city":');
         expect(res.status).toBe(400);
         expect(res.body.error.message).toBe('Request body is not valid JSON');
-    });
-
-    it('validation errors list the bad fields', async () => {
-        const res = await request(app).post('/api/auth/login').send({ email: 'not-an-email', password: '' });
-        expect(res.status).toBe(400);
-        expect(res.body.error.code).toBe('VALIDATION_ERROR');
-        const fields = res.body.error.details.map((d: { field: string }) => d.field);
-        expect(fields).toEqual(expect.arrayContaining(['email', 'password']));
     });
 
     it('unexpected errors hide their message but keep the request id', async () => {

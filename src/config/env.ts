@@ -22,6 +22,8 @@ const envSchema = z.object({
     CORS_ORIGINS: optional,
 
     DATABASE_URL: z.string().min(1, 'is required'),
+    // School used when the web address doesn't match any school's domain (single-school setups).
+    DEFAULT_TENANT_CODE: optional,
     REDIS_URL: optional,
 
     JWT_PRIVATE_KEY: z.string().min(1, 'is required'),

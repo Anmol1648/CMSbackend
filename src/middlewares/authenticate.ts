@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError, JwtPayload, ErrorCode, runWithUser } from '../core/index';
 import { verifyAccessToken } from '../config/jwt';
 import { isTokenBlacklisted, getRevokeBefore } from '../config/redis';
+import { findTenantById } from '../modules/tenants';
 
 declare global {
     namespace Express {
@@ -42,6 +43,14 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
                 return next(new AppError('Session has been invalidated globally. Please login again.', 401, ErrorCode.UNAUTHORIZED));
             }
         }
+
+        // 3. The school must exist and be active, and match the web address if that points to a school.
+        if (req.hostTenant?.source === 'domain' && req.hostTenant.id !== payload.tenantId) {
+            return next(new AppError('This sign-in belongs to another school', 401, ErrorCode.UNAUTHORIZED));
+        }
+        const tenant = await findTenantById(payload.tenantId);
+        if (!tenant) return next(new AppError('Invalid or expired token', 401, ErrorCode.UNAUTHORIZED));
+        if (tenant.status !== 'active') return next(new AppError('This school account is suspended', 403, ErrorCode.FORBIDDEN));
     } catch (err) {
         return next(err);
     }

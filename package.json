@@ -19,7 +19,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:status": "prisma migrate status",
     "db:studio": "prisma studio",
-    "seed": "tsx src/seeds/seed.ts"
+    "tenant:create": "tsx src/scripts/tenant-create.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

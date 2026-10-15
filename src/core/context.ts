@@ -1,19 +1,24 @@
 import { AsyncLocalStorage } from 'async_hooks';
 
 /**
- * Per-request context (request id + signed-in user), available anywhere in the request's
- * async call chain — used by logging, audit fields and the audit log.
+ * Per-request context, available anywhere in the request's async call chain:
+ *   - requestId  (logging, error responses)
+ *   - tenantId   (which school; the database layer scopes every query to it)
+ *   - user       (audit fields, audit log)
+ *   - system     (platform work that is deliberately not tied to one school, e.g. creating a school)
  */
 
 export interface UserContext {
     id: string;
-    email: string;
+    email?: string;
     tenantId: string;
 }
 
 export interface RequestContext {
     requestId: string;
+    tenantId?: string;
     user?: UserContext;
+    system?: boolean;
 }
 
 const contextStorage = new AsyncLocalStorage<RequestContext>();
@@ -25,14 +30,37 @@ export const getContext = (): RequestContext | undefined => contextStorage.getSt
 
 export const getRequestId = (): string | undefined => contextStorage.getStore()?.requestId;
 
-/** Attaches the signed-in user to the current request context (or starts one if there is none). */
+export const getTenantId = (): string | undefined => contextStorage.getStore()?.tenantId;
+
+export const isSystemContext = (): boolean => contextStorage.getStore()?.system === true;
+
+/** Sets the school for the rest of the current request. */
+export const setTenant = (tenantId: string) => {
+    const store = contextStorage.getStore();
+    if (!store) throw new Error('setTenant called outside a request context');
+    store.tenantId = tenantId;
+};
+
+/** Attaches the signed-in user (and their school) to the current request context. */
 export const runWithUser = <T>(user: UserContext, next: () => T): T => {
     const store = contextStorage.getStore();
     if (store) {
         store.user = user;
+        store.tenantId = user.tenantId;
         return next();
     }
-    return contextStorage.run({ requestId: 'internal', user }, next);
+    return contextStorage.run({ requestId: 'internal', user, tenantId: user.tenantId }, next);
 };
 
 export const getCurrentUser = (): UserContext | undefined => contextStorage.getStore()?.user;
+
+// Prisma queries are lazy (they start when awaited), so these helpers await inside the context;
+// otherwise `runAsTenant(id, () => db.user.count())` would run after the context had ended.
+
+/** Runs `fn` as work for one school (scripts, jobs, tests). */
+export const runAsTenant = <T>(tenantId: string, fn: () => T | Promise<T>, user?: UserContext): Promise<T> =>
+    contextStorage.run({ requestId: getRequestId() ?? 'job', tenantId, user }, async () => await fn());
+
+/** Runs `fn` as platform work across schools. Use sparingly: tenant scoping is off inside. */
+export const runAsSystem = <T>(fn: () => T | Promise<T>): Promise<T> =>
+    contextStorage.run({ requestId: getRequestId() ?? 'system', system: true }, async () => await fn());

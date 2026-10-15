@@ -1,13 +1,6 @@
-export interface AccessTokenPayload {
-    userId: string;
-    email: string;
-    tenantId: string;
-    roleIds?: string[];
-}
-
 export interface JwtPayload {
     userId: string;
-    email: string;
+    email?: string;
     tenantId: string;
     roleIds?: string[];
     jti?: string;

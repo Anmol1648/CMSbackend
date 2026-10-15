@@ -109,7 +109,7 @@ cmsbackend/
 | Names | Tables plural snake_case (`role_permissions`); columns snake_case; Prisma models PascalCase with `@@map` / `@map` |
 | Keys | `id uuid` (database default `gen_random_uuid()`) |
 | Tenant | `tenant_id uuid NOT NULL REFERENCES tenants(id)` on every school-owned table; unique rules include it (`UNIQUE (tenant_id, username)`) |
-| Audit columns | `created_at timestamptz NOT NULL DEFAULT now()`, `created_by uuid NULL → users`, `updated_at timestamptz NOT NULL`, `updated_by uuid NULL → users`. Set automatically from the request's user |
+| Audit columns | `created_at timestamptz NOT NULL DEFAULT now()`, `created_by uuid NULL`, `updated_at timestamptz NOT NULL`, `updated_by uuid NULL`. Set automatically from the request's user. No foreign key on the `*_by` columns (users are never hard-deleted; a key on every table would tie the whole schema to `users`) |
 | Soft delete | `deleted_at timestamptz NULL` (plus `deleted_by`) on tables where history matters; normal queries exclude deleted rows automatically |
 | Fixed system states | Prisma enums (e.g. user status). School-specific lists (designations, castes…) are master tables, never enums |
 | Money / dates | Money `numeric(12,2)`; calendar dates `date`; moments `timestamptz`, shown in the school's time zone |
@@ -128,8 +128,10 @@ cmsbackend/
 
 ### 4.1 How the school is found for a request
 
-1. **Logged-in requests:** the school comes from the access token (`tid` claim), never from a header or the request body.
-2. **Login page (before login):** the school is found from the website address (`tenants.domain`, e.g. `erp.greenvalley.in`). If no domain matches, the `DEFAULT_TENANT` from config is used. With one school, everything just works.
+1. **Logged-in requests:** the school comes from the access token, never from a header or the request body. If the calling page's address belongs to a different school, the request is rejected. A suspended school's users are blocked.
+2. **Login page (before login):** the school is found from the address of the page calling the API (the browser's `Origin`, else the `Host`) matched against `tenants.domain`, e.g. `erp.greenvalley.in`. If nothing matches, `DEFAULT_TENANT_CODE` from config is used. With one school, everything just works.
+
+**Implemented in F2:** `src/core/db` adds the school as an *extra* condition on every query (a query naming another school matches nothing), fills it on create, refuses to run without a school in context, hides soft-deleted rows and fills the audit columns. `runAsTenant` / `runAsSystem` set the context for scripts and jobs. Tests run against a separate `cms_test` database (`TEST_DATABASE_URL`), never the real one; migrations use `DIRECT_URL` (Neon's pooler doesn't support them).
 
 ### 4.2 How data is kept separate
 
@@ -190,6 +192,11 @@ id; tenant_id; user_id → users; refresh_token_hash (SHA-256, never the raw tok
 
 ### 5.5 `password_resets`
 id; tenant_id; user_id; code_hash; expires_at; attempts; used_at NULL; requested_ip.
+
+### 5.5a `password_history`
+id; tenant_id; user_id; password_hash; created_at. Backs the "can't reuse the last N passwords" rule.
+
+`user_sessions` also keeps `previous_token_hash`: if a refresh token that was already swapped is presented again, the session is revoked (it was copied).
 
 ### 5.6 Roles and permissions
 **`permissions`** (system-wide, filled from code at startup, not edited by hand): key PK (e.g. `student.create`); module; resource; action; label; description; `is_sensitive` (e.g. `student.view_sensitive` for Aadhaar/income); `scopes` (which data scopes make sense for it).

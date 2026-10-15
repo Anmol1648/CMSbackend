@@ -3,10 +3,13 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     test: {
         include: ['test/**/*.test.ts'],
+        setupFiles: ['test/setup.ts'],
         environment: 'node',
         env: { NODE_ENV: 'test' },
         // Integration tests share one database; keep files sequential.
         fileParallelism: false,
-        testTimeout: 20_000,
+        // The test database is remote (Neon); setup creates whole schools.
+        testTimeout: 30_000,
+        hookTimeout: 120_000,
     },
 });

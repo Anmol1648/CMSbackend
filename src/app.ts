@@ -8,13 +8,8 @@ import { getRequestId } from './core/context';
 import { assertRoutesProtected } from './core/http/route-guard';
 import { publicRoute } from './middlewares/access';
 import { requestContext } from './middlewares/request-context';
-import authRoutes from './modules/auth/auth.routes';
-import userRoutes from './modules/users/user.routes';
-import rbacRoutes from './modules/rbac/rbac.routes';
-import widgetRoutes from './modules/dashboard/widget.routes';
-import roleWidgetMappingRoutes from './modules/dashboard/role-widget-mapping.routes';
-import dashboardRoutes from './modules/dashboard/dashboard.routes';
-import tenantRoutes from './modules/tenants/tenant.routes';
+import { tenantFromHost } from './middlewares/tenant';
+import { publicSchoolRoutes, schoolProfileRoutes } from './modules/school-profile';
 
 export const app = express();
 
@@ -41,19 +36,17 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 app.use(requestContext);
 
-// ─── Health Check ────────────────────────────────────────────────────────────
+// ─── Health Check (no database, no school) ───────────────────────────────────
 app.get('/health', publicRoute, (_req: Request, res: Response) => {
     res.json({ service: 'cms-backend', status: 'UP', timestamp: new Date().toISOString() });
 });
 
+// Which school the calling page belongs to (before sign-in); the token decides after sign-in.
+app.use('/api', tenantFromHost);
+
 // ─── Modules (every route declares its own access rule) ──────────────────────
-app.use('/api/auth/users', userRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/rbac', rbacRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/widgets', widgetRoutes);
-app.use('/api/role-widget-mappings', roleWidgetMappingRoutes);
-app.use('/api/tenants', tenantRoutes);
+app.use('/api/public/school', publicSchoolRoutes);
+app.use('/api/school-profile', schoolProfileRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

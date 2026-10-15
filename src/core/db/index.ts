@@ -1,0 +1,160 @@
+import { Prisma, PrismaClient } from '@prisma/client';
+import { getContext } from '../context';
+
+/**
+ * The one database client. On every model that has `tenantId` it:
+ *   - adds `tenantId = <current school>` to every read / update / delete / count,
+ *   - fills `tenantId` on create (and rejects a different one),
+ *   - refuses to run at all when no school is in context (fail closed),
+ * hides soft-deleted rows (`deletedAt`) from reads unless the query asks about `deletedAt` itself,
+ * and fills createdBy / updatedBy from the signed-in user.
+ *
+ * Inside runAsSystem() scoping is off (creating schools, platform jobs). Raw SQL must go through
+ * `tenantSql` below; a test fails if $queryRaw / $executeRaw appear anywhere else.
+ */
+
+interface ModelMeta {
+    tenant: boolean;
+    soft: boolean;
+    createdBy: boolean;
+    updatedBy: boolean;
+}
+
+const modelMeta = new Map<string, ModelMeta>(
+    Prisma.dmmf.datamodel.models.map((m) => {
+        const has = (name: string) => m.fields.some((f) => f.name === name);
+        return [m.name, { tenant: has('tenantId'), soft: has('deletedAt'), createdBy: has('createdBy'), updatedBy: has('updatedBy') }];
+    })
+);
+
+const READS = new Set(['findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy']);
+const WHERE_WRITES = new Set(['update', 'updateMany', 'delete', 'deleteMany']);
+
+export class TenantContextError extends Error {}
+
+type Args = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Keeps the caller's where (including unique fields, as Prisma requires) and ANDs `extra` onto it. */
+const andWhere = (where: Args | undefined, extra: Args): Args => {
+    const current = where ?? {};
+    const existing = current.AND === undefined ? [] : Array.isArray(current.AND) ? current.AND : [current.AND];
+    return { ...current, AND: [...existing, extra] };
+};
+
+/** True if the caller's where talks about deletedAt (at the top level or inside AND/OR/NOT). */
+const mentionsDeletedAt = (where: unknown): boolean => {
+    if (!where || typeof where !== 'object') return false;
+    if (Array.isArray(where)) return where.some(mentionsDeletedAt);
+    const w = where as Args;
+    return 'deletedAt' in w || mentionsDeletedAt(w.AND) || mentionsDeletedAt(w.OR) || mentionsDeletedAt(w.NOT);
+};
+
+const withTenantData = (data: Args | undefined, tenantId: string, model: string): Args => {
+    const row = { ...(data ?? {}) };
+    if (row.tenantId !== undefined && row.tenantId !== tenantId) {
+        throw new TenantContextError(`${model}: tenantId in data does not match the current school`);
+    }
+    // A nested `tenant: { connect }` would bypass the check above; scoped models take the scalar only.
+    if (row.tenant !== undefined) throw new TenantContextError(`${model}: set tenantId, not the tenant relation`);
+    row.tenantId = tenantId;
+    return row;
+};
+
+const stampCreate = (data: Args, meta: ModelMeta, userId?: string): Args => {
+    if (!userId) return data;
+    const row = { ...data };
+    if (meta.createdBy && row.createdBy === undefined) row.createdBy = userId;
+    if (meta.updatedBy && row.updatedBy === undefined) row.updatedBy = userId;
+    return row;
+};
+
+const stampUpdate = (data: Args | undefined, meta: ModelMeta, userId?: string): Args => {
+    const row = { ...(data ?? {}) };
+    if (userId && meta.updatedBy && row.updatedBy === undefined) row.updatedBy = userId;
+    return row;
+};
+
+/** Applies scoping and stamps to one operation's args. Exported for tests. */
+export const scopeArgs = (model: string, operation: string, input: Args): Args => {
+    const meta = modelMeta.get(model);
+    if (!meta) return input;
+    const ctx = getContext();
+    const userId = ctx?.user?.id;
+    const args: Args = { ...input };
+
+    if (meta.tenant && !ctx?.system) {
+        const tenantId = ctx?.tenantId;
+        if (!tenantId) throw new TenantContextError(`${model}.${operation} needs a school in context (or runAsSystem)`);
+
+        if (READS.has(operation) || WHERE_WRITES.has(operation) || operation === 'upsert') {
+            // Added as an extra condition (never replacing the caller's own filter), so a query that
+            // names another school matches nothing instead of being silently redirected.
+            args.where = andWhere(args.where, { tenantId });
+        }
+        if (operation === 'create') args.data = withTenantData(args.data, tenantId, model);
+        if (operation === 'createMany' || operation === 'createManyAndReturn') {
+            const rows = Array.isArray(args.data) ? args.data : [args.data];
+            args.data = rows.map((r: Args) => withTenantData(r, tenantId, model));
+        }
+        if (operation === 'upsert') args.create = withTenantData(args.create, tenantId, model);
+        if ((operation === 'update' || operation === 'updateMany' || operation === 'upsert') && args.data?.tenantId !== undefined) {
+            throw new TenantContextError(`${model}: a record can't be moved to another school`);
+        }
+        if (operation === 'upsert' && args.update?.tenantId !== undefined) {
+            throw new TenantContextError(`${model}: a record can't be moved to another school`);
+        }
+    }
+
+    if (meta.soft && READS.has(operation) && !mentionsDeletedAt(input.where)) {
+        args.where = andWhere(args.where, { deletedAt: null });
+    }
+
+    if (operation === 'create') args.data = stampCreate(args.data ?? {}, meta, userId);
+    if (operation === 'createMany' || operation === 'createManyAndReturn') {
+        args.data = (args.data as Args[]).map((r) => stampCreate(r, meta, userId));
+    }
+    if (operation === 'update' || operation === 'updateMany') args.data = stampUpdate(args.data, meta, userId);
+    if (operation === 'upsert') {
+        args.create = stampCreate(args.create ?? {}, meta, userId);
+        args.update = stampUpdate(args.update, meta, userId);
+    }
+    return args;
+};
+
+const base = new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? [{ emit: 'event', level: 'warn' }] : [],
+});
+
+export const db = base.$extends({
+    name: 'tenant-scoping',
+    query: {
+        $allModels: {
+            async $allOperations({ model, operation, args, query }) {
+                return query(scopeArgs(model, operation, args as Args) as typeof args);
+            },
+        },
+    },
+});
+
+export type Db = typeof db;
+/** The client inside db.$transaction(async (tx) => …). */
+export type Tx = Parameters<Parameters<Db['$transaction']>[0]>[0];
+
+/** Runs `fn` in one transaction; pass `tx` to every service involved. */
+export const withTransaction = <T>(fn: (tx: Tx) => Promise<T>, options?: { timeout?: number }) =>
+    db.$transaction(fn, { timeout: options?.timeout ?? 15_000, maxWait: 10_000 });
+
+/**
+ * The only way to run raw SQL. The callback receives the current school's id and must use it
+ * (e.g. `WHERE tenant_id = ${tenantId}::uuid`). Values are always bound parameters (Prisma.sql).
+ */
+export const tenantSql = async <T = unknown>(build: (tenantId: string) => Prisma.Sql): Promise<T[]> => {
+    const ctx = getContext();
+    if (!ctx?.tenantId) throw new TenantContextError('tenantSql needs a school in context');
+    return db.$queryRaw<T[]>(build(ctx.tenantId));
+};
+
+/** Raw SQL that is deliberately not tied to one school (health checks, platform scripts). */
+export const systemSql = async <T = unknown>(sql: Prisma.Sql): Promise<T[]> => db.$queryRaw<T[]>(sql);
+
+export { Prisma };

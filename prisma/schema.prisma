@@ -1,259 +1,401 @@
+// School ERP — database schema.
+// Conventions (docs/foundation-design.md §3.4):
+//   - tables plural snake_case, columns snake_case (camelCase in code via @map)
+//   - uuid keys; every school-owned table has tenant_id (scoped automatically in src/core/db)
+//   - audit columns created_at/created_by/updated_at/updated_by (set automatically)
+//   - deleted_at = soft delete (excluded from normal queries automatically)
+// Change it only through migrations: npm run db:migrate:dev -- --name <what>
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
+// ─── Schools ────────────────────────────────────────────────────────────────
+
+enum TenantStatus {
+  active
+  suspended
+
+  @@map("tenant_status")
+}
+
+/// A school. Not tenant-scoped itself.
+model Tenant {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String       @unique
+  name      String
+  /// Web address that resolves to this school on the login page (e.g. erp.greenvalley.in).
+  domain    String?      @unique
+  status    TenantStatus @default(active)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile            SchoolProfile?
+  users              User[]
+  roles              Role[]
+  settings           TenantSetting[]
+  menuCustomizations MenuCustomization[]
+  files              File[]
+
+  @@map("tenants")
+}
+
+/// One row per school: name, contact, affiliation and locale. Shown on headers, reports, receipts, ID cards.
+model SchoolProfile {
+  tenantId               String   @id @map("tenant_id") @db.Uuid
+  legalName              String   @map("legal_name")
+  shortName              String?  @map("short_name")
+  logoFileId             String?  @map("logo_file_id") @db.Uuid
+  addressLine1           String?  @map("address_line1")
+  addressLine2           String?  @map("address_line2")
+  city                   String?
+  district               String?
+  state                  String?
+  pincode                String?
+  country                String   @default("India")
+  phone                  String?
+  email                  String?
+  website                String?
+  /// CBSE / ICSE / State board …
+  board                  String?
+  affiliationNo          String?  @map("affiliation_no")
+  udiseCode              String?  @map("udise_code")
+  establishedYear        Int?     @map("established_year")
+  timeZone               String   @default("Asia/Kolkata") @map("time_zone")
+  dateFormat             String   @default("DD-MM-YYYY") @map("date_format")
+  currency               String   @default("INR")
+  /// 1 = January … 12 = December
+  academicYearStartMonth Int      @default(4) @map("academic_year_start_month") @db.SmallInt
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy              String?  @map("created_by") @db.Uuid
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy              String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  logo   File?  @relation(fields: [logoFileId], references: [id], onDelete: SetNull)
+
+  @@map("school_profiles")
+}
+
+// ─── Accounts ───────────────────────────────────────────────────────────────
+
+enum UserKind {
+  admin
+  staff
+  student
+  guardian
+
+  @@map("user_kind")
+}
+
+enum UserStatus {
+  active
+  disabled
+
+  @@map("user_status")
+}
+
+/// Only people who sign in. Personal details live on the person record (staff / student / guardian).
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  password_hash String
-  first_name    String
-  last_name     String
-  is_active     Boolean  @default(true)
-  mfa_enabled   Boolean  @default(false)
-  mfa_secret    String?
-  tenant_id     String
-  
-  // Audit fields
-  created_by    String?
-  updated_by    String?
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String     @map("tenant_id") @db.Uuid
+  kind               UserKind
+  /// Stored lower-case.
+  username           String
+  /// Stored lower-case; real addresses only (no placeholders).
+  email              String?
+  mobile             String?
+  displayName        String     @map("display_name")
+  passwordHash       String     @map("password_hash")
+  status             UserStatus @default(active)
+  mustChangePassword Boolean    @default(true) @map("must_change_password")
+  passwordChangedAt  DateTime?  @map("password_changed_at") @db.Timestamptz(6)
+  failedLoginCount   Int        @default(0) @map("failed_login_count")
+  lockedUntil        DateTime?  @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  mfaEnabled         Boolean    @default(false) @map("mfa_enabled")
+  /// AES-GCM encrypted; never returned by the API.
+  mfaSecretEnc       String?    @map("mfa_secret_enc")
+  avatarFileId       String?    @map("avatar_file_id") @db.Uuid
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy          String?    @map("created_by") @db.Uuid
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy          String?    @map("updated_by") @db.Uuid
+  deletedAt          DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  deletedBy          String?    @map("deleted_by") @db.Uuid
 
-  // Relations
-  profile       UserProfile?
-  userRoles     UserRole[]
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  avatar          File?             @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
+  sessions        UserSession[]
+  passwordResets  PasswordReset[]
+  passwordHistory PasswordHistory[]
+  roles           UserRole[]
 
+  @@unique([tenantId, username])
+  @@unique([tenantId, email])
+  @@unique([tenantId, mobile])
+  @@index([tenantId, kind])
   @@map("users")
 }
 
-model UserProfile {
-  id            String    @id @default(uuid())
-  user_id       String    @unique
-  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
-  phone         String?
-  avatar_url    String?
-  gender        String?
-  date_of_birth DateTime? @db.Date
-  address       String?
-  city          String?
-  state         String?
-  country       String?
-  pincode       String?
-  
-  created_by    String?
-  updated_by    String?
+/// One row per signed-in device. The refresh token itself is never stored, only its hash.
+model UserSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  refreshTokenHash  String    @unique @map("refresh_token_hash")
+  /// Hash of the token this one replaced; seeing it again means the old token was copied.
+  previousTokenHash String?   @unique @map("previous_token_hash")
+  userAgent         String?   @map("user_agent")
+  ip                String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt        DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  /// logout / logout_all / password_changed / reuse_detected / admin / expired
+  revokedReason     String?   @map("revoked_reason")
 
-  createdAt     DateTime  @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  updatedAt     DateTime  @updatedAt
-
-  @@map("user_profiles")
+  @@index([tenantId, userId])
+  @@map("user_sessions")
 }
 
-model RefreshToken {
-  token      String   @id
-  user_id    String
-  expires_at DateTime
-  revoked    Boolean  @default(false)
-  
-  createdAt  DateTime @default(now())
+model PasswordReset {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  codeHash    String    @map("code_hash")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  attempts    Int       @default(0)
+  usedAt      DateTime? @map("used_at") @db.Timestamptz(6)
+  requestedIp String?   @map("requested_ip")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@map("refresh_tokens")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("password_resets")
 }
 
-model AuditLog {
-  id          String   @id @default(uuid())
-  table_name  String
-  record_id   String
-  operation   String   
-  old_values  Json?
-  new_values  Json?
-  user_id     String   
-  timestamp   DateTime @default(now())
+/// Previous password hashes, for the "can't reuse the last N passwords" rule.
+model PasswordHistory {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@map("audit_logs")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, createdAt(sort: Desc)])
+  @@map("password_history")
 }
 
-model PasswordResetToken {
-  id         String   @id @default(uuid())
-  user_id    String
-  otp_hash   String
-  expires_at DateTime
-  used       Boolean  @default(false)
-  createdAt  DateTime @default(now())
+// ─── Roles & permissions ────────────────────────────────────────────────────
 
-  @@map("password_reset_tokens")
+enum DataScope {
+  /// everything in the school
+  all
+  /// only the classes / sections the user is assigned to
+  assigned
+  /// only records linked to the user
+  own
+
+  @@map("data_scope")
 }
 
-// ─── RBAC Models ──────────────────────────────────────────────────────────────
-
-model Role {
-  id             String    @id @default(uuid())
-  name           String
-  slug           String
-  description    String?
-  scope          String    @default("tenant") // global | tenant | department | self
-  parent_role_id String?
-  is_system      Boolean   @default(false)
-  tenant_id      String
-  created_by     String?
-  updated_by     String?
-  deleted_at     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  // Relations
-  parent              Role?             @relation("RoleHierarchy", fields: [parent_role_id], references: [id])
-  children            Role[]            @relation("RoleHierarchy")
-  userRoles           UserRole[]
-  rolePermissions     RolePermission[]
-  roleMenus           RoleMenu[]
-  fieldPermissions    FieldPermission[]
-  roleWidgetMappings  RoleWidgetMapping[]
-
-  @@unique([slug, tenant_id])
-  @@index([tenant_id])
-  @@map("roles")
-}
-
+/// System-wide catalogue, filled from the code registry at startup (not edited by hand).
 model Permission {
-  id          String   @id @default(uuid())
-  resource    String   // e.g., 'student', 'course', 'user'
-  action      String   // create | read | update | delete | approve | export
+  /// resource.action, e.g. student.create
+  key         String      @id
+  module      String
+  resource    String
+  action      String
+  label       String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  /// e.g. student.view_sensitive (Aadhaar, income)
+  isSensitive Boolean     @default(false) @map("is_sensitive")
+  /// which data scopes make sense for this permission
+  scopes      DataScope[] @default([all])
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   rolePermissions RolePermission[]
 
-  @@unique([resource, action])
   @@map("permissions")
 }
 
+model Role {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  name        String
+  slug        String
+  description String?
+  /// Super Admin: every permission, can't be deleted or emptied.
+  isSystem    Boolean   @default(false) @map("is_system")
+  /// Given automatically to new logins of this kind.
+  defaultFor  UserKind? @map("default_for")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedBy   String?   @map("deleted_by") @db.Uuid
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([tenantId, slug])
+  @@map("roles")
+}
+
 model RolePermission {
-  id            String  @id @default(uuid())
-  role_id       String
-  permission_id String
-  condition     Json?   // e.g., { "own_data": true, "own_department": true }
+  tenantId      String    @map("tenant_id") @db.Uuid
+  roleId        String    @map("role_id") @db.Uuid
+  permissionKey String    @map("permission_key")
+  scope         DataScope @default(all)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy     String?   @map("created_by") @db.Uuid
 
-  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade, onUpdate: Cascade)
 
-  @@unique([role_id, permission_id])
+  @@id([roleId, permissionKey])
+  @@index([tenantId])
+  @@index([permissionKey])
   @@map("role_permissions")
 }
 
 model UserRole {
-  id        String   @id @default(uuid())
-  user_id   String
-  role_id   String
-  tenant_id String
-  createdAt DateTime @default(now())
+  tenantId   String   @map("tenant_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedBy String?  @map("assigned_by") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
 
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  @@unique([user_id, role_id, tenant_id])
-  @@index([tenant_id])
-  @@index([user_id])
+  @@id([userId, roleId])
+  @@index([tenantId, roleId])
   @@map("user_roles")
 }
 
-model Menu {
-  id         String   @id @default(uuid())
-  label      String
-  icon       String?
-  route      String?
-  module     String?
-  is_active  Boolean  @default(true)
-  parent_id  String?
-  sort_order Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+/// A school's rename / reorder / hide of sidebar items (the items come from code).
+model MenuCustomization {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  menuKey   String   @map("menu_key")
+  label     String?
+  sortOrder Int?     @map("sort_order")
+  hidden    Boolean  @default(false)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
 
-  parent    Menu?      @relation("MenuTree", fields: [parent_id], references: [id])
-  children  Menu[]     @relation("MenuTree")
-  roleMenus RoleMenu[]
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@map("menus")
+  @@id([tenantId, menuKey])
+  @@map("menu_customizations")
 }
 
-model RoleMenu {
-  id      String  @id @default(uuid())
-  role_id String
-  menu_id String
-  visible Boolean @default(true)
+// ─── Settings & audit ───────────────────────────────────────────────────────
 
-  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
-  menu Menu @relation(fields: [menu_id], references: [id], onDelete: Cascade)
+/// Only overrides are stored; a setting with no row uses its default from code.
+model TenantSetting {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
 
-  @@unique([role_id, menu_id])
-  @@map("role_menus")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, key])
+  @@map("tenant_settings")
 }
 
-model FieldPermission {
-  id         String  @id @default(uuid())
-  role_id    String
-  model_name String
-  field_name String
-  can_read   Boolean @default(true)
-  can_write  Boolean @default(true)
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  tenantId  String   @map("tenant_id") @db.Uuid
+  at        DateTime @default(now()) @db.Timestamptz(6)
+  userId    String?  @map("user_id") @db.Uuid
+  /// create / update / delete / restore / login / login_failed / logout / password_change / … / import / export
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  /// { "field": [old, new] }; secret fields masked
+  changes   Json?
+  ip        String?
+  userAgent String?  @map("user_agent")
+  requestId String?  @map("request_id")
 
-  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
-
-  @@unique([role_id, model_name, field_name])
-  @@map("field_permissions")
+  @@index([tenantId, at(sort: Desc)])
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, userId, at(sort: Desc)])
+  @@map("audit_logs")
 }
 
-// ─── Dashboard Widget Models ──────────────────────────────────────────────────
+// ─── Files & imports ────────────────────────────────────────────────────────
 
-model Widget {
-  id             String   @id @default(uuid())
-  title          String
-  widget_type    String   // stat | chart | table | calendar | feed
-  sub_type       String?  // bar | line | pie | donut | stat_card | audit_log | user_list
-  config         Json?    // chart colors, axes config, thresholds, etc.
-  query          String   @db.Text  // raw SQL for data-fetching
-  display_name   String?
-  customization  Json?    // icon, color, border-radius, custom CSS class
-  range_enabled  Boolean  @default(false)
-  is_active      Boolean  @default(true)
-  created_by     String?
-  updated_by     String?
-  created_on     DateTime @default(now())
-  updated_on     DateTime @updatedAt
+enum ImportStatus {
+  validated
+  importing
+  done
+  failed
 
-  roleMappings   RoleWidgetMapping[]
-
-  @@map("widgets")
+  @@map("import_status")
 }
 
-model RoleWidgetMapping {
-  id             String   @id @default(uuid())
-  role_id        String
-  widget_id      String
-  enabled        Boolean  @default(true)
-  display_order  Int      @default(0)
-  height         Int      @default(1)  // grid units
-  width          Int      @default(1)  // grid units (1=quarter, 2=half, 4=full)
-  created_by     String?
-  updated_by     String?
-  created_on     DateTime @default(now())
-  updated_on     DateTime @updatedAt
+model File {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  /// local / cloudinary / s3
+  provider     String
+  storageKey   String    @map("storage_key")
+  originalName String    @map("original_name")
+  mimeType     String    @map("mime_type")
+  sizeBytes    Int       @map("size_bytes")
+  /// avatar / logo / import / document
+  purpose      String
+  uploadedBy   String?   @map("uploaded_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  role           Role     @relation(fields: [role_id], references: [id], onDelete: Cascade)
-  widget         Widget   @relation(fields: [widget_id], references: [id], onDelete: Cascade)
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  schoolLogos SchoolProfile[]
+  userAvatars User[]          @relation("UserAvatar")
+  importJobs  ImportJob[]
 
-  @@unique([role_id, widget_id])
-  @@index([role_id])
-  @@map("role_widget_mapping")
+  @@index([tenantId, purpose])
+  @@map("files")
 }
 
+model ImportJob {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String       @map("tenant_id") @db.Uuid
+  /// e.g. students, staff, users
+  kind         String
+  status       ImportStatus
+  fileId       String?      @map("file_id") @db.Uuid
+  options      Json?
+  totalRows    Int          @default(0) @map("total_rows")
+  validRows    Int          @default(0) @map("valid_rows")
+  importedRows Int          @default(0) @map("imported_rows")
+  /// [{ row, field, message }]
+  errorRows    Json?        @map("error_rows")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy    String?      @map("created_by") @db.Uuid
+  finishedAt   DateTime?    @map("finished_at") @db.Timestamptz(6)
 
+  file File? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, kind, createdAt(sort: Desc)])
+  @@map("import_jobs")
+}
