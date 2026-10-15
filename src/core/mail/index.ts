@@ -16,6 +16,8 @@ export interface MailMessage {
     html?: string;
     /** Display name for the From header, e.g. the school's name. */
     fromName?: string;
+    /** Inline images referenced as <img src="cid:…"> (the school logo). */
+    attachments?: { filename: string; content: Buffer; contentType: string; cid: string }[];
 }
 
 export const testOutbox: MailMessage[] = [];
@@ -74,6 +76,7 @@ export const sendMail = async (message: MailMessage): Promise<void> => {
         subject: message.subject,
         text: message.text,
         html: message.html,
+        attachments: message.attachments,
     });
     logger.info('Email sent', { to: message.to, subject: message.subject });
 };

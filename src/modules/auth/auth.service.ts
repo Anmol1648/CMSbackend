@@ -9,7 +9,6 @@ import { comparePassword, hashPassword } from '../../core/password';
 import { encryptSecret, decryptSecret } from '../../core/encryption';
 import { getSettings } from '../../core/settings';
 import { recordAudit } from '../../core/audit';
-import { sendMail } from '../../core/mail';
 import { logger } from '../../core/logger';
 import { generateAccessToken, generateMfaChallengeToken, verifyMfaChallengeToken } from '../../config/jwt';
 import { findTenantById } from '../tenants';
@@ -18,7 +17,8 @@ import { findUserByIdentifier } from './identity';
 import { assertPasswordAllowed } from './password-policy';
 import { createSession, revokeSession, revokeUserSessions, rotateRefreshToken } from './session.service';
 import { generateMfaSetup, verifyMfaToken } from './mfa.service';
-import { passwordResetEmail } from './auth.emails';
+import { PASSWORD_RESET_EMAIL } from './auth.emails';
+import { sendTemplatedEmail } from '../email-templates/email-templates.service';
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -289,9 +289,8 @@ export const forgotPassword = async (identifier: string, meta: RequestMeta) => {
     await db.passwordReset.create({
         data: { tenantId: user.tenantId, userId: user.id, codeHash: codeHash(user.id, code), expiresAt: new Date(Date.now() + s.minutes * 60_000), requestedIp: meta.ip },
     });
-    const profile = await db.schoolProfile.findFirst({ select: { shortName: true, legalName: true } });
     try {
-        await sendMail(passwordResetEmail(user.email, profile?.shortName ?? profile?.legalName ?? 'School', user.displayName, code, s.minutes));
+        await sendTemplatedEmail(PASSWORD_RESET_EMAIL.key, user.email, { name: user.displayName, code, minutes: String(s.minutes) });
     } catch (err) {
         // Same answer either way (so nobody can tell which accounts exist); the admin sees the failure.
         logger.error('Password reset email could not be sent', { userId: user.id, error: (err as Error).message });

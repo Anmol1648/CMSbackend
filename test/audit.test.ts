@@ -66,7 +66,8 @@ describe('audit trail', () => {
         expect(failed.body.data.items.every((r: { action: string }) => r.action === 'login_failed')).toBe(true);
         expect(failed.body.data.items[0].changes).toMatchObject({ identifier: 'nobody', reason: 'unknown_user' });
 
-        const today = new Date().toISOString().slice(0, 10);
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; // the filter reads dates in local time
         expect((await get(superAdmin, `/api/audit?filter[from]=${today}&filter[to]=${today}`)).body.data.total).toBe(all.body.data.total);
         expect((await get(superAdmin, '/api/audit?filter[from]=2000-01-01&filter[to]=2000-01-02')).body.data.total).toBe(0);
         expect((await get(superAdmin, '/api/audit?filter[from]=yesterday')).status).toBe(400);

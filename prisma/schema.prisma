@@ -40,6 +40,7 @@ model Tenant {
   users              User[]
   roles              Role[]
   settings           TenantSetting[]
+  emailTemplates     EmailTemplate[]
   menuCustomizations MenuCustomization[]
   files              File[]
 
@@ -316,6 +317,22 @@ model MenuCustomization {
 
 // ─── Settings & audit ───────────────────────────────────────────────────────
 
+/// A school's own wording for an email (subject + body with {{placeholders}}). No row = the default from code.
+model EmailTemplate {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  /// e.g. password_reset, welcome
+  key       String
+  subject   String
+  body      String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, key])
+  @@map("email_templates")
+}
+
 /// Only overrides are stored; a setting with no row uses its default from code.
 model TenantSetting {
   tenantId  String   @map("tenant_id") @db.Uuid
@@ -377,11 +394,11 @@ model File {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant                 Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   schoolLogos            SchoolProfile[]
   schoolLoginBackgrounds SchoolProfile[] @relation("SchoolLoginBackground")
   userAvatars            User[]          @relation("UserAvatar")
-  importJobs  ImportJob[]
+  importJobs             ImportJob[]
 
   @@index([tenantId, purpose])
   @@map("files")

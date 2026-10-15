@@ -256,11 +256,11 @@ describe('forgot / reset password', () => {
         }
         expect(testOutbox).toHaveLength(1);
         expect(testOutbox[0]).toMatchObject({ to: 'teacher@alpha.test.in', fromName: 'Alpha School' });
-        expect(testOutbox[0].text).toMatch(/code is \d{6}/);
+        expect(testOutbox[0].text).toMatch(/\b\d{6}\b/);
     });
 
     it('resets with the right code once; wrong codes are refused', async () => {
-        const code = testOutbox[0].text.match(/code is (\d{6})/)![1];
+        const code = testOutbox[0].text.match(/\b(\d{6})\b/)![1];
         const wrongCode = code === '000000' ? '111111' : '000000';
         const wrong = await api().post('/api/auth/reset-password').send({ identifier: 'teacher.one', code: wrongCode, newPassword: 'Brand-new-pass-7' });
         expect(wrong.status).toBe(400);

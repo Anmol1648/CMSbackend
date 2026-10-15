@@ -8,7 +8,8 @@ import { recordAudit } from '../../core/audit';
 import { MailMessage, sendMail } from '../../core/mail';
 import { ACCOUNTS } from './auth.settings';
 import { normalizeEmail, normalizeMobile } from './identity';
-import { welcomeEmail } from './auth.emails';
+import { WELCOME_EMAIL } from './auth.emails';
+import { prepareTemplatedEmail } from '../email-templates/email-templates.service';
 
 /**
  * Creates sign-in accounts for people (staff, students, guardians, admins). Person modules call this
@@ -104,8 +105,7 @@ export const createLogin = async (input: CreateLoginInput, client: Db | Tx = db)
 
     let welcome: MailMessage | null = null;
     if (email && s.welcomeEmail) {
-        const profile = await client.schoolProfile.findFirst({ select: { shortName: true, legalName: true } });
-        welcome = welcomeEmail(email, profile?.shortName ?? profile?.legalName ?? 'School', user.displayName, username, temporaryPassword);
+        welcome = await prepareTemplatedEmail(WELCOME_EMAIL.key, email, { name: user.displayName, username, password: temporaryPassword });
     }
     await recordAudit({ action: 'create', entity: 'user', entityId: user.id, changes: { username, kind: input.kind } });
     return { user, temporaryPassword, welcome };

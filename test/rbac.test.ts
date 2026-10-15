@@ -52,7 +52,7 @@ describe('my access and sidebar', () => {
         expect(res.status).toBe(200);
         expect(res.body.data.isSuperAdmin).toBe(true);
         expect(Object.keys(res.body.data.permissions).length).toBe(listPermissionDefs().length);
-        expect(menuKeys(res.body)).toEqual(['home', 'school-profile', 'users', 'roles', 'system-settings', 'audit']);
+        expect(menuKeys(res.body)).toEqual(['home', 'school-profile', 'users', 'roles', 'system-settings', 'email-templates', 'audit']);
     });
 
     it('a teacher sees only what everyone sees', async () => {
