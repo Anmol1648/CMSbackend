@@ -31,3 +31,6 @@ Thumbs.db
 
 # Uploaded files (local storage provider)
 /storage/
+
+# Machine-specific certificates (e.g. antivirus mail shield root)
+/certs/

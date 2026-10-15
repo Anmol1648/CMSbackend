@@ -35,6 +35,8 @@ const envSchema = z.object({
     SMTP_USER: optional,
     SMTP_PASS: optional,
     SMTP_FROM: optional,
+    // Extra root certificate for mail (antivirus mail shields); see scripts/save-smtp-root-ca.js.
+    SMTP_CA_FILE: optional,
 
     // Where uploaded files are kept: local disk (development / single server) or Cloudinary.
     STORAGE_PROVIDER: z.enum(['local', 'cloudinary']).default('local'),

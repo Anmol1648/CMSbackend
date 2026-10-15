@@ -10,6 +10,7 @@ import { encryptSecret, decryptSecret } from '../../core/encryption';
 import { getSettings } from '../../core/settings';
 import { recordAudit } from '../../core/audit';
 import { sendMail } from '../../core/mail';
+import { logger } from '../../core/logger';
 import { generateAccessToken, generateMfaChallengeToken, verifyMfaChallengeToken } from '../../config/jwt';
 import { findTenantById } from '../tenants';
 import { LOGIN, PASSWORDS, SECURITY } from './auth.settings';
@@ -289,7 +290,14 @@ export const forgotPassword = async (identifier: string, meta: RequestMeta) => {
         data: { tenantId: user.tenantId, userId: user.id, codeHash: codeHash(user.id, code), expiresAt: new Date(Date.now() + s.minutes * 60_000), requestedIp: meta.ip },
     });
     const profile = await db.schoolProfile.findFirst({ select: { shortName: true, legalName: true } });
-    await sendMail(passwordResetEmail(user.email, profile?.shortName ?? profile?.legalName ?? 'School', user.displayName, code, s.minutes));
+    try {
+        await sendMail(passwordResetEmail(user.email, profile?.shortName ?? profile?.legalName ?? 'School', user.displayName, code, s.minutes));
+    } catch (err) {
+        // Same answer either way (so nobody can tell which accounts exist); the admin sees the failure.
+        logger.error('Password reset email could not be sent', { userId: user.id, error: (err as Error).message });
+        await recordAudit({ action: 'email_failed', entity: 'user', entityId: user.id, userId: user.id, changes: { purpose: 'password_reset', reason: (err as Error).message.slice(0, 200) } });
+        return { message: GENERIC_RESET_MESSAGE };
+    }
     await recordAudit({ action: 'password_reset_requested', entity: 'user', entityId: user.id, userId: user.id });
     return { message: GENERIC_RESET_MESSAGE };
 };
