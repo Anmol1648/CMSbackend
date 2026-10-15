@@ -27,6 +27,13 @@ export interface SettingDef<T = unknown> {
 
 const registry = new Map<string, SettingDef>();
 
+/** Order of groups on the System Settings screen (groups not listed come after, alphabetically). */
+const GROUP_ORDER = ['Login', 'Security', 'Passwords', 'Accounts', 'Uploads & exports', 'Audit'];
+const groupRank = (g: string) => {
+    const i = GROUP_ORDER.indexOf(g);
+    return i === -1 ? GROUP_ORDER.length : i;
+};
+
 /** Declares a setting; returns it so modules can read it type-safely with getSetting(def). */
 export const defineSetting = <T>(def: SettingDef<T>): SettingDef<T> => {
     if (registry.has(def.key)) throw new Error(`Setting "${def.key}" is defined twice`);
@@ -121,7 +128,7 @@ export const settingsSnapshot = async () => {
         if (!group) groups.push((group = { group: def.group, settings: [] }));
         group.settings.push(item);
     }
-    return groups;
+    return groups.sort((a, b) => groupRank(a.group) - groupRank(b.group) || a.group.localeCompare(b.group));
 };
 
 /**

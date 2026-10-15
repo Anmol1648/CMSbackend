@@ -52,7 +52,7 @@ describe('my access and sidebar', () => {
         expect(res.status).toBe(200);
         expect(res.body.data.isSuperAdmin).toBe(true);
         expect(Object.keys(res.body.data.permissions).length).toBe(listPermissionDefs().length);
-        expect(menuKeys(res.body)).toEqual(['home', 'school-profile', 'users', 'roles', 'system-settings']);
+        expect(menuKeys(res.body)).toEqual(['home', 'school-profile', 'users', 'roles', 'system-settings', 'audit']);
     });
 
     it('a teacher sees only what everyone sees', async () => {
@@ -89,7 +89,7 @@ describe('roles', () => {
         const sa = res.body.data.find((r: { slug: string }) => r.slug === 'super-admin');
         expect(sa).toMatchObject({ isSystem: true, userCount: 1, permissionCount: listPermissionDefs().length });
         const cat = await as(schoolAdmin).get('/api/roles/permissions');
-        expect(cat.body.data.map((m: { module: string }) => m.module)).toEqual(['school', 'settings', 'access']);
+        expect(cat.body.data.map((m: { module: string }) => m.module)).toEqual(['school', 'settings', 'access', 'audit']);
     });
 
     it('only role managers may create or change roles', async () => {

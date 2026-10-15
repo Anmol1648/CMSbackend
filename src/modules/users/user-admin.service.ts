@@ -5,6 +5,7 @@ import { badRequest, conflict, forbidden, notFound } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
 import { generateTemporaryPassword, hashPassword } from '../../core/password';
 import { ListQuery, listResult, toOrderBy } from '../../core/http/list-query';
+import { buildWorkbook } from '../../core/excel';
 import { createLogin, revokeUserSessions, sendWelcomeEmail } from '../auth';
 import { normalizeEmail, normalizeMobile } from '../auth/identity';
 import { getUserAccess, invalidateAccess } from '../rbac/access.service';
@@ -41,9 +42,9 @@ const present = ({ roles, lockedUntil, ...u }: Row) => ({
 
 type Filters = ListQuery<typeof userFilters>['filters'];
 
-export const listUsers = async (q: ListQuery<typeof userFilters>) => {
+const userWhere = (q: Pick<ListQuery<typeof userFilters>, 'filters' | 'search'>): Prisma.UserWhereInput => {
     const f: Filters = q.filters;
-    const where: Prisma.UserWhereInput = {
+    return {
         ...(f.kind ? { kind: f.kind } : {}),
         ...(f.status ? { status: f.status } : {}),
         ...(f.role ? { roles: { some: { role: { slug: f.role } } } } : {}),
@@ -58,11 +59,35 @@ export const listUsers = async (q: ListQuery<typeof userFilters>) => {
               }
             : {}),
     };
+};
+
+export const listUsers = async (q: ListQuery<typeof userFilters>) => {
+    const where = userWhere(q);
     const [rows, total] = await Promise.all([
         db.user.findMany({ where, select: userSelect, orderBy: toOrderBy(q), skip: q.skip, take: q.take }),
         db.user.count({ where }),
     ]);
     return listResult(rows.map(present), total, q);
+};
+
+const KIND_LABEL: Record<string, string> = { admin: 'Administrator', staff: 'Staff', student: 'Student', guardian: 'Parent / guardian' };
+
+/** The same list as an Excel file (same filters, every page), capped by the export limit. */
+export const exportUsers = async (q: ListQuery<typeof userFilters>, maxRows: number) => {
+    const rows = (await db.user.findMany({ where: userWhere(q), select: userSelect, orderBy: toOrderBy(q), take: maxRows })).map(present);
+    const data = await buildWorkbook('Users', [
+        { header: 'Name', width: 28, value: (u) => u.displayName },
+        { header: 'Username', width: 22, value: (u) => u.username },
+        { header: 'Type', value: (u) => KIND_LABEL[u.kind] },
+        { header: 'Email', width: 30, value: (u) => u.email },
+        { header: 'Mobile', value: (u) => u.mobile },
+        { header: 'Roles', width: 30, value: (u) => u.roles.map((r) => r.name).join(', ') },
+        { header: 'Status', value: (u) => (u.status === 'active' ? 'Active' : 'Disabled') },
+        { header: 'Last sign-in', width: 20, value: (u) => u.lastLoginAt },
+        { header: 'Created', width: 20, value: (u) => u.createdAt },
+    ], rows);
+    await recordAudit({ action: 'export', entity: 'user', changes: { rows: rows.length } });
+    return data;
 };
 
 export const getUser = async (id: string) => {

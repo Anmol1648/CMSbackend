@@ -125,12 +125,84 @@ const base = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? [{ emit: 'event', level: 'warn' }] : [],
 });
 
+// ─── Automatic change history (opt-in per model) ─────────────────────────────
+
+interface AuditedModel {
+    entity: string;
+    exclude: Set<string>;
+}
+
+const audited = new Map<string, AuditedModel>();
+const ALWAYS_SKIPPED = ['createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'tenantId'];
+
+/**
+ * Records every single-row create / update / delete of `model` in the audit log with
+ * field-level [old, new] values. Modules opt their tables in; secrets go in `exclude`.
+ * Note: the entry is written right after the statement, outside any surrounding transaction.
+ */
+export const auditModel = (model: Prisma.ModelName, entity: string, exclude: string[] = []) =>
+    audited.set(model, { entity, exclude: new Set([...ALWAYS_SKIPPED, ...exclude]) });
+
+const comparable = (v: unknown) => (v instanceof Date ? v.toISOString() : v === undefined ? null : v);
+
+/** The model's own columns (no relations), so included related records never count as changes. */
+const columnsOf = new Map(
+    Prisma.dmmf.datamodel.models.map((m) => [m.name, m.fields.filter((f) => f.kind === 'scalar' || f.kind === 'enum').map((f) => f.name)])
+);
+
+const diffRows = (model: string, before: Args | null, after: Args | null, exclude: Set<string>) => {
+    const changes: Record<string, [unknown, unknown]> = {};
+    for (const key of columnsOf.get(model) ?? []) {
+        if (exclude.has(key)) continue;
+        const a = comparable(before?.[key]);
+        const b = comparable(after?.[key]);
+        if (JSON.stringify(a) !== JSON.stringify(b)) changes[key] = [a, b];
+    }
+    return changes;
+};
+
+const delegate = (model: string) => (base as unknown as Record<string, { findFirst: (a: Args) => Promise<Args | null> }>)[model[0].toLowerCase() + model.slice(1)];
+
+const writeHistory = async (model: string, operation: string, before: Args | null, after: Args | null) => {
+    const spec = audited.get(model)!;
+    const changes = diffRows(model, before, after, spec.exclude);
+    if (operation === 'update' && !Object.keys(changes).length) return;
+    const row = after ?? before;
+    const ctx = getContext();
+    const tenantId = (row?.tenantId as string | undefined) ?? ctx?.tenantId;
+    if (!tenantId) return;
+    try {
+        await base.auditLog.create({
+            data: {
+                tenantId,
+                userId: ctx?.user?.id ?? null,
+                action: operation,
+                entity: spec.entity,
+                entityId: String(row?.id ?? row?.tenantId ?? ''),
+                changes: changes as object,
+                ip: ctx?.ip ?? null,
+                userAgent: ctx?.userAgent ?? null,
+                requestId: ctx?.requestId ?? null,
+            },
+        });
+    } catch (error) {
+        // The change itself succeeded; a missing history line must not fail the request.
+        process.stderr.write(`Audit history write failed for ${model}.${operation}: ${(error as Error).message}\n`);
+    }
+};
+
 export const db = base.$extends({
     name: 'tenant-scoping',
     query: {
         $allModels: {
             async $allOperations({ model, operation, args, query }) {
-                return query(scopeArgs(model, operation, args as Args) as typeof args);
+                const scoped = scopeArgs(model, operation, args as Args) as typeof args;
+                if (!audited.has(model) || !['create', 'update', 'delete'].includes(operation)) return query(scoped);
+
+                const before = operation === 'create' ? null : await delegate(model).findFirst({ where: (scoped as Args).where });
+                const result = (await query(scoped)) as Args;
+                await writeHistory(model, operation, before, operation === 'delete' ? null : result);
+                return result;
             },
         },
     },

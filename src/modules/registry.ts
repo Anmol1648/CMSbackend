@@ -5,3 +5,4 @@
 import './school-profile/school-profile.permissions';
 import './rbac/rbac.permissions';
 import './settings/settings.permissions';
+import './audit/audit.permissions';

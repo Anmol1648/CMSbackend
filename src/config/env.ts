@@ -36,6 +36,10 @@ const envSchema = z.object({
     SMTP_PASS: optional,
     SMTP_FROM: optional,
 
+    // Where uploaded files are kept: local disk (development / single server) or Cloudinary.
+    STORAGE_PROVIDER: z.enum(['local', 'cloudinary']).default('local'),
+    STORAGE_DIR: optional,
+
     CLOUDINARY_CLOUD_NAME: optional,
     CLOUDINARY_API_KEY: optional,
     CLOUDINARY_API_SECRET: optional,

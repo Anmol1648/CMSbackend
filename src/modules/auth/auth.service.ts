@@ -241,7 +241,14 @@ export const me = async (userId: string) => {
     return {
         user: userSummary(user),
         roles: user.roles.filter((r) => !r.role.deletedAt).map((r) => ({ slug: r.role.slug, name: r.role.name })),
-        school: profile ? { code: profile.tenant.code, name: profile.shortName ?? profile.legalName, legalName: profile.legalName } : null,
+        school: profile
+            ? {
+                  code: profile.tenant.code,
+                  name: profile.shortName ?? profile.legalName,
+                  legalName: profile.legalName,
+                  logoUrl: profile.logoFileId ? `public/school/logo?school=${profile.tenant.code}&v=${profile.logoFileId}` : null,
+              }
+            : null,
     };
 };
 

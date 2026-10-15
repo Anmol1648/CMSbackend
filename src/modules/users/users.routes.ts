@@ -5,11 +5,22 @@ import { parseListQuery } from '../../core/http/list-query';
 import { can } from '../../middlewares/access';
 import { createUserSchema, updateUserSchema, userListSpec } from './users.schemas';
 import * as users from './user-admin.service';
+import { getSetting } from '../../core/settings';
+import { UPLOADS } from '../../core/files';
+import { XLSX_MIME } from '../../core/excel';
+import { sendFile } from '../../core/http/files';
+import './users.import';
 
 export const userRoutes = Router();
 
 userRoutes.get('/', can('user.view'), asyncHandler(async (req: Request, res: Response) => {
     successResponse(res, await users.listUsers(parseListQuery(req.query, userListSpec)), 'Users');
+}));
+
+userRoutes.get('/export', can('user.view'), asyncHandler(async (req: Request, res: Response) => {
+    const q = parseListQuery({ ...req.query, page: '1', pageSize: '1' }, userListSpec);
+    const data = await users.exportUsers(q, await getSetting(UPLOADS.maxExportRows));
+    sendFile(res, `users-${new Date().toISOString().slice(0, 10)}.xlsx`, XLSX_MIME, data);
 }));
 
 userRoutes.get('/:id', can('user.view'), asyncHandler(async (req: Request, res: Response) => {
