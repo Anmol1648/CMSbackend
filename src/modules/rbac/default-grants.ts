@@ -36,15 +36,10 @@ export const DEFAULT_GRANTS: Record<string, { key: string; scope?: DataScope }[]
 export const applyDefaultGrants = async (tenantId: string, client: typeof db | Tx = db) => {
     // tenantId explicitly: this also runs inside runAsSystem (creating a school), where scoping is off.
     const roles = await client.role.findMany({ where: { tenantId, slug: { in: Object.keys(DEFAULT_GRANTS) } }, select: { id: true, slug: true } });
-    let added = 0;
-    for (const role of roles) {
-        const wanted = (DEFAULT_GRANTS[role.slug] ?? []).filter((g) => findPermissionDef(g.key));
-        if (!wanted.length) continue;
-        const res = await client.rolePermission.createMany({
-            data: wanted.map((g) => ({ tenantId, roleId: role.id, permissionKey: g.key, scope: g.scope ?? 'all' })),
-            skipDuplicates: true,
-        });
-        added += res.count;
-    }
-    return added;
+    // One statement for every role (creating a school runs this inside a time-limited transaction).
+    const data = roles.flatMap((role) =>
+        (DEFAULT_GRANTS[role.slug] ?? []).filter((g) => findPermissionDef(g.key)).map((g) => ({ tenantId, roleId: role.id, permissionKey: g.key, scope: g.scope ?? ('all' as const) }))
+    );
+    if (!data.length) return 0;
+    return (await client.rolePermission.createMany({ data, skipDuplicates: true })).count;
 };

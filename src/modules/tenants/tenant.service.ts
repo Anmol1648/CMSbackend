@@ -94,7 +94,7 @@ export const createTenant = async (input: CreateTenantInput, options: { starterD
             await applyDefaultGrants(tenant.id, tx);
 
             return { tenant, admin: { id: admin.id, username: admin.username, temporaryPassword } };
-        });
+        }, { timeout: 60_000 }); // rare, and several statements on a remote database
     });
 
     // Starter lists and academic set-up, after the school exists. If this fails, the school is
