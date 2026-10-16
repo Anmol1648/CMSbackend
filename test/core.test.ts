@@ -178,3 +178,15 @@ describe('background email', () => {
         }
     });
 });
+
+describe('Excel sheet names', () => {
+    it('turns any title into a name Excel accepts', async () => {
+        const { safeSheetName } = await import('../src/core/excel');
+        expect(safeSheetName('States / UTs')).toBe('States - UTs');
+        expect(safeSheetName('Cities / towns')).toBe('Cities - towns');
+        expect(safeSheetName('a*b?c:d\\e[f]g')).toBe('a - b - c - d - e - f - g');
+        expect(safeSheetName("'Quoted'")).toBe('Quoted');
+        expect(safeSheetName('x'.repeat(40))).toHaveLength(31);
+        expect(safeSheetName('///')).toBe('-');
+    });
+});

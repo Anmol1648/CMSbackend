@@ -265,10 +265,22 @@ export interface ExportColumn<T> {
     value: (row: T) => string | number | Date | null | undefined;
 }
 
+/**
+ * A name Excel accepts for a sheet: none of * ? : \ / [ ], no leading or trailing apostrophe,
+ * at most 31 characters ("States / UTs" → "States - UTs").
+ */
+export const safeSheetName = (name: string) =>
+    name
+        .replace(/\s*[*?:\\/[\]]+\s*/g, ' - ')
+        .replace(/^'+|'+$/g, '')
+        .trim()
+        .slice(0, 31)
+        .trim() || 'Sheet1';
+
 export const buildWorkbook = async <T>(sheetName: string, columns: ExportColumn<T>[], rows: T[]): Promise<Buffer> => {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'School ERP';
-    const ws = wb.addWorksheet(sheetName.slice(0, 31), { views: [{ state: 'frozen', ySplit: 1 }] });
+    const ws = wb.addWorksheet(safeSheetName(sheetName), { views: [{ state: 'frozen', ySplit: 1 }] });
     ws.columns = columns.map((c) => ({ header: c.header, width: c.width ?? Math.max(14, c.header.length + 4) }));
     ws.getRow(1).font = { bold: true };
     for (const r of rows) ws.addRow(columns.map((c) => c.value(r) ?? null));

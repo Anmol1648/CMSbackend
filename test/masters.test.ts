@@ -170,6 +170,14 @@ describe('Excel', () => {
         expect((await optionsOf('city', `?parent=${chamoli}`)).map((c) => c.name)).not.toContain('Tharali');
     });
 
+    it('exports lists whose names Excel would not accept as a sheet name', async () => {
+        const res = await request(app).get('/api/masters/city/export').set('Origin', ORIGIN).set('Authorization', superAdmin).buffer(true).parse(binary);
+        expect(res.status).toBe(200);
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(res.body as Buffer);
+        expect(wb.worksheets[0].name).toBe('Cities - towns');
+    });
+
     it('exports a list', async () => {
         const res = await request(app).get('/api/masters/bank/export').set('Origin', ORIGIN).set('Authorization', superAdmin).buffer(true).parse(binary);
         expect(res.status).toBe(200);
