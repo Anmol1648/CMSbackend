@@ -7,7 +7,7 @@ import { generateTemporaryPassword, hashPassword } from '../../core/password';
 import { DEFAULT_ROLES, SUPER_ADMIN_SLUG } from './default-roles';
 import { applyDefaultGrants } from '../rbac/default-grants';
 import { syncPermissions } from '../../core/registry/permissions';
-import { seedMasters } from '../masters/masters.service';
+import { seedStarterData } from './starter-data';
 import '../registry';
 
 /**
@@ -46,7 +46,7 @@ export interface CreatedTenant {
 }
 
 /** Creates a school with its profile, default roles and first Super Admin (one transaction). */
-export const createTenant = async (input: CreateTenantInput, options: { seedMasters?: boolean } = {}): Promise<CreatedTenant> => {
+export const createTenant = async (input: CreateTenantInput, options: { starterData?: boolean } = {}): Promise<CreatedTenant> => {
     const parsed = createTenantSchema.safeParse(input);
     if (!parsed.success) throw validationError(parsed.error);
     const data = parsed.data;
@@ -97,9 +97,9 @@ export const createTenant = async (input: CreateTenantInput, options: { seedMast
         });
     });
 
-    // Starter master lists (states, religions, banks…), after the school exists. If this fails, the
-    // school is still fine: `npm run masters:seed -- --school <code>` adds them later.
-    if (options.seedMasters !== false) await runAsTenant(created.tenant.id, seedMasters);
+    // Starter lists and academic set-up, after the school exists. If this fails, the school is
+    // still fine: `npm run starter:seed -- --school <code>` adds them later.
+    if (options.starterData !== false) await runAsTenant(created.tenant.id, seedStarterData);
     return created;
 };
 

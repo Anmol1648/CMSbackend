@@ -31,7 +31,9 @@ describe('System Settings', () => {
     it('lists every setting by group with its default and limits', async () => {
         const res = await get(superAdmin);
         expect(res.status).toBe(200);
-        expect(res.body.data.map((g: { group: string }) => g.group)).toEqual(['Login', 'Security', 'Passwords', 'Accounts', 'Uploads & exports', 'Audit']);
+        const groups = res.body.data.map((g: { group: string }) => g.group);
+        // In the screen's order; modules add their own groups.
+        expect(groups.filter((g: string) => ['Login', 'Security', 'Passwords', 'Accounts', 'Uploads & exports', 'Audit'].includes(g))).toEqual(['Login', 'Security', 'Passwords', 'Accounts', 'Uploads & exports', 'Audit']);
         expect(find(res.body, 'security.lockout_attempts')).toMatchObject({ type: 'number', value: 5, default: 5, isDefault: true, min: 3, max: 20 });
         expect(find(res.body, 'login.identifiers')).toMatchObject({ type: 'multiselect', value: ['email', 'username', 'mobile'] });
     });

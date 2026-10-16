@@ -17,9 +17,9 @@ export const resetDatabase = async () => {
     clearTenantCache();
 };
 
-/** A school for tests; without the starter master lists unless asked (they slow every test down). */
-export const makeTenant = (code: string, name: string, domain?: string, options: { seedMasters?: boolean } = {}): Promise<CreatedTenant> =>
-    createTenant({ code, name, domain, admin: { username: 'admin', displayName: `${name} Admin` } }, { seedMasters: options.seedMasters ?? false });
+/** A school for tests; without the starter lists and academic set-up unless asked (they slow every test down). */
+export const makeTenant = (code: string, name: string, domain?: string, options: { starterData?: boolean } = {}): Promise<CreatedTenant> =>
+    createTenant({ code, name, domain, admin: { username: 'admin', displayName: `${name} Admin` } }, { starterData: options.starterData ?? false });
 
 /** Adds a staff user holding the given role (by slug) to a school. */
 export const makeUser = async (tenantId: string, username: string, roleSlug: string) =>

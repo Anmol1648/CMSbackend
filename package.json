@@ -22,7 +22,8 @@
     "tenant:create": "tsx src/scripts/tenant-create.ts",
     "user:reset-password": "tsx src/scripts/reset-password.ts",
     "roles:apply-defaults": "tsx src/scripts/apply-default-grants.ts",
-    "masters:seed": "tsx src/scripts/seed-masters.ts"
+    "starter:seed": "tsx src/scripts/seed-starter-data.ts",
+    "masters:seed": "tsx src/scripts/seed-starter-data.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

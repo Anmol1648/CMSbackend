@@ -71,11 +71,13 @@ export const masterCatalogue = async (userId: string) => {
     const counts = await db.masterValue.groupBy({ by: ['master', 'isActive'], _count: { _all: true } });
     const count = (key: string, active?: boolean) =>
         counts.filter((c) => c.master === key && (active === undefined || c.isActive === active)).reduce((n, c) => n + c._count._all, 0);
+    const hidden = new Set<string>();
+    for (const m of listMasters()) if (m.hidden && (await m.hidden())) hidden.add(m.key);
     return listMasterGroups().map((g) => ({
         key: g.key,
         label: g.label,
         masters: listMasters()
-            .filter((m) => m.group === g.key)
+            .filter((m) => m.group === g.key && !hidden.has(m.key))
             .map((m) => ({
                 key: m.key,
                 label: m.label,
@@ -90,7 +92,7 @@ export const masterCatalogue = async (userId: string) => {
                 active: count(m.key, true),
                 canManage: !!access.permissions[managePermission(m)],
             })),
-    }));
+    })).filter((g) => g.masters.length);
 };
 
 const valuesWhere = (key: string, q: Pick<ListQuery<typeof masterValueFilters>, 'filters' | 'search'>): Prisma.MasterValueWhereInput => ({

@@ -42,6 +42,11 @@ model Tenant {
   settings           TenantSetting[]
   emailTemplates     EmailTemplate[]
   masterValues       MasterValue[]
+  academicYears      AcademicYear[]
+  classes            SchoolClass[]
+  sections           Section[]
+  subjects           Subject[]
+  classSubjects      ClassSubject[]
   menuCustomizations MenuCustomization[]
   files              File[]
 
@@ -147,7 +152,9 @@ model User {
   passwordResets  PasswordReset[]
   passwordHistory PasswordHistory[]
   roles           UserRole[]
+  classTeacherOf  Section[]         @relation("SectionClassTeacher")
 
+  @@unique([id, tenantId])
   @@unique([tenantId, username])
   @@unique([tenantId, email])
   @@unique([tenantId, mobile])
@@ -451,6 +458,10 @@ model MasterValue {
   updatedBy String?  @map("updated_by") @db.Uuid
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classesInGroup        SchoolClass[]  @relation("ClassGroup")
+  sectionsOfStream      Section[]      @relation("SectionStream")
+  subjectsOfType        Subject[]      @relation("SubjectType")
+  classSubjectsOfStream ClassSubject[] @relation("ClassSubjectStream")
   /// Through (parent_id, tenant_id): a parent option always belongs to the same school.
   parent   MasterValue?  @relation("MasterValueParent", fields: [parentId, tenantId], references: [id, tenantId], onDelete: Restrict)
   children MasterValue[] @relation("MasterValueParent")
@@ -458,4 +469,152 @@ model MasterValue {
   @@unique([id, tenantId])
   @@index([tenantId, master, parentId, sortOrder])
   @@map("master_values")
+}
+
+// ─── Academic setup ──────────────────────────────────────────────────────────
+
+enum AcademicYearStatus {
+  open
+  /// Finished: its sections and subjects can no longer be changed.
+  closed
+}
+
+/// A session, e.g. 2026–27. At most one is the current year (index in the migration).
+model AcademicYear {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String             @map("tenant_id") @db.Uuid
+  name      String
+  startDate DateTime           @map("start_date") @db.Date
+  endDate   DateTime           @map("end_date") @db.Date
+  isCurrent Boolean            @default(false) @map("is_current")
+  status    AcademicYearStatus @default(open)
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?            @map("created_by") @db.Uuid
+  updatedAt DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?            @map("updated_by") @db.Uuid
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sections      Section[]
+  classSubjects ClassSubject[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, startDate])
+  @@map("academic_years")
+}
+
+/// A class (grade), e.g. Class VI. The same classes run every year; sections are per year.
+model SchoolClass {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  name       String
+  /// Short form for lists and reports, e.g. "VI".
+  shortName  String?  @map("short_name")
+  /// Master "class_group" (Primary, Middle…), used to apply fees or exams to many classes.
+  groupId    String?  @map("group_id") @db.Uuid
+  /// Sections and subjects are split by stream (Science, Commerce…), e.g. XI and XII.
+  hasStreams Boolean  @default(false) @map("has_streams")
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy  String?  @map("created_by") @db.Uuid
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy  String?  @map("updated_by") @db.Uuid
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group         MasterValue?   @relation("ClassGroup", fields: [groupId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  sections      Section[]
+  classSubjects ClassSubject[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, sortOrder])
+  @@map("classes")
+}
+
+/// A section of a class in one year, e.g. VI-A in 2026–27.
+model Section {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  classId        String   @map("class_id") @db.Uuid
+  name           String
+  /// Master "stream"; set exactly when the class has streams.
+  streamId       String?  @map("stream_id") @db.Uuid
+  capacity       Int?
+  room           String?
+  classTeacherId String?  @map("class_teacher_id") @db.Uuid
+  sortOrder      Int      @default(0) @map("sort_order")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schoolClass  SchoolClass  @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  stream       MasterValue? @relation("SectionStream", fields: [streamId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  /// Same school (through tenant_id). Users are never hard-deleted, only disabled or soft-deleted.
+  classTeacher User?        @relation("SectionClassTeacher", fields: [classTeacherId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([id, tenantId])
+  @@index([tenantId, academicYearId, classId])
+  @@map("sections")
+}
+
+enum SubjectAssessment {
+  /// Marks / grades on the report card.
+  scholastic
+  /// Art, PE, work education… (graded separately on CBSE report cards).
+  co_scholastic
+}
+
+model Subject {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String            @map("tenant_id") @db.Uuid
+  name       String
+  code       String?
+  /// Master "subject_type" (Theory, Theory + practical, Activity…).
+  typeId     String?           @map("type_id") @db.Uuid
+  assessment SubjectAssessment @default(scholastic)
+  sortOrder  Int               @default(0) @map("sort_order")
+  isActive   Boolean           @default(true) @map("is_active")
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy  String?           @map("created_by") @db.Uuid
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy  String?           @map("updated_by") @db.Uuid
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type          MasterValue?   @relation("SubjectType", fields: [typeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  classSubjects ClassSubject[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, sortOrder])
+  @@map("subjects")
+}
+
+/// A subject a class studies in one year; with a stream it applies to that stream's sections only.
+model ClassSubject {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  classId        String   @map("class_id") @db.Uuid
+  /// Empty = every stream (or the class has no streams).
+  streamId       String?  @map("stream_id") @db.Uuid
+  subjectId      String   @map("subject_id") @db.Uuid
+  /// Optional / elective: each student picks from these (e.g. Hindi or Sanskrit).
+  isOptional     Boolean  @default(false) @map("is_optional")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schoolClass  SchoolClass  @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  stream       MasterValue? @relation("ClassSubjectStream", fields: [streamId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  subject      Subject      @relation(fields: [subjectId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, academicYearId, classId])
+  @@map("class_subjects")
 }

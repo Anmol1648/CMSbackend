@@ -53,6 +53,8 @@ export interface MasterDef {
     /** Permission to change the list (default masters.manage); seeing it needs masters.view. */
     permission?: string;
     seed?: MasterSeed[] | (() => MasterSeed[]);
+    /** Hidden from the Masters screen when this returns true (e.g. houses switched off). */
+    hidden?: () => Promise<boolean>;
 }
 
 /** Something that refers to options of a list (e.g. students → religion); blocks deleting them. */

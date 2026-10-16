@@ -39,7 +39,7 @@ const binary = (res: request.Response, cb: (err: Error | null, body: Buffer) => 
 beforeAll(async () => {
     useStorageForTests(localStorageAt(fs.mkdtempSync(path.join(os.tmpdir(), 'cms-masters-'))));
     await resetDatabase();
-    alpha = await makeTenant('alpha', 'Alpha School', 'alpha.test.in', { seedMasters: true });
+    alpha = await makeTenant('alpha', 'Alpha School', 'alpha.test.in', { starterData: true });
     superAdmin = tokenFor({ id: alpha.admin.id, tenantId: alpha.tenant.id });
     office = tokenFor(await makeUser(alpha.tenant.id, 'office.one', 'office-staff'));
     teacher = tokenFor(await makeUser(alpha.tenant.id, 'teacher.one', 'teacher'));
@@ -50,7 +50,7 @@ beforeAll(async () => {
 describe('starter lists', () => {
     it('gives a new school every state, district and its own towns', async () => {
         const catalogue = (await as(superAdmin).get('/api/masters')).body.data as { key: string; masters: { key: string; total: number }[] }[];
-        expect(catalogue.map((g) => g.key)).toEqual(['location', 'personal', 'family', 'finance']);
+        expect(catalogue.map((g) => g.key)).toEqual(['academic', 'location', 'personal', 'family', 'finance']);
         const total = (key: string) => catalogue.flatMap((g) => g.masters).find((m) => m.key === key)!.total;
         expect(total('state')).toBe(36);
         expect(total('district')).toBe(786);
