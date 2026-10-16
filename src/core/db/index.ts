@@ -121,8 +121,26 @@ export const scopeArgs = (model: string, operation: string, input: Args): Args =
     return args;
 };
 
+/**
+ * The database address with patient connection limits (unless the URL sets its own): Prisma's
+ * defaults (5 s to connect, 10 s to wait for a free connection) are too short for a remote
+ * database that is far away or waking up from sleep, and fail requests that would have worked.
+ */
+const withTimeouts = (url: string | undefined) => {
+    if (!url) return url;
+    try {
+        const u = new URL(url);
+        if (!u.searchParams.has('connect_timeout')) u.searchParams.set('connect_timeout', '20');
+        if (!u.searchParams.has('pool_timeout')) u.searchParams.set('pool_timeout', '20');
+        return u.toString();
+    } catch {
+        return url;
+    }
+};
+
 const base = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? [{ emit: 'event', level: 'warn' }] : [],
+    datasources: { db: { url: withTimeouts(process.env.DATABASE_URL) } },
 });
 
 // ─── Automatic change history (opt-in per model) ─────────────────────────────
