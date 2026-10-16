@@ -135,6 +135,22 @@ describe('importing users from Excel', () => {
         expect(data[0]).toEqual(['Name *', 'Type *', 'Email', 'Mobile', 'Username', 'Roles']);
         const help = await readSheet(res.body as Buffer, 'Instructions');
         expect(help.some((r) => r[0] === 'Type' && String(r[2]).includes('Staff'))).toBe(true);
+
+        // Every role and type with what it means, a dropdown on Roles too, and a tip on selecting a cell.
+        const allowed = await readSheet(res.body as Buffer, 'Allowed values');
+        expect(allowed.some((r) => r[0] === 'Teacher' && String(r[1]).includes('Teaches subjects'))).toBe(true);
+        expect(allowed.some((r) => r[0] === 'Staff' && String(r[1]).includes('Teachers and other staff'))).toBe(true);
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(res.body as Buffer);
+        const sheet = wb.getWorksheet('Data')!;
+        expect(sheet.getCell('F2').dataValidation).toMatchObject({ type: 'list' });
+        expect(sheet.getCell('F2').dataValidation.showErrorMessage).toBeFalsy(); // typed comma lists must not be refused
+        expect(sheet.getCell('B2').dataValidation).toMatchObject({ type: 'list', showErrorMessage: true });
+        expect(sheet.getCell('A2').dataValidation.prompt).toContain('Required.');
+
+        const columns = await request(app).get('/api/imports/users/columns').set('Origin', ORIGIN).set('Authorization', schoolAdmin);
+        const roles = columns.body.data.find((c: { key: string }) => c.key === 'roles');
+        expect(roles.choices).toEqual(expect.arrayContaining([expect.objectContaining({ value: 'Teacher', help: expect.stringContaining('Teaches subjects') })]));
         expect((await request(app).get('/api/imports/users/template').set('Origin', ORIGIN).set('Authorization', teacher)).status).toBe(403);
     });
 

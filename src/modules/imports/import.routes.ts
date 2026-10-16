@@ -25,6 +25,10 @@ importRoutes.get('/jobs/:id/problems', authenticated, asyncHandler(async (req: R
     sendFile(res, report.fileName, XLSX_MIME, report.data);
 }));
 
+importRoutes.get('/:kind/columns', authenticated, asyncHandler(async (req: Request, res: Response) => {
+    successResponse(res, await imports.importColumns(req.params.kind, req.user!.userId), 'Columns');
+}));
+
 importRoutes.get('/:kind/template', authenticated, asyncHandler(async (req: Request, res: Response) => {
     const t = await imports.importTemplate(req.params.kind, req.user!.userId);
     sendFile(res, t.fileName, XLSX_MIME, t.data);

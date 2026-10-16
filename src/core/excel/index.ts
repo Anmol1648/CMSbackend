@@ -2,8 +2,9 @@ import ExcelJS from 'exceljs';
 
 /**
  * Excel engine shared by every module.
- *   - buildTemplate(def): Data sheet with headers (* = required), dropdowns for choice columns, an
- *     Instructions sheet with what each column means and an example.
+ *   - buildTemplate(def): Data sheet with headers (* = required), a tip when a cell is selected,
+ *     dropdowns for choice and list columns, an Instructions sheet (what each column means, an
+ *     example) and an "Allowed values" sheet (every choice and what it means).
  *   - parseRows(def, buffer): reads an uploaded workbook into typed rows with per-cell problems.
  *   - buildWorkbook(columns, rows): plain export / error report.
  */
@@ -19,6 +20,8 @@ export interface ImportColumn {
     unique?: boolean;
     /** choice / list: allowed values (shown as a dropdown; list = comma-separated several). */
     choices?: string[];
+    /** choice / list: what each value means (shown on the "Allowed values" sheet and the import screen). */
+    choiceHelp?: Record<string, string>;
     max?: number;
     help?: string;
     example?: string;
@@ -45,6 +48,20 @@ const LISTS_SHEET = 'Lists';
 const headerLabel = (c: ImportColumn) => `${c.header}${c.required ? ' *' : ''}`;
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s*\*$/, '').replace(/\s+/g, ' ');
 
+/** The tip shown in Excel when a cell of this column is selected. */
+const cellTip = (c: ImportColumn) =>
+    [
+        c.required ? 'Required.' : null,
+        c.help,
+        c.type === 'choice' ? 'Pick from the list.' : null,
+        c.type === 'list' ? 'Pick one from the list, or type several separated by commas. All options: "Allowed values" sheet.' : null,
+        c.type === 'date' ? 'A date like 15-08-2012.' : null,
+        c.example ? `Example: ${c.example}` : null,
+    ]
+        .filter((t): t is string => !!t)
+        .map((t) => (/[.!?]$/.test(t) ? t : `${t}.`))
+        .join(' ');
+
 export const buildTemplate = async (columns: ImportColumn[], title: string, maxRows: number): Promise<Buffer> => {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'School ERP';
@@ -57,20 +74,46 @@ export const buildTemplate = async (columns: ImportColumn[], title: string, maxR
         if (c.help) head.getCell(i + 1).note = c.help;
     });
 
-    // Dropdowns: choice lists live on a hidden sheet so long lists work.
+    // Dropdowns: choice lists live on a hidden sheet so long lists work. A tip shows when a cell is
+    // selected (Excel shows at most 255 characters of it).
     const lists = wb.addWorksheet(LISTS_SHEET, { state: 'veryHidden' });
     let listCol = 0;
     for (const [i, c] of columns.entries()) {
-        if ((c.type !== 'choice' && c.type !== 'list') || !c.choices?.length) continue;
-        listCol++;
-        c.choices.forEach((v, r) => (lists.getCell(r + 1, listCol).value = v));
-        const letter = lists.getColumn(listCol).letter;
-        const range = `${LISTS_SHEET}!$${letter}$1:$${letter}$${c.choices.length}`;
-        if (c.type === 'choice') {
-            for (let r = 2; r <= maxRows + 1; r++) {
-                data.getCell(r, i + 1).dataValidation = { type: 'list', allowBlank: !c.required, formulae: [range], showErrorMessage: true, errorTitle: c.header, error: 'Pick a value from the list' };
-            }
+        const tip = cellTip(c).slice(0, 255);
+        // A length rule carries the tip (Excel has no "tip only" rule) and enforces the column's maximum.
+        let validation: ExcelJS.DataValidation | null = tip
+            ? {
+                  type: 'textLength',
+                  operator: 'lessThanOrEqual',
+                  allowBlank: true,
+                  formulae: [c.max ?? 32767],
+                  showInputMessage: true,
+                  promptTitle: c.header.slice(0, 32),
+                  prompt: tip,
+                  showErrorMessage: !!c.max,
+                  errorTitle: c.header.slice(0, 32),
+                  error: `At most ${c.max} characters`,
+              }
+            : null;
+        if ((c.type === 'choice' || c.type === 'list') && c.choices?.length) {
+            listCol++;
+            c.choices.forEach((v, r) => (lists.getCell(r + 1, listCol).value = v));
+            const letter = lists.getColumn(listCol).letter;
+            const range = `${LISTS_SHEET}!$${letter}$1:$${letter}$${c.choices.length}`;
+            validation = {
+                ...validation,
+                operator: undefined,
+                type: 'list',
+                allowBlank: !c.required,
+                formulae: [range],
+                // A list column takes several values typed with commas, so Excel must not refuse them.
+                showErrorMessage: c.type === 'choice',
+                errorTitle: c.header.slice(0, 32),
+                error: 'Pick a value from the list',
+            };
         }
+        if (!validation) continue;
+        for (let r = 2; r <= maxRows + 1; r++) data.getCell(r, i + 1).dataValidation = validation;
     }
 
     const help = wb.addWorksheet('Instructions');
@@ -85,6 +128,20 @@ export const buildTemplate = async (columns: ImportColumn[], title: string, maxR
             .filter(Boolean)
             .join('. ');
         help.addRow([c.header, c.required ? 'Yes' : '', what, c.example ?? '']);
+    }
+
+    // Every allowed value with its meaning, so nobody has to guess role or type names.
+    const withChoices = columns.filter((c) => (c.type === 'choice' || c.type === 'list') && c.choices?.length);
+    if (withChoices.length) {
+        const allowed = wb.addWorksheet('Allowed values');
+        allowed.columns = [{ width: 26 }, { width: 80 }];
+        for (const c of withChoices) {
+            const t = allowed.addRow([c.header, c.type === 'list' ? 'Use one or more, separated by commas' : 'Use one of these']);
+            t.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A365D' } };
+            for (const v of c.choices!) allowed.addRow([v, c.choiceHelp?.[v] ?? '']);
+            allowed.addRow([]);
+        }
     }
     return Buffer.from(await wb.xlsx.writeBuffer());
 };

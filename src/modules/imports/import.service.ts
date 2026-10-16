@@ -53,6 +53,23 @@ export const importTemplate = async (kind: string, userId: string) => {
     return { fileName: `${def.kind}-import-template.xlsx`, data: await buildTemplate(await def.columns(), `${def.label}: import template`, max) };
 };
 
+/** What goes in each column, with allowed values and their meaning (shown on the import screen). */
+export const importColumns = async (kind: string, userId: string) => {
+    const def = definition(kind);
+    await assertAllowed(def, userId);
+    const columns = await def.columns();
+    return columns.map(({ key, header, type, required, choices, choiceHelp, help, example, max }) => ({
+        key,
+        header,
+        type,
+        required: !!required,
+        help: help ?? null,
+        example: example || null,
+        max: max ?? null,
+        choices: choices?.map((value) => ({ value, help: choiceHelp?.[value] ?? null })) ?? null,
+    }));
+};
+
 /** Checks every row (and the whole file) without saving anything. */
 const checkFile = async (def: ImportDefinition<unknown>, data: Buffer, userId: string) => {
     const max = await getSetting(UPLOADS.maxImportRows);

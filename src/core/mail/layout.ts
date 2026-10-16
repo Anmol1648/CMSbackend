@@ -38,10 +38,10 @@ export const renderEmailHtml = (school: EmailSchool, subject: string, body: stri
         .map((p) => p.trim())
         .filter(Boolean)
         .map((p) => {
-            // Escape the wording, then put the values in (values are escaped inside fill).
+            // Escape the wording, then put the values in (values are escaped inside fill). A private-use character (U+E000) marks where.
             const tokens: string[] = [];
-            const safe = escapeHtml(p.replace(/\{\{\s*[a-zA-Z][a-zA-Z0-9_]*\s*\}\}/g, (m) => `\u0000${tokens.push(m) - 1}\u0000`));
-            const withValues = safe.replace(/\u0000(\d+)\u0000/g, (_m, i: string) => fill(tokens[Number(i)], vars, true, placeholders));
+            const safe = escapeHtml(p.replace(/\{\{\s*[a-zA-Z][a-zA-Z0-9_]*\s*\}\}/g, (m) => `\uE000${tokens.push(m) - 1}\uE000`));
+            const withValues = safe.replace(/\uE000(\d+)\uE000/g, (_m, i: string) => fill(tokens[Number(i)], vars, true, placeholders));
             return `<p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#334155">${withValues.replace(/\n/g, '<br/>')}</p>`;
         })
         .join('');
