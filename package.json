@@ -23,7 +23,9 @@
     "user:reset-password": "tsx src/scripts/reset-password.ts",
     "roles:apply-defaults": "tsx src/scripts/apply-default-grants.ts",
     "starter:seed": "tsx src/scripts/seed-starter-data.ts",
-    "masters:seed": "tsx src/scripts/seed-starter-data.ts"
+    "masters:seed": "tsx src/scripts/seed-starter-data.ts",
+    "demo:seed": "tsx src/scripts/demo-data.ts",
+    "demo:clear": "tsx src/scripts/demo-data.ts --clear"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

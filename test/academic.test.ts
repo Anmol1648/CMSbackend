@@ -66,8 +66,7 @@ describe('starter set-up', () => {
 
     it('puts streams, class groups, subject types and houses in Masters', async () => {
         const groups = (await as(superAdmin).get('/api/masters')).body.data as { key: string; masters: { key: string }[] }[];
-        expect(groups[0]).toMatchObject({ key: 'academic' });
-        expect(groups[0].masters.map((m) => m.key)).toEqual(['class_group', 'stream', 'subject_type', 'house']);
+        expect(groups.find((g) => g.key === 'academic')!.masters.map((m) => m.key)).toEqual(['class_group', 'stream', 'subject_type', 'house']);
         // A stream in use can't be deleted.
         expect((await as(superAdmin).del(`/api/masters/stream/values/${await masterId('stream', 'Science')}`)).status).toBe(409);
     });

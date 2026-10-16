@@ -19,14 +19,21 @@ export const DEFAULT_GRANTS: Record<string, { key: string; scope?: DataScope }[]
         { key: 'masters.manage' },
         { key: 'academic.view' },
         { key: 'academic.manage' },
+        { key: 'student.view' },
+        { key: 'student.create' },
+        { key: 'student.update' },
+        { key: 'student.import' },
+        { key: 'student.view_sensitive' },
     ],
-    principal: [{ key: 'user.view' }, { key: 'role.view' }, { key: 'masters.view' }, { key: 'academic.view' }, { key: 'academic.manage' }],
+    principal: [{ key: 'user.view' }, { key: 'role.view' }, { key: 'masters.view' }, { key: 'academic.view' }, { key: 'academic.manage' }, { key: 'student.view' }, { key: 'student.view_sensitive' }],
     teacher: [],
-    'class-teacher': [],
-    'office-staff': [{ key: 'masters.view' }, { key: 'academic.view' }],
+    // Class teachers see the students of their own sections.
+    'class-teacher': [{ key: 'student.view', scope: 'assigned' }],
+    'office-staff': [{ key: 'masters.view' }, { key: 'academic.view' }, { key: 'student.view' }, { key: 'student.create' }, { key: 'student.update' }, { key: 'student.import' }],
     accountant: [],
-    student: [],
-    guardian: [],
+    // A student sees their own record; a parent sees their children.
+    student: [{ key: 'student.view', scope: 'own' }],
+    guardian: [{ key: 'student.view', scope: 'own' }],
 };
 
 /**

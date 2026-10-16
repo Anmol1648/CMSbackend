@@ -47,6 +47,12 @@ model Tenant {
   sections           Section[]
   subjects           Subject[]
   classSubjects      ClassSubject[]
+  numberSequences    NumberSequence[]
+  families           Family[]
+  guardians          Guardian[]
+  students           Student[]
+  enrolments         Enrolment[]
+  studentDocuments   StudentDocument[]
   menuCustomizations MenuCustomization[]
   files              File[]
 
@@ -145,6 +151,8 @@ model User {
   updatedBy          String?    @map("updated_by") @db.Uuid
   deletedAt          DateTime?  @map("deleted_at") @db.Timestamptz(6)
   deletedBy          String?    @map("deleted_by") @db.Uuid
+  /// Created by the demo data script (removed by `npm run demo:clear`).
+  isDemo             Boolean    @default(false) @map("is_demo")
 
   tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   avatar          File?             @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
@@ -153,6 +161,8 @@ model User {
   passwordHistory PasswordHistory[]
   roles           UserRole[]
   classTeacherOf  Section[]         @relation("SectionClassTeacher")
+  studentLogin    Student?          @relation("StudentLogin")
+  guardianLogin   Guardian?         @relation("GuardianLogin")
 
   @@unique([id, tenantId])
   @@unique([tenantId, username])
@@ -408,6 +418,9 @@ model File {
   userAvatars            User[]          @relation("UserAvatar")
   importJobs             ImportJob[]
 
+  studentPhotos    Student[]         @relation("StudentPhoto")
+  studentDocuments StudentDocument[] @relation("StudentDocumentFile")
+
   @@index([tenantId, purpose])
   @@map("files")
 }
@@ -462,6 +475,26 @@ model MasterValue {
   sectionsOfStream      Section[]      @relation("SectionStream")
   subjectsOfType        Subject[]      @relation("SubjectType")
   classSubjectsOfStream ClassSubject[] @relation("ClassSubjectStream")
+  guardiansRelation      Guardian[]        @relation("GuardianRelation")
+  guardiansOccupation    Guardian[]        @relation("GuardianOccupation")
+  guardiansQualification Guardian[]        @relation("GuardianQualification")
+  guardiansIncome        Guardian[]        @relation("GuardianIncome")
+  studentsAdmissionType  Student[]         @relation("StudentAdmissionType")
+  studentsGender         Student[]         @relation("StudentGender")
+  studentsBloodGroup     Student[]         @relation("StudentBloodGroup")
+  studentsReligion       Student[]         @relation("StudentReligion")
+  studentsCaste          Student[]         @relation("StudentCaste")
+  studentsMotherTongue   Student[]         @relation("StudentMotherTongue")
+  studentsNationality    Student[]         @relation("StudentNationality")
+  studentsDisability     Student[]         @relation("StudentDisability")
+  studentsCategory       Student[]         @relation("StudentCategory")
+  studentsState          Student[]         @relation("StudentState")
+  studentsDistrict       Student[]         @relation("StudentDistrict")
+  studentsCity           Student[]         @relation("StudentCity")
+  studentsPreviousBoard  Student[]         @relation("StudentPreviousBoard")
+  studentsLeavingReason  Student[]         @relation("StudentLeavingReason")
+  enrolmentsHouse        Enrolment[]       @relation("EnrolmentHouse")
+  studentDocumentsType   StudentDocument[] @relation("StudentDocumentType")
   /// Through (parent_id, tenant_id): a parent option always belongs to the same school.
   parent   MasterValue?  @relation("MasterValueParent", fields: [parentId, tenantId], references: [id, tenantId], onDelete: Restrict)
   children MasterValue[] @relation("MasterValueParent")
@@ -496,6 +529,7 @@ model AcademicYear {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sections      Section[]
   classSubjects ClassSubject[]
+  enrolments    Enrolment[]
 
   @@unique([id, tenantId])
   @@index([tenantId, startDate])
@@ -554,6 +588,7 @@ model Section {
   schoolClass  SchoolClass  @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
   stream       MasterValue? @relation("SectionStream", fields: [streamId, tenantId], references: [id, tenantId], onDelete: Restrict)
   /// Same school (through tenant_id). Users are never hard-deleted, only disabled or soft-deleted.
+  enrolments   Enrolment[]
   classTeacher User?        @relation("SectionClassTeacher", fields: [classTeacherId, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   @@unique([id, tenantId])
@@ -617,4 +652,214 @@ model ClassSubject {
 
   @@index([tenantId, academicYearId, classId])
   @@map("class_subjects")
+}
+
+// ─── Students ────────────────────────────────────────────────────────────────
+
+/// Running counters for numbers the school formats itself (admission numbers, later receipts).
+/// `key` includes what the counter restarts by, e.g. "admission:2026-27".
+model NumberSequence {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  key       String
+  /// The last number given out.
+  lastValue Int      @default(0) @map("last_value")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, key])
+  @@map("number_sequences")
+}
+
+/// A household: the parents / guardians shared by siblings.
+model Family {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  /// Created by the demo data script (removed by `npm run demo:clear`).
+  isDemo    Boolean   @default(false) @map("is_demo")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?   @map("updated_by") @db.Uuid
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  guardians Guardian[]
+  students  Student[]
+
+  @@unique([id, tenantId])
+  @@map("families")
+}
+
+model Guardian {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  familyId        String   @map("family_id") @db.Uuid
+  /// Master "relation" (Father, Mother, Guardian…).
+  relationId      String?  @map("relation_id") @db.Uuid
+  name            String
+  mobile          String?
+  email           String?
+  occupationId    String?  @map("occupation_id") @db.Uuid
+  qualificationId String?  @map("qualification_id") @db.Uuid
+  incomeRangeId   String?  @map("income_range_id") @db.Uuid
+  /// Sensitive (student.view_sensitive).
+  aadhaar         String?
+  /// The one the school contacts first.
+  isPrimary       Boolean  @default(false) @map("is_primary")
+  /// Parent login (optional, System Settings → Students).
+  userId          String?  @map("user_id") @db.Uuid
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       String?  @map("created_by") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy       String?  @map("updated_by") @db.Uuid
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  family        Family       @relation(fields: [familyId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  relation      MasterValue? @relation("GuardianRelation", fields: [relationId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  occupation    MasterValue? @relation("GuardianOccupation", fields: [occupationId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  qualification MasterValue? @relation("GuardianQualification", fields: [qualificationId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  incomeRange   MasterValue? @relation("GuardianIncome", fields: [incomeRangeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  user          User?        @relation("GuardianLogin", fields: [userId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId, familyId])
+  @@index([tenantId, mobile])
+  @@map("guardians")
+}
+
+enum StudentStatus {
+  active
+  /// Left the school (transfer certificate issued).
+  left
+  passed_out
+  struck_off
+}
+
+model Student {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String        @map("tenant_id") @db.Uuid
+  admissionNo        String        @map("admission_no")
+  admissionDate      DateTime      @map("admission_date") @db.Date
+  admissionTypeId    String?       @map("admission_type_id") @db.Uuid
+  firstName          String        @map("first_name")
+  middleName         String?       @map("middle_name")
+  lastName           String?       @map("last_name")
+  dateOfBirth        DateTime?     @map("date_of_birth") @db.Date
+  genderId           String?       @map("gender_id") @db.Uuid
+  bloodGroupId       String?       @map("blood_group_id") @db.Uuid
+  religionId         String?       @map("religion_id") @db.Uuid
+  casteCategoryId    String?       @map("caste_category_id") @db.Uuid
+  motherTongueId     String?       @map("mother_tongue_id") @db.Uuid
+  nationalityId      String?       @map("nationality_id") @db.Uuid
+  disabilityId       String?       @map("disability_id") @db.Uuid
+  /// Master "student_category" (e.g. KV admission priority category).
+  categoryId         String?       @map("category_id") @db.Uuid
+  /// Sensitive (student.view_sensitive).
+  aadhaar            String?
+  apaarId            String?       @map("apaar_id")
+  /// UDISE+ Permanent Education Number.
+  pen                String?
+  mobile             String?
+  email              String?
+  addressLine        String?       @map("address_line")
+  stateId            String?       @map("state_id") @db.Uuid
+  districtId         String?       @map("district_id") @db.Uuid
+  cityId             String?       @map("city_id") @db.Uuid
+  pinCode            String?       @map("pin_code")
+  previousSchool     String?       @map("previous_school")
+  previousBoardId    String?       @map("previous_board_id") @db.Uuid
+  previousClass      String?       @map("previous_class")
+  tcNumber           String?       @map("tc_number")
+  /// Sensitive (student.view_sensitive).
+  medicalNotes       String?       @map("medical_notes")
+  emergencyName      String?       @map("emergency_name")
+  emergencyPhone     String?       @map("emergency_phone")
+  photoFileId        String?       @map("photo_file_id") @db.Uuid
+  familyId           String?       @map("family_id") @db.Uuid
+  /// The student's own login.
+  userId             String?       @map("user_id") @db.Uuid
+  status             StudentStatus @default(active)
+  statusDate         DateTime?     @map("status_date") @db.Date
+  leavingReasonId    String?       @map("leaving_reason_id") @db.Uuid
+  statusNote         String?       @map("status_note")
+  isDemo             Boolean       @default(false) @map("is_demo")
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy          String?       @map("created_by") @db.Uuid
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy          String?       @map("updated_by") @db.Uuid
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  family        Family?           @relation(fields: [familyId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  user          User?             @relation("StudentLogin", fields: [userId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  photo         File?             @relation("StudentPhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
+  admissionType MasterValue?      @relation("StudentAdmissionType", fields: [admissionTypeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  gender        MasterValue?      @relation("StudentGender", fields: [genderId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  bloodGroup    MasterValue?      @relation("StudentBloodGroup", fields: [bloodGroupId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  religion      MasterValue?      @relation("StudentReligion", fields: [religionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  casteCategory MasterValue?      @relation("StudentCaste", fields: [casteCategoryId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  motherTongue  MasterValue?      @relation("StudentMotherTongue", fields: [motherTongueId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  nationality   MasterValue?      @relation("StudentNationality", fields: [nationalityId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  disability    MasterValue?      @relation("StudentDisability", fields: [disabilityId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  category      MasterValue?      @relation("StudentCategory", fields: [categoryId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  state         MasterValue?      @relation("StudentState", fields: [stateId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  district      MasterValue?      @relation("StudentDistrict", fields: [districtId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  city          MasterValue?      @relation("StudentCity", fields: [cityId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  previousBoard MasterValue?      @relation("StudentPreviousBoard", fields: [previousBoardId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  leavingReason MasterValue?      @relation("StudentLeavingReason", fields: [leavingReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  enrolments    Enrolment[]
+  documents     StudentDocument[]
+
+  @@unique([id, tenantId])
+  @@unique([userId, tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, familyId])
+  @@map("students")
+}
+
+/// A student's place in one academic year: section, roll number, house, chosen optional subjects.
+model Enrolment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  sectionId      String   @map("section_id") @db.Uuid
+  rollNumber     Int?     @map("roll_number")
+  houseId        String?  @map("house_id") @db.Uuid
+  /// Optional subjects the student chose (subject ids of the class's optional subjects).
+  optionalSubjectIds String[] @default([]) @map("optional_subject_ids") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  section      Section      @relation(fields: [sectionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  house        MasterValue? @relation("EnrolmentHouse", fields: [houseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([studentId, academicYearId])
+  @@index([tenantId, sectionId])
+  @@map("enrolments")
+}
+
+model StudentDocument {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  /// Master "student_document".
+  typeId    String?  @map("type_id") @db.Uuid
+  fileId    String   @map("file_id") @db.Uuid
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student Student      @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  type    MasterValue? @relation("StudentDocumentType", fields: [typeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  file    File         @relation("StudentDocumentFile", fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, studentId])
+  @@map("student_documents")
 }

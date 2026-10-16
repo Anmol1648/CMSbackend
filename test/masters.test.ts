@@ -50,7 +50,8 @@ beforeAll(async () => {
 describe('starter lists', () => {
     it('gives a new school every state, district and its own towns', async () => {
         const catalogue = (await as(superAdmin).get('/api/masters')).body.data as { key: string; masters: { key: string; total: number }[] }[];
-        expect(catalogue.map((g) => g.key)).toEqual(['academic', 'location', 'personal', 'family', 'finance']);
+        // Modules add their own groups; the shared ones are always there, in order.
+        expect(catalogue.map((g) => g.key).filter((k) => ['location', 'personal', 'family', 'finance'].includes(k))).toEqual(['location', 'personal', 'family', 'finance']);
         const total = (key: string) => catalogue.flatMap((g) => g.masters).find((m) => m.key === key)!.total;
         expect(total('state')).toBe(36);
         expect(total('district')).toBe(786);
