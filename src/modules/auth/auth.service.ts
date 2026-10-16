@@ -19,6 +19,7 @@ import { createSession, revokeSession, revokeUserSessions, rotateRefreshToken } 
 import { generateMfaSetup, verifyMfaToken } from './mfa.service';
 import { PASSWORD_RESET_EMAIL } from './auth.emails';
 import { sendTemplatedEmail } from '../email-templates/email-templates.service';
+import { sendInBackground } from '../../core/mail';
 import { avatarPath } from '../users/avatar';
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
@@ -293,14 +294,13 @@ export const forgotPassword = async (identifier: string, meta: RequestMeta) => {
     await db.passwordReset.create({
         data: { tenantId: user.tenantId, userId: user.id, codeHash: codeHash(user.id, code), expiresAt: new Date(Date.now() + s.minutes * 60_000), requestedIp: meta.ip },
     });
-    try {
-        await sendTemplatedEmail(PASSWORD_RESET_EMAIL.key, user.email, { name: user.displayName, code, minutes: String(s.minutes) });
-    } catch (err) {
-        // Same answer either way (so nobody can tell which accounts exist); the admin sees the failure.
-        logger.error('Password reset email could not be sent', { userId: user.id, error: (err as Error).message });
-        await recordAudit({ action: 'email_failed', entity: 'user', entityId: user.id, userId: user.id, changes: { purpose: 'password_reset', reason: (err as Error).message.slice(0, 200) } });
-        return { message: GENERIC_RESET_MESSAGE };
-    }
+    // In the background: the answer is the same and comes just as fast whether or not an account
+    // matched (so nobody can tell which accounts exist); a failure shows in the Audit Trail.
+    const to = user.email;
+    await sendInBackground(
+        () => sendTemplatedEmail(PASSWORD_RESET_EMAIL.key, to, { name: user.displayName, code, minutes: String(s.minutes) }),
+        (err) => recordAudit({ action: 'email_failed', entity: 'user', entityId: user.id, userId: user.id, changes: { purpose: 'password_reset', reason: err.message.slice(0, 200) } })
+    );
     await recordAudit({ action: 'password_reset_requested', entity: 'user', entityId: user.id, userId: user.id });
     return { message: GENERIC_RESET_MESSAGE };
 };

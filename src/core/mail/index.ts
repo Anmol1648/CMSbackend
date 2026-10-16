@@ -55,6 +55,9 @@ const getTransporter = (): Transporter | null => {
         secure: port === 465,
         auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
         tls: extraTrust(),
+        // Keep the connection open between messages (an import sends many in a row).
+        pool: true,
+        maxConnections: 2,
     });
     return transporter;
 };
@@ -79,6 +82,28 @@ export const sendMail = async (message: MailMessage): Promise<void> => {
         attachments: message.attachments,
     });
     logger.info('Email sent', { to: message.to, subject: message.subject });
+};
+
+/**
+ * Sends email without making the request wait: SMTP can take many seconds per message (and much
+ * longer through a mail scanner), and an import may send hundreds. Messages go out one after
+ * another in the background; a failure is logged and passed to onError (e.g. an audit entry).
+ * Under test it finishes before returning, so tests can read testOutbox.
+ */
+let queue: Promise<void> = Promise.resolve();
+export const sendInBackground = (task: () => Promise<void>, onError?: (err: Error) => unknown): Promise<void> => {
+    const done = queue.then(() =>
+        task().catch(async (err: Error) => {
+            logger.error('Email could not be sent', { error: err.message });
+            try {
+                await onError?.(err);
+            } catch (inner) {
+                logger.error('Email failure could not be recorded', { error: (inner as Error).message });
+            }
+        })
+    );
+    queue = done;
+    return process.env.NODE_ENV === 'test' ? done : Promise.resolve();
 };
 
 /** Connects and logs in to the SMTP server without sending anything (for setup checks). */

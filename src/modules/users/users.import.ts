@@ -92,6 +92,6 @@ registerImport<Ctx>({
         ctx.usernames.add(login.user.username);
         if (login.user.email) ctx.emails.add(login.user.email);
         if (login.user.mobile) ctx.mobiles.add(login.user.mobile);
-        return { Name: login.user.displayName, Username: login.user.username, 'One-time password': login.temporaryPassword, Emailed: login.welcome ? 'Yes' : 'No' };
+        return { Name: login.user.displayName, Username: login.user.username, 'One-time password': login.temporaryPassword, Email: login.welcome ? 'Being sent' : 'No email address' };
     },
 });

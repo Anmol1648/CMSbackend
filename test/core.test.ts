@@ -154,3 +154,27 @@ describe('route guard', () => {
         expect(findUnprotectedRoutes(app)).toEqual([{ method: 'POST', path: '/api/things/forgot', access: undefined }]);
     });
 });
+
+describe('background email', () => {
+    it("doesn't make the caller wait, sends one at a time, and reports failures", async () => {
+        const { sendInBackground } = await import('../src/core/mail');
+        const env = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+        try {
+            const order: string[] = [];
+            const failures: string[] = [];
+            const slow = (name: string, ms: number, fail = false) => () =>
+                new Promise<void>((resolve, reject) => setTimeout(() => (order.push(name), fail ? reject(new Error(`${name} failed`)) : resolve()), ms));
+            const started = Date.now();
+            await sendInBackground(slow('first', 150));
+            await sendInBackground(slow('second', 10, true), (e) => failures.push(e.message));
+            await sendInBackground(slow('third', 10));
+            expect(Date.now() - started).toBeLessThan(100);
+            await new Promise((r) => setTimeout(r, 400));
+            expect(order).toEqual(['first', 'second', 'third']);
+            expect(failures).toEqual(['second failed']);
+        } finally {
+            process.env.NODE_ENV = env;
+        }
+    });
+});

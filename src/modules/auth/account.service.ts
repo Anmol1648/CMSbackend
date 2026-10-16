@@ -5,7 +5,7 @@ import { conflict } from '../../core/errors';
 import { generateTemporaryPassword, hashPassword } from '../../core/password';
 import { getSettings } from '../../core/settings';
 import { recordAudit } from '../../core/audit';
-import { MailMessage, sendMail } from '../../core/mail';
+import { MailMessage, sendInBackground, sendMail } from '../../core/mail';
 import { ACCOUNTS } from './auth.settings';
 import { normalizeEmail, normalizeMobile } from './identity';
 import { WELCOME_EMAIL } from './auth.emails';
@@ -112,6 +112,12 @@ export const createLogin = async (input: CreateLoginInput, client: Db | Tx = db)
 };
 
 /** Sends the welcome email of a created login (call after the transaction commits). */
-export const sendWelcomeEmail = async (login: Pick<CreatedLogin, 'welcome'>) => {
-    if (login.welcome) await sendMail(login.welcome);
+/** Sends the welcome email in the background (the request doesn't wait); a failure shows in the Audit Trail. */
+export const sendWelcomeEmail = async (login: Pick<CreatedLogin, 'welcome' | 'user'>) => {
+    const message = login.welcome;
+    if (!message) return;
+    await sendInBackground(
+        () => sendMail(message),
+        (err) => recordAudit({ action: 'email_failed', entity: 'user', entityId: login.user.id, changes: { purpose: 'welcome', reason: err.message.slice(0, 200) } })
+    );
 };
