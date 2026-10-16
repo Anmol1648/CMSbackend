@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { DataScope } from '@prisma/client';
 import { db } from '../../core/db';
 import { cache } from '../../core/cache';
@@ -17,7 +18,16 @@ export interface UserAccess {
 }
 
 const TTL_SECONDS = 300;
-const cacheKey = (tenantId: string, userId: string) => `access:${tenantId}:${userId}`;
+
+/**
+ * Short fingerprint of the permission catalogue, part of the cache key: after an update that adds
+ * permissions (and menu items), access saved by the previous version is never used.
+ */
+let catalogueVersion: string | null = null;
+const version = () =>
+    (catalogueVersion ??= crypto.createHash('sha1').update(listPermissionDefs().map((p) => p.key).sort().join(',')).digest('hex').slice(0, 8));
+
+const cacheKey = (tenantId: string, userId: string) => `access:${tenantId}:${version()}:${userId}`;
 
 export const getUserAccess = async (userId: string): Promise<UserAccess> => {
     const tenantId = getTenantId();
