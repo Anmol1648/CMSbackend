@@ -1,12 +1,13 @@
 import { Tenant, TenantStatus } from '@prisma/client';
 import { z } from 'zod';
 import { db, withTransaction } from '../../core/db';
-import { runAsSystem } from '../../core/context';
+import { runAsSystem, runAsTenant } from '../../core/context';
 import { conflict, validationError } from '../../core/errors';
 import { generateTemporaryPassword, hashPassword } from '../../core/password';
 import { DEFAULT_ROLES, SUPER_ADMIN_SLUG } from './default-roles';
 import { applyDefaultGrants } from '../rbac/default-grants';
 import { syncPermissions } from '../../core/registry/permissions';
+import { seedMasters } from '../masters/masters.service';
 import '../registry';
 
 /**
@@ -45,7 +46,7 @@ export interface CreatedTenant {
 }
 
 /** Creates a school with its profile, default roles and first Super Admin (one transaction). */
-export const createTenant = async (input: CreateTenantInput): Promise<CreatedTenant> => {
+export const createTenant = async (input: CreateTenantInput, options: { seedMasters?: boolean } = {}): Promise<CreatedTenant> => {
     const parsed = createTenantSchema.safeParse(input);
     if (!parsed.success) throw validationError(parsed.error);
     const data = parsed.data;
@@ -55,7 +56,7 @@ export const createTenant = async (input: CreateTenantInput): Promise<CreatedTen
     // Default grants point at permissions, so the catalogue must exist first (e.g. from the command line).
     await syncPermissions();
 
-    return runAsSystem(async () => {
+    const created = await runAsSystem(async () => {
         const clash = await db.tenant.findFirst({
             where: { OR: [{ code: data.code }, ...(data.domain ? [{ domain: data.domain }] : [])] },
             select: { code: true },
@@ -95,6 +96,11 @@ export const createTenant = async (input: CreateTenantInput): Promise<CreatedTen
             return { tenant, admin: { id: admin.id, username: admin.username, temporaryPassword } };
         });
     });
+
+    // Starter master lists (states, religions, banks…), after the school exists. If this fails, the
+    // school is still fine: `npm run masters:seed -- --school <code>` adds them later.
+    if (options.seedMasters !== false) await runAsTenant(created.tenant.id, seedMasters);
+    return created;
 };
 
 // ─── Lookups (cached briefly in-process; tiny and read on every request) ─────

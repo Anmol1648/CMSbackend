@@ -41,6 +41,7 @@ model Tenant {
   roles              Role[]
   settings           TenantSetting[]
   emailTemplates     EmailTemplate[]
+  masterValues       MasterValue[]
   menuCustomizations MenuCustomization[]
   files              File[]
 
@@ -425,4 +426,36 @@ model ImportJob {
 
   @@index([tenantId, kind, createdAt(sort: Desc)])
   @@map("import_jobs")
+}
+
+/// One option of a master list (state, religion, blood group…). Which lists exist, their parent
+/// list and extra fields are declared in code (modules/masters). Names are unique per list and
+/// parent, codes per list (case-insensitive, indexes in the migration).
+model MasterValue {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  /// The list's key, e.g. "state".
+  master    String
+  name      String
+  code      String?
+  /// The option of the parent list (a district's state, a city's district).
+  parentId  String?  @map("parent_id") @db.Uuid
+  sortOrder Int      @default(0) @map("sort_order")
+  /// Inactive options stay on existing records but can't be chosen for new ones.
+  isActive  Boolean  @default(true) @map("is_active")
+  /// The list's extra fields (e.g. a bank's IFSC prefix).
+  extra     Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// Through (parent_id, tenant_id): a parent option always belongs to the same school.
+  parent   MasterValue?  @relation("MasterValueParent", fields: [parentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  children MasterValue[] @relation("MasterValueParent")
+
+  @@unique([id, tenantId])
+  @@index([tenantId, master, parentId, sortOrder])
+  @@map("master_values")
 }

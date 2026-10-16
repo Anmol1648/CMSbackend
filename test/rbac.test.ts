@@ -40,7 +40,7 @@ describe('permission registry', () => {
         expect(keys).toEqual(listPermissionDefs().map((p) => p.key).sort());
         expect(keys).toEqual(expect.arrayContaining(['user.view', 'user.create', 'role.manage', 'school_profile.update']));
         const grants = await runAsTenant(alpha.tenant.id, () => db.rolePermission.findMany({ where: { roleId: roleId['school-admin'] } }));
-        expect(grants.map((g) => g.permissionKey).sort()).toEqual(['role.view', 'school_profile.update', 'user.create', 'user.reset_password', 'user.update', 'user.view']);
+        expect(grants.map((g) => g.permissionKey).sort()).toEqual(['masters.manage', 'masters.view', 'role.view', 'school_profile.update', 'user.create', 'user.reset_password', 'user.update', 'user.view']);
     });
 });
 
@@ -52,7 +52,7 @@ describe('my access and sidebar', () => {
         expect(res.status).toBe(200);
         expect(res.body.data.isSuperAdmin).toBe(true);
         expect(Object.keys(res.body.data.permissions).length).toBe(listPermissionDefs().length);
-        expect(menuKeys(res.body)).toEqual(['home', 'school-profile', 'users', 'roles', 'system-settings', 'email-templates', 'audit']);
+        expect(menuKeys(res.body)).toEqual(['home', 'masters', 'school-profile', 'users', 'roles', 'system-settings', 'email-templates', 'audit']);
     });
 
     it('a teacher sees only what everyone sees', async () => {
@@ -65,7 +65,7 @@ describe('my access and sidebar', () => {
         const res = await as(schoolAdmin).get('/api/me/access');
         expect(res.body.data.permissions).toMatchObject({ 'user.view': 'all', 'role.view': 'all' });
         expect(res.body.data.permissions['role.manage']).toBeUndefined();
-        expect(menuKeys(res.body)).toEqual(['home', 'school-profile', 'users', 'roles']);
+        expect(menuKeys(res.body)).toEqual(['home', 'masters', 'school-profile', 'users', 'roles']);
     });
 
     it('a school can hide or rename sidebar items', async () => {
@@ -89,7 +89,7 @@ describe('roles', () => {
         const sa = res.body.data.find((r: { slug: string }) => r.slug === 'super-admin');
         expect(sa).toMatchObject({ isSystem: true, userCount: 1, permissionCount: listPermissionDefs().length });
         const cat = await as(schoolAdmin).get('/api/roles/permissions');
-        expect(cat.body.data.map((m: { module: string }) => m.module)).toEqual(['school', 'settings', 'access', 'audit']);
+        expect(cat.body.data.map((m: { module: string }) => m.module)).toEqual(['school', 'masters', 'settings', 'access', 'audit']);
     });
 
     it('only role managers may create or change roles', async () => {
@@ -101,7 +101,7 @@ describe('roles', () => {
         const res = await as(superAdmin).post('/api/roles', { name: 'Front Desk', description: 'Reception', copyFromRoleId: roleId['principal'] });
         expect(res.status).toBe(201);
         expect(res.body.data).toMatchObject({ slug: 'front-desk', name: 'Front Desk' });
-        expect(res.body.data.permissions.map((p: { key: string }) => p.key).sort()).toEqual(['role.view', 'user.view']);
+        expect(res.body.data.permissions.map((p: { key: string }) => p.key).sort()).toEqual(['masters.view', 'role.view', 'user.view']);
         custom = res.body.data.id;
 
         expect((await as(superAdmin).post('/api/roles', { name: 'front desk' })).status).toBe(409);
@@ -110,7 +110,7 @@ describe('roles', () => {
         expect(set.status).toBe(200);
         expect(set.body.data.permissions).toHaveLength(2);
         const audit = await runAsTenant(alpha.tenant.id, () => db.auditLog.findFirst({ where: { action: 'permission_change', entityId: custom } }));
-        expect(audit?.changes).toMatchObject({ added: ['user.create:all'], removed: ['role.view'] });
+        expect(audit?.changes).toMatchObject({ added: ['user.create:all'], removed: ['role.view', 'masters.view'] });
     });
 
     it('rejects unknown permissions and scopes the permission does not support', async () => {
@@ -131,6 +131,7 @@ describe('roles', () => {
     });
 
     it("another school's role is not found", async () => {
+        expect((await as(superAdmin).get('/api/roles/not-an-id')).status).toBe(404);
         const betaRole = await runAsTenant(beta.tenant.id, () => db.role.findFirstOrThrow({ where: { slug: 'teacher' } }));
         expect((await as(superAdmin).get(`/api/roles/${betaRole.id}`)).status).toBe(404);
     });

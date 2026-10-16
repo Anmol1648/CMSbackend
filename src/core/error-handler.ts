@@ -12,6 +12,8 @@ const normalise = (err: any): AppError | null => {
     if (err instanceof z.ZodError) return validationError(err);
     if (err?.type === 'entity.parse.failed') return new AppError('Request body is not valid JSON', 400, ErrorCode.VALIDATION_ERROR);
     if (err?.type === 'entity.too.large') return new AppError('Request body is too large', 413, ErrorCode.PAYLOAD_TOO_LARGE);
+    // An id in the address that isn't a valid id ("/roles/abc") simply matches nothing.
+    if (err?.code === 'P2023' && /uuid/i.test(String(err?.message))) return new AppError('Not found', 404, ErrorCode.NOT_FOUND);
     if (err?.name === 'MulterError') {
         return err.code === 'LIMIT_FILE_SIZE'
             ? new AppError('File is too large', 413, ErrorCode.PAYLOAD_TOO_LARGE)
