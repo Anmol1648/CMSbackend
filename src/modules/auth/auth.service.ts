@@ -9,7 +9,6 @@ import { comparePassword, hashPassword } from '../../core/password';
 import { encryptSecret, decryptSecret } from '../../core/encryption';
 import { getSetting, getSettings } from '../../core/settings';
 import { recordAudit } from '../../core/audit';
-import { logger } from '../../core/logger';
 import { generateAccessToken, generateMfaChallengeToken, verifyMfaChallengeToken } from '../../config/jwt';
 import { findTenantById } from '../tenants';
 import { ACCOUNTS, LOGIN, PASSWORDS, SECURITY } from './auth.settings';
