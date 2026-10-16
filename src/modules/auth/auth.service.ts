@@ -7,23 +7,24 @@ import { AppError, badRequest, conflict, forbidden } from '../../core/errors';
 import { ErrorCode } from '../../core/auth.types';
 import { comparePassword, hashPassword } from '../../core/password';
 import { encryptSecret, decryptSecret } from '../../core/encryption';
-import { getSettings } from '../../core/settings';
+import { getSetting, getSettings } from '../../core/settings';
 import { recordAudit } from '../../core/audit';
 import { logger } from '../../core/logger';
 import { generateAccessToken, generateMfaChallengeToken, verifyMfaChallengeToken } from '../../config/jwt';
 import { findTenantById } from '../tenants';
-import { LOGIN, PASSWORDS, SECURITY } from './auth.settings';
+import { ACCOUNTS, LOGIN, PASSWORDS, SECURITY } from './auth.settings';
 import { findUserByIdentifier } from './identity';
 import { assertPasswordAllowed } from './password-policy';
 import { createSession, revokeSession, revokeUserSessions, rotateRefreshToken } from './session.service';
 import { generateMfaSetup, verifyMfaToken } from './mfa.service';
 import { PASSWORD_RESET_EMAIL } from './auth.emails';
 import { sendTemplatedEmail } from '../email-templates/email-templates.service';
+import { avatarPath } from '../users/avatar';
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
 const invalidCredentials = () => new AppError('Invalid credentials', 401, ErrorCode.AUTH_INVALID_CREDENTIALS);
-const sessionEnded = () => new AppError('Your session has ended. Please sign in again.', 401, ErrorCode.AUTH_INVALID_TOKEN);
+export const sessionEnded = () => new AppError('Your session has ended. Please sign in again.', 401, ErrorCode.AUTH_INVALID_TOKEN);
 const locked = (until: Date) => {
     const minutes = Math.max(1, Math.ceil((until.getTime() - Date.now()) / 60_000));
     return new AppError(
@@ -58,6 +59,7 @@ export const userSummary = (u: User) => ({
     mfaEnabled: u.mfaEnabled,
     mustChangePassword: u.mustChangePassword,
     lastLoginAt: u.lastLoginAt,
+    avatarUrl: avatarPath(u),
 });
 
 export interface SignedIn {
@@ -242,6 +244,8 @@ export const me = async (userId: string) => {
     return {
         user: userSummary(user),
         roles: user.roles.filter((r) => !r.role.deletedAt).map((r) => ({ slug: r.role.slug, name: r.role.name })),
+        /** What My account lets this person change (System Settings → Accounts). */
+        selfEdit: await getSetting(ACCOUNTS.selfEdit),
         school: profile
             ? {
                   code: profile.tenant.code,

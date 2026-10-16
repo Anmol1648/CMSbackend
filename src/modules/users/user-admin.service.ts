@@ -10,6 +10,7 @@ import { createLogin, revokeUserSessions, sendWelcomeEmail } from '../auth';
 import { normalizeEmail, normalizeMobile } from '../auth/identity';
 import { getUserAccess, invalidateAccess } from '../rbac/access.service';
 import type { userFilters } from './users.schemas';
+import { avatarPath } from './avatar';
 
 /** Managing other people's sign-in accounts (Users screen). */
 
@@ -25,6 +26,7 @@ const userSelect = {
     mfaEnabled: true,
     lockedUntil: true,
     lastLoginAt: true,
+    avatarFileId: true,
     createdAt: true,
     updatedAt: true,
     roles: { select: { role: { select: { id: true, slug: true, name: true, isSystem: true } } } },
@@ -32,8 +34,9 @@ const userSelect = {
 
 type Row = Prisma.UserGetPayload<{ select: typeof userSelect }>;
 
-const present = ({ roles, lockedUntil, ...u }: Row) => ({
+const present = ({ roles, lockedUntil, avatarFileId, ...u }: Row) => ({
     ...u,
+    avatarUrl: avatarPath({ id: u.id, avatarFileId }),
     locked: !!lockedUntil && lockedUntil.getTime() > Date.now(),
     lockedUntil: lockedUntil && lockedUntil.getTime() > Date.now() ? lockedUntil : null,
     roles: roles.map((r) => r.role),
@@ -102,7 +105,7 @@ const activeSuperAdmins = (excludingUserId?: string) =>
     });
 
 /** Only Super Admins may hand out the Super Admin role or change a Super Admin's account. */
-const guardSuperAdminChanges = async (actorId: string, roleIds: string[] | undefined, targetIsSuperAdmin: boolean) => {
+export const guardSuperAdminChanges = async (actorId: string, roleIds: string[] | undefined, targetIsSuperAdmin: boolean) => {
     const actor = await getUserAccess(actorId);
     if (actor.isSuperAdmin) return;
     if (targetIsSuperAdmin) throw forbidden('Only a Super Admin can change a Super Admin’s account');

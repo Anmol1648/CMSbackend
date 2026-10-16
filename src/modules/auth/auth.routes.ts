@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, successResponse } from '../../core/index';
-import { notFound, validationError } from '../../core/errors';
+import { badRequest, notFound, validationError } from '../../core/errors';
 import { authenticated, authenticatedSelf, publicRoute } from '../../middlewares/access';
 import { createRateLimiter } from '../../middlewares/rate-limit';
 import * as auth from './auth.service';
@@ -9,6 +9,9 @@ import * as schemas from './auth.schemas';
 import { listOpenSessions, revokeSession } from './session.service';
 import { clearRefreshCookie, readRefreshCookie, setRefreshCookie } from './auth.cookies';
 import { myAccess } from '../rbac/my-access';
+import { upload } from '../../core/http/files';
+import { assertSelfEditable, updateMyDetails } from './profile.service';
+import { removeAvatar, setAvatar } from '../users/avatar';
 
 export const authRoutes = Router();
 
@@ -75,6 +78,24 @@ authRoutes.post('/logout-all', authenticatedSelf, asyncHandler(async (req: Reque
 
 authRoutes.get('/me', authenticatedSelf, asyncHandler(async (req: Request, res: Response) => {
     return successResponse(res, { ...(await auth.me(req.user!.userId)), mustChangePassword: req.user!.pwdChange === true }, 'Signed-in user');
+}));
+
+// ─── My details and photo (what may change: System Settings → Accounts) ─────
+
+authRoutes.patch('/me', authenticated, passwordLimiter, asyncHandler(async (req: Request, res: Response) => {
+    const input = parse(schemas.updateMyDetailsSchema, req.body);
+    return successResponse(res, await updateMyDetails(req.user!.userId, input), 'Details saved');
+}));
+
+authRoutes.post('/me/avatar', authenticated, upload.single('image'), asyncHandler(async (req: Request, res: Response) => {
+    await assertSelfEditable('photo');
+    if (!req.file) throw badRequest('Choose a photo (PNG, JPG or WebP)');
+    return successResponse(res, { avatarUrl: await setAvatar(req.user!.userId, { data: req.file.buffer, originalName: req.file.originalname }) }, 'Photo saved');
+}));
+
+authRoutes.delete('/me/avatar', authenticated, asyncHandler(async (req: Request, res: Response) => {
+    await assertSelfEditable('photo');
+    return successResponse(res, { avatarUrl: await removeAvatar(req.user!.userId) }, 'Photo removed');
 }));
 
 // ─── Passwords ───────────────────────────────────────────────────────────────

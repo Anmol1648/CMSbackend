@@ -37,3 +37,20 @@ export const mfaDisableSchema = z.strictObject({
     password,
     code: z.string().trim().regex(/^[0-9]{6}$/, 'must be the 6-digit code from your app'),
 });
+
+const optionalText = (schema: z.ZodString) =>
+    z
+        .union([z.literal(''), schema])
+        .transform((v) => (v === '' ? null : v))
+        .nullable()
+        .optional();
+
+/** My account → Details. Which fields may change is a school setting (accounts.self_edit). */
+export const updateMyDetailsSchema = z
+    .strictObject({
+        displayName: z.string().trim().min(2, 'must be at least 2 characters').max(120).optional(),
+        email: optionalText(z.string().trim().toLowerCase().email('is not a valid email')),
+        mobile: optionalText(z.string().trim().regex(/^\+?[0-9][0-9 ()-]{5,19}$/, 'is not a valid mobile number')),
+        currentPassword: z.string().max(128).optional(),
+    })
+    .refine((v) => v.displayName !== undefined || v.email !== undefined || v.mobile !== undefined, { message: 'Nothing to update' });

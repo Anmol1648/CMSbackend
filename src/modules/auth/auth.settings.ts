@@ -30,6 +30,8 @@ export const LOGIN = {
     }),
 };
 
+export type SelfEditField = 'photo' | 'name' | 'email' | 'mobile';
+
 export const SECURITY = {
     lockoutAttempts: defineSetting<number>({
         key: 'security.lockout_attempts',
@@ -141,5 +143,20 @@ export const ACCOUNTS = {
         type: 'boolean',
         default: true,
         schema: z.boolean(),
+    }),
+    selfEdit: defineSetting<SelfEditField[]>({
+        key: 'accounts.self_edit',
+        group: 'Accounts',
+        label: 'People can change these on their own account (My account)',
+        help: 'Changing email or mobile asks for their current password. The school office can always change them on the Users screen.',
+        type: 'multiselect',
+        default: ['photo', 'email', 'mobile'],
+        schema: z.array(z.enum(['photo', 'name', 'email', 'mobile'])),
+        options: [
+            { value: 'photo', label: 'Photo' },
+            { value: 'name', label: 'Name' },
+            { value: 'email', label: 'Email' },
+            { value: 'mobile', label: 'Mobile number' },
+        ],
     }),
 };
