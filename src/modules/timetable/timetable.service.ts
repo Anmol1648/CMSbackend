@@ -9,7 +9,7 @@ import { currentYear } from '../academic/years.service';
 import { staffName } from '../staff/staff.service';
 import { TIMETABLE } from './timetable.settings';
 import { sectionLabel, weekOf, yearOf } from './tt-setup.service';
-import { GenEntry, GenLesson, GenRule, generateTimetable } from './generator';
+import { GenLesson, GenRule, generateTimetable } from './generator';
 
 /** Timetables: generating a draft, editing it, publishing, and the class / teacher / my views. */
 
@@ -192,7 +192,7 @@ export const grid = async (timetableId: string, of: { sectionId?: string; staffI
 
 /** Teachers free in a period (for substitutions, or to change a lesson). */
 export const freeTeachers = async (timetableId: string, weekday: number, periodNo: number) => {
-    const t = await findTimetable(timetableId);
+    await findTimetable(timetableId);
     const busy = new Set((await db.ttEntry.findMany({ where: { timetableId, weekday, periodNo, staffId: { not: null } }, select: { staffId: true } })).map((e) => e.staffId!));
     const today = await db.ttEntry.groupBy({ by: ['staffId'], where: { timetableId, weekday, staffId: { not: null } }, _count: { _all: true } });
     const count = new Map(today.map((r) => [r.staffId!, r._count._all]));
@@ -200,7 +200,6 @@ export const freeTeachers = async (timetableId: string, weekday: number, periodN
         where: { status: 'working', staffType: { extra: { path: ['teaching'], equals: true } } },
         select: { id: true, firstName: true, middleName: true, lastName: true, employeeCode: true, designation: { select: { name: true } } },
     });
-    void t;
     return staff
         .filter((s) => !busy.has(s.id))
         .map((s) => ({ id: s.id, name: staffName(s), code: s.employeeCode, designation: s.designation?.name ?? null, periodsThatDay: count.get(s.id) ?? 0 }))
