@@ -39,6 +39,15 @@ export const ADMISSIONS = {
         default: 'REG/{YYYY}/{SEQ:4}',
         schema: numberPattern('REG/{YYYY}/{SEQ:4}'),
     }),
+    registrationFee: defineSetting<number>({
+        key: 'admissions.registration_fee',
+        group: G,
+        label: 'Registration fee (₹, 0 = no fee)',
+        help: 'Recorded when an enquiry is registered; can be paid online on the website form (System Settings → Online payments).',
+        type: 'number',
+        default: 0,
+        schema: z.number().int().min(0).max(100_000),
+    }),
     testEnabled: defineSetting<boolean>({
         key: 'admissions.test_enabled',
         group: G,

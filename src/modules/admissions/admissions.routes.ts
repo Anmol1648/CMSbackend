@@ -12,6 +12,7 @@ import { createRateLimiter } from '../../middlewares/rate-limit';
 import { getUserAccess } from '../rbac/access.service';
 import * as enquiries from './enquiries.service';
 import { enquiryListSpec } from './admissions.schemas';
+import { registrationFeeOffer, startRegistrationPayment } from '../payments/payments.service';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -72,5 +73,13 @@ admissionRoutes.get('/enquiries/:id/admission', can('enquiry.convert'), asyncHan
 export const publicEnquiryRoutes = Router();
 const enquiryLimiter = createRateLimiter({ windowInMinutes: 60, maxAttempts: 10, keyPrefix: 'public-enquiry' });
 
-publicEnquiryRoutes.get('/', publicRoute, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await enquiries.publicFormInfo(), 'Enquiry form')));
-publicEnquiryRoutes.post('/', publicRoute, enquiryLimiter, asyncHandler(async (req: Request, res: Response) => successResponse(res, await enquiries.submitPublicEnquiry(parse(enquiries.publicEnquirySchema, req.body)), 'Thank you, the school will call you', 201)));
+publicEnquiryRoutes.get('/', publicRoute, asyncHandler(async (_req: Request, res: Response) => {
+    const info = await enquiries.publicFormInfo();
+    successResponse(res, { ...info, registrationFee: info.enabled ? await registrationFeeOffer() : null }, 'Enquiry form');
+}));
+publicEnquiryRoutes.post('/', publicRoute, enquiryLimiter, asyncHandler(async (req: Request, res: Response) => {
+    const r = await enquiries.submitPublicEnquiry(parse(enquiries.publicEnquirySchema, req.body));
+    // With online registration on, the parent pays the registration fee next.
+    const payment = r.enquiryId ? await startRegistrationPayment(r.enquiryId) : null;
+    successResponse(res, { enquiryNo: r.enquiryNo, payment }, 'Thank you, the school will call you', 201);
+}));

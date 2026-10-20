@@ -114,6 +114,11 @@ studentRoutes.delete('/:id/guardians/:guardianId', update, asyncHandler(async (r
     await family.removeGuardian(req.params.guardianId);
     successResponse(res, await students.getStudent(req.params.id, await viewer(req)), 'Parent / guardian removed');
 }));
+/** Logins for every family's main contact that has none (repeat while `remaining` > 0). */
+studentRoutes.post('/parent-logins', can('student.update'), asyncHandler(async (_req: Request, res: Response) => {
+    const r = await family.addParentLoginsBatch();
+    successResponse(res, r, `${r.created.length} parent login(s) created`);
+}));
 studentRoutes.post('/:id/guardians/:guardianId/login', update, asyncHandler(async (req: Request, res: Response) => successResponse(res, await family.addParentLogin(req.params.guardianId), 'Parent login created')));
 studentRoutes.post('/:id/family', update, asyncHandler(async (req: Request, res: Response) => {
     await family.linkFamily(req.params.id, parse(z.strictObject({ familyId: z.uuid() }), req.body).familyId);

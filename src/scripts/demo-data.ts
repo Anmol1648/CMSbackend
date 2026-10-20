@@ -29,12 +29,13 @@ const main = async () => {
     }
     if (values.clear) {
         const r = await runAsTenant(tenant.id, clearDemoData);
-        out(`${tenant.name}: removed ${r.students} demo students, ${r.families} families, ${r.staff} staff and ${r.logins} demo logins.${r.counterReset ? ' Numbers start again from the first.' : ''}`);
+        out(`${tenant.name}: removed ${r.students} demo students, ${r.families} families, ${r.staff} staff, ${r.enquiries} enquiries, ${r.receipts} fee receipts and ${r.logins} demo logins.${r.counterReset ? ' Numbers start again from the first.' : ''}`);
         return;
     }
     out(`${tenant.name}: creating demo data (this takes a minute)…`);
     const r = await runAsTenant(tenant.id, () => createDemoData());
     out(`${tenant.name}: ${r.students} students in ${r.sections} sections of ${r.year}, ${r.families} families, ${r.staff.staff} staff (${r.staff.logins} with logins, ${r.staff.assignments} subject-teacher assignments), ${r.studentLogins} student logins.`);
+    out(`${tenant.name}: ${r.enquiries.enquiries} admission enquiries, ${r.fees.receipts} fee receipts, ${r.fees.parentLogins} parent logins (username = the parent's mobile).`);
     out('');
     out(`Every demo login uses the password ${DEMO_PASSWORD}`);
     if (r.staff.sampleTeacher) out(`  class teacher: ${r.staff.sampleTeacher}   (sees only their own sections' students)`);

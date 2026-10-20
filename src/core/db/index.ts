@@ -248,3 +248,13 @@ export const tenantSql = async <T = unknown>(build: (tenantId: string) => Prisma
 export const systemSql = async <T = unknown>(sql: Prisma.Sql): Promise<T[]> => db.$queryRaw<T[]>(sql);
 
 export { Prisma };
+
+/**
+ * Holds a lock on `key` (within the current school) until the transaction ends, so two requests
+ * working on the same thing (a student's fees, an online payment) run one after the other.
+ */
+export const lockInTransaction = async (tx: Tx, key: string) => {
+    const tenantId = getContext()?.tenantId;
+    if (!tenantId) throw new TenantContextError('lockInTransaction needs a school in context');
+    await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${key}`}, 0))) AS l`;
+};

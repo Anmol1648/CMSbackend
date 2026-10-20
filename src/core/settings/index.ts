@@ -28,7 +28,7 @@ export interface SettingDef<T = unknown> {
 const registry = new Map<string, SettingDef>();
 
 /** Order of groups on the System Settings screen (groups not listed come after, alphabetically). */
-const GROUP_ORDER = ['Academic', 'Admissions', 'Students', 'Staff', 'Login', 'Security', 'Passwords', 'Accounts', 'Uploads & exports', 'Audit'];
+const GROUP_ORDER = ['Academic', 'Admissions', 'Students', 'Staff', 'Fees', 'Online payments', 'Login', 'Security', 'Passwords', 'Accounts', 'Uploads & exports', 'Audit'];
 const groupRank = (g: string) => {
     const i = GROUP_ORDER.indexOf(g);
     return i === -1 ? GROUP_ORDER.length : i;

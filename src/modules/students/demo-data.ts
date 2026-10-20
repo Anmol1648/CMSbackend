@@ -11,6 +11,7 @@ import { counterKey, fullName } from './students.service';
 import { ROLL_ORDERS } from './enrolment.service';
 import { createDemoStaff } from '../staff/demo-staff';
 import { createDemoEnquiries } from '../admissions/demo-enquiries';
+import { clearDemoFees, createDemoFees, createDemoParentLogins } from '../fees/demo-fees';
 import { randomUUID } from 'crypto';
 
 /**
@@ -257,8 +258,12 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
         .map(({ p, st }) => ({ id: st.id, classId: p.classId, firstName: st.firstName, lastName: st.lastName, dateOfBirth: (p.student.dateOfBirth as Date | null) ?? null, genderId: (p.student.genderId as string | null) ?? null }));
     const enquiries = await createDemoEnquiries(year, newcomers, { pick, between, chance: (p) => rand() < p });
 
-    await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    // ─── Parent logins and fees ──────────────────────────────────────────────
+    const parentLogins = await createDemoParentLogins(passwordHash);
+    const fees = { ...(await createDemoFees(year, { pick, between, chance: (p) => rand() < p })), parentLogins };
+
+    await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries, receipts: fees.receipts } });
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -267,6 +272,8 @@ export const clearDemoData = async () => {
     const demoStaff = (await db.staff.findMany({ where: { isDemo: true }, select: { id: true } })).map((x) => x.id);
     await db.section.updateMany({ where: { classTeacherId: { in: demoStaff } }, data: { classTeacherId: null } });
     // Reporting lines first (staff point at each other), then the records (assignments go with them).
+    // Fee receipts and online payments of demo students go first (they keep students).
+    const receipts = await clearDemoFees();
     // Enquiries point at demo students and staff.
     const enquiries = await db.enquiry.deleteMany({ where: { isDemo: true } });
     // Real enquiries keep their record, without the demo person.
@@ -285,6 +292,6 @@ export const clearDemoData = async () => {
         counterReset = true;
     }
     if (!(await db.staff.count())) await db.numberSequence.deleteMany({ where: { key: 'staff' } });
-    await recordAudit({ action: 'demo_cleared', entity: 'school', changes: { students: students.count, families: families.count, staff: staffRemoved.count, enquiries: enquiries.count, logins: users.count } });
-    return { students: students.count, families: families.count, staff: staffRemoved.count, enquiries: enquiries.count, logins: users.count, counterReset };
+    await recordAudit({ action: 'demo_cleared', entity: 'school', changes: { students: students.count, families: families.count, staff: staffRemoved.count, enquiries: enquiries.count, receipts, logins: users.count } });
+    return { students: students.count, families: families.count, staff: staffRemoved.count, enquiries: enquiries.count, receipts, logins: users.count, counterReset };
 };

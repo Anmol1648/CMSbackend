@@ -310,6 +310,9 @@ export const getEnquiry = async (id: string, viewer: Viewer) => {
         remarks: e.remarks,
         lostReason: e.lostReason,
         registrationDate: dayOf(e.registrationDate),
+        registrationFee: e.registrationFee,
+        registrationFeeMode: e.registrationFeeMode,
+        registrationFeeRef: e.registrationFeeRef,
         testDate: dayOf(e.testDate),
         testScore: e.testScore,
         student: e.student ? { id: e.student.id, admissionNo: e.student.admissionNo, name: [e.student.firstName, e.student.lastName].filter(Boolean).join(' ') } : null,
@@ -331,6 +334,7 @@ export const getEnquiry = async (id: string, viewer: Viewer) => {
 export const formConfig = async () => {
     const s = await getSettings({
         registration: ADMISSIONS.registrationEnabled,
+        registrationFee: ADMISSIONS.registrationFee,
         test: ADMISSIONS.testEnabled,
         followUpDays: ADMISSIONS.followUpDays,
         publicForm: ADMISSIONS.publicForm,
@@ -502,21 +506,55 @@ export const deleteFollowUp = async (id: string, followUpId: string, viewer: Vie
     return getEnquiry(id, viewer);
 };
 
-export const registerSchema = z.strictObject({ registrationDate: day.optional(), stageId: z.uuid().optional() });
+export const registerSchema = z.strictObject({
+    registrationDate: day.optional(),
+    stageId: z.uuid().optional(),
+    /** The registration fee received at the counter (System Settings → Admissions → Registration fee). */
+    fee: z
+        .strictObject({
+            amount: z.number().int('whole rupees').min(0).max(100_000),
+            mode: z.enum(['cash', 'upi', 'cheque', 'dd', 'bank_transfer', 'card']),
+            reference: text(60),
+        })
+        .optional(),
+});
+
+type FeePaid = { amount: number; mode: 'cash' | 'upi' | 'cheque' | 'dd' | 'bank_transfer' | 'card' | 'online'; reference?: string | null };
+
+/** Gives a registration number (once) and records the registration fee. */
+const applyRegistration = async (id: string, date: string, fee: FeePaid | undefined, stageId?: string) => {
+    const current = await db.enquiry.findUniqueOrThrow({ where: { id } });
+    const registrationNo = current.registrationNo ?? (await allocate('registration', toDate(date)));
+    await db.enquiry.update({
+        where: { id },
+        data: {
+            registrationNo,
+            registrationDate: current.registrationDate ?? toDate(date),
+            ...(stageId ? { stageId } : {}),
+            ...(fee ? { registrationFee: fee.amount, registrationFeeMode: fee.mode, registrationFeeRef: fee.reference ?? null } : {}),
+        },
+    });
+    await recordAudit({ action: 'register', entity: 'enquiry', entityId: id, changes: { registrationNo, ...(fee ? { fee: fee.amount, mode: fee.mode } : {}) } });
+    return registrationNo;
+};
 
 /** Gives the enquiry a registration number (the family filled the registration form / paid the fee). */
 export const registerEnquiry = async (id: string, input: z.infer<typeof registerSchema>, viewer: Viewer) => {
     const current = await assertVisible(id, viewer);
-    const s = await getSettings({ enabled: ADMISSIONS.registrationEnabled });
+    const s = await getSettings({ enabled: ADMISSIONS.registrationEnabled, fee: ADMISSIONS.registrationFee });
     if (!s.enabled) throw badRequest('Registration is switched off (System Settings → Admissions)');
     if (current.registrationNo) throw conflict(`Already registered as ${current.registrationNo}`);
     const date = input.registrationDate ?? today();
     if (date > today()) throw badRequest('The registration date is in the future', [{ field: 'registrationDate', message: 'is in the future' }]);
+    if (input.fee && input.fee.mode !== 'cash' && !input.fee.reference) throw badRequest('Enter the cheque / transaction number', [{ field: 'fee.reference', message: 'is required for this mode' }]);
     const change = input.stageId ? await stageChange(current, input.stageId, null, await listStages()) : null;
-    const registrationNo = await allocate('registration', toDate(date));
-    await db.enquiry.update({ where: { id }, data: { registrationNo, registrationDate: toDate(date), ...(change ? { stageId: change.stageId } : {}) } });
-    await recordAudit({ action: 'register', entity: 'enquiry', entityId: id, changes: { registrationNo } });
+    await applyRegistration(id, date, input.fee && input.fee.amount > 0 ? input.fee : undefined, change?.stageId);
     return getEnquiry(id, viewer);
+};
+
+/** An online registration fee was paid (the website form): register the enquiry. */
+export const registrationPaidOnline = async (id: string, amount: number, paymentRef: string) => {
+    await applyRegistration(id, today(), { amount, mode: 'online', reference: paymentRef });
 };
 
 export const testSchema = z.strictObject({
@@ -610,11 +648,11 @@ export const submitPublicEnquiry = async (input: z.infer<typeof publicEnquirySch
     const s = await getSettings({ enabled: ADMISSIONS.publicForm });
     if (!s.enabled) throw notFound('The school does not take enquiries online');
     // A bot filled the hidden field: pretend it worked.
-    if (input.website) return { enquiryNo: null };
+    if (input.website) return { enquiryId: null, enquiryNo: null };
     const source = (await db.masterValue.findMany({ where: { master: 'enquiry_source', isActive: true }, select: { id: true, extra: true } })).find((v) => (v.extra as { online?: boolean }).online);
     const { message, website: _w, ...rest } = input;
     const r = await createEnquiry({ ...rest, remarks: message ?? null, sourceId: source?.id ?? null }, { userId: '', scope: 'all' }, { online: true });
-    return { enquiryNo: r.enquiry.enquiryNo };
+    return { enquiryId: r.enquiry.id, enquiryNo: r.enquiry.enquiryNo };
 };
 
 // ─── Reports ─────────────────────────────────────────────────────────────────

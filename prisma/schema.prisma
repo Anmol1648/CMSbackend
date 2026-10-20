@@ -60,6 +60,16 @@ model Tenant {
   teachingAssignments TeachingAssignment[]
   enquiries          Enquiry[]
   enquiryFollowUps   EnquiryFollowUp[]
+  feeInstalments     FeeInstalment[]
+  feeStructureLines  FeeStructureLine[]
+  feeConcessions     FeeConcession[]
+  feeConcessionLines FeeConcessionLine[]
+  studentFeeConcessions StudentFeeConcession[]
+  feeAdjustments     FeeAdjustment[]
+  feeReceipts        FeeReceipt[]
+  feeReceiptLines    FeeReceiptLine[]
+  paymentGateway     PaymentGateway?
+  onlinePayments     OnlinePayment[]
   menuCustomizations MenuCustomization[]
   files              File[]
 
@@ -511,6 +521,10 @@ model MasterValue {
   enquiriesStage         Enquiry[]            @relation("EnquiryStage")
   enquiriesLost          Enquiry[]            @relation("EnquiryLostReason")
   followUpsOutcome       EnquiryFollowUp[]    @relation("FollowUpOutcome")
+  feeStructureLines      FeeStructureLine[]   @relation("FeeStructureHead")
+  feeConcessionLines     FeeConcessionLine[]  @relation("FeeConcessionHead")
+  feeAdjustments         FeeAdjustment[]      @relation("FeeAdjustmentHead")
+  feeReceiptLines        FeeReceiptLine[]     @relation("FeeReceiptHead")
   staffGender            Staff[]              @relation("StaffGender")
   staffBloodGroup        Staff[]              @relation("StaffBloodGroup")
   staffReligion          Staff[]              @relation("StaffReligion")
@@ -565,6 +579,11 @@ model AcademicYear {
   enrolments    Enrolment[]
   teachingAssignments TeachingAssignment[]
   enquiries     Enquiry[]
+  feeInstalments FeeInstalment[]
+  feeStructureLines FeeStructureLine[]
+  feeConcessions FeeConcession[]
+  feeAdjustments FeeAdjustment[]
+  feeReceipts   FeeReceipt[]
 
   @@unique([id, tenantId])
   @@index([tenantId, startDate])
@@ -594,6 +613,7 @@ model SchoolClass {
   sections      Section[]
   classSubjects ClassSubject[]
   enquiries     Enquiry[]
+  feeStructureLines FeeStructureLine[]
 
   @@unique([id, tenantId])
   @@index([tenantId, sortOrder])
@@ -849,6 +869,10 @@ model Student {
   enrolments    Enrolment[]
   documents     StudentDocument[]
   enquiries     Enquiry[]         @relation("EnquiryStudent")
+  feeConcessions StudentFeeConcession[]
+  feeAdjustments FeeAdjustment[]
+  feeReceipts   FeeReceipt[]
+  onlinePayments OnlinePayment[]
 
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
@@ -1123,6 +1147,10 @@ model Enquiry {
   lostReasonId     String?     @map("lost_reason_id") @db.Uuid
   registrationNo   String?     @map("registration_no")
   registrationDate DateTime?   @map("registration_date") @db.Date
+  /// Registration fee received (rupees), how and its reference.
+  registrationFee     Int?         @map("registration_fee")
+  registrationFeeMode PaymentMode? @map("registration_fee_mode")
+  registrationFeeRef  String?      @map("registration_fee_ref")
   testDate         DateTime?   @map("test_date") @db.Date
   testScore        String?     @map("test_score")
   testResult       TestResult  @default(not_needed) @map("test_result")
@@ -1149,6 +1177,7 @@ model Enquiry {
   assignedTo   Staff?            @relation("EnquiryAssignedTo", fields: [assignedToId, tenantId], references: [id, tenantId], onDelete: Restrict)
   student      Student?          @relation("EnquiryStudent", fields: [studentId, tenantId], references: [id, tenantId], onDelete: Restrict)
   followUps    EnquiryFollowUp[]
+  onlinePayments OnlinePayment[]
 
   @@unique([id, tenantId])
   @@index([tenantId, stageId])
@@ -1176,4 +1205,285 @@ model EnquiryFollowUp {
 
   @@index([tenantId, enquiryId])
   @@map("enquiry_follow_ups")
+}
+
+// ─── Fees: instalments, structure, concessions, receipts, online payments ────
+
+enum PaymentMode {
+  cash
+  upi
+  cheque
+  dd
+  bank_transfer
+  card
+  online
+}
+
+enum ConcessionKind {
+  percent
+  amount
+}
+
+enum FeeReceiptStatus {
+  active
+  cancelled
+}
+
+enum OnlinePaymentPurpose {
+  fees
+  registration
+}
+
+enum OnlinePaymentStatus {
+  created
+  paid
+  failed
+}
+
+/// One instalment of a year's fees (April, Quarter 1…), with its due date. Amounts are whole rupees everywhere.
+model FeeInstalment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  name           String
+  dueDate        DateTime @map("due_date") @db.Date
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear       @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  structureLines FeeStructureLine[]
+  adjustments    FeeAdjustment[]
+  receiptLines   FeeReceiptLine[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, academicYearId, dueDate])
+  @@map("fee_instalments")
+}
+
+/// What a class pays for a fee head in an instalment.
+model FeeStructureLine {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  classId        String   @map("class_id") @db.Uuid
+  /// Master "fee_head".
+  feeHeadId      String   @map("fee_head_id") @db.Uuid
+  instalmentId   String   @map("instalment_id") @db.Uuid
+  amount         Int
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear  @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schoolClass  SchoolClass   @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  feeHead      MasterValue   @relation("FeeStructureHead", fields: [feeHeadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  instalment   FeeInstalment @relation(fields: [instalmentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([tenantId, classId, feeHeadId, instalmentId])
+  @@index([tenantId, academicYearId, classId])
+  @@map("fee_structure_lines")
+}
+
+/// A concession of a year (girl child, SC/ST, staff ward…). Automatic ones apply to every student
+/// matching all the non-empty conditions; the others are given to students one by one.
+model FeeConcession {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  academicYearId   String   @map("academic_year_id") @db.Uuid
+  name             String
+  automatic        Boolean  @default(false)
+  /// Conditions (automatic only): master ids of gender, caste category, admission category; class ids.
+  genderIds        String[] @default([]) @map("gender_ids") @db.Uuid
+  casteCategoryIds String[] @default([]) @map("caste_category_ids") @db.Uuid
+  categoryIds      String[] @default([]) @map("category_ids") @db.Uuid
+  classIds         String[] @default([]) @map("class_ids") @db.Uuid
+  note             String?
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String?  @map("created_by") @db.Uuid
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy        String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear           @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  lines        FeeConcessionLine[]
+  students     StudentFeeConcession[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, academicYearId])
+  @@map("fee_concessions")
+}
+
+/// How much of a fee head a concession takes off: a percent, or rupees per instalment.
+model FeeConcessionLine {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  concessionId String         @map("concession_id") @db.Uuid
+  feeHeadId    String         @map("fee_head_id") @db.Uuid
+  kind         ConcessionKind
+  value        Int
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  concession FeeConcession @relation(fields: [concessionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  feeHead    MasterValue   @relation("FeeConcessionHead", fields: [feeHeadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([concessionId, feeHeadId])
+  @@map("fee_concession_lines")
+}
+
+/// A (non-automatic) concession given to a student.
+model StudentFeeConcession {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  studentId    String   @map("student_id") @db.Uuid
+  concessionId String   @map("concession_id") @db.Uuid
+  note         String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy    String?  @map("created_by") @db.Uuid
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student    Student       @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  concession FeeConcession @relation(fields: [concessionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([studentId, concessionId])
+  @@map("student_fee_concessions")
+}
+
+/// A one-off change to a student's dues: an extra charge (+) or a waiver (−) of a head, or of the late fine.
+model FeeAdjustment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  instalmentId   String   @map("instalment_id") @db.Uuid
+  /// Empty with isFine = the late fine of the instalment.
+  feeHeadId      String?  @map("fee_head_id") @db.Uuid
+  isFine         Boolean  @default(false) @map("is_fine")
+  amount         Int
+  reason         String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student      Student       @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  academicYear AcademicYear  @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  instalment   FeeInstalment @relation(fields: [instalmentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  feeHead      MasterValue?  @relation("FeeAdjustmentHead", fields: [feeHeadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, studentId, academicYearId])
+  @@map("fee_adjustments")
+}
+
+/// Money received for a student (at the counter or online). Never edited; cancelled with a reason.
+model FeeReceipt {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  receiptNo       String           @map("receipt_no")
+  studentId       String           @map("student_id") @db.Uuid
+  academicYearId  String           @map("academic_year_id") @db.Uuid
+  date            DateTime         @db.Date
+  mode            PaymentMode
+  /// Cheque / DD / UPI / transaction number.
+  reference       String?
+  bankName        String?          @map("bank_name")
+  amount          Int
+  note            String?
+  status          FeeReceiptStatus @default(active)
+  cancelledAt     DateTime?        @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy     String?          @map("cancelled_by") @db.Uuid
+  cancelReason    String?          @map("cancel_reason")
+  onlinePaymentId String?          @map("online_payment_id") @db.Uuid
+  isDemo          Boolean          @default(false) @map("is_demo")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       String?          @map("created_by") @db.Uuid
+
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student       Student          @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  academicYear  AcademicYear     @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  onlinePayment OnlinePayment?   @relation(fields: [onlinePaymentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  lines         FeeReceiptLine[]
+
+  @@unique([id, tenantId])
+  @@unique([onlinePaymentId, tenantId])
+  @@index([tenantId, date])
+  @@index([tenantId, studentId])
+  @@map("fee_receipts")
+}
+
+/// What a receipt paid: a fee head of an instalment, or that instalment's late fine.
+model FeeReceiptLine {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String  @map("tenant_id") @db.Uuid
+  receiptId    String  @map("receipt_id") @db.Uuid
+  instalmentId String  @map("instalment_id") @db.Uuid
+  feeHeadId    String? @map("fee_head_id") @db.Uuid
+  isFine       Boolean @default(false) @map("is_fine")
+  amount       Int
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receipt    FeeReceipt    @relation(fields: [receiptId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  instalment FeeInstalment @relation(fields: [instalmentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  feeHead    MasterValue?  @relation("FeeReceiptHead", fields: [feeHeadId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, receiptId])
+  @@map("fee_receipt_lines")
+}
+
+/// The school's payment gateway account (one per school). Secrets are stored encrypted.
+model PaymentGateway {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @unique @map("tenant_id") @db.Uuid
+  /// "razorpay", or "mock" (a pretend gateway for trying the flow; never in production).
+  provider         String
+  keyId            String?  @map("key_id")
+  keySecretEnc     String?  @map("key_secret_enc")
+  webhookSecretEnc String?  @map("webhook_secret_enc")
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy        String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("payment_gateways")
+}
+
+/// One online payment attempt: an order at the gateway for an exact amount, paid or not.
+model OnlinePayment {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  purpose        OnlinePaymentPurpose
+  provider       String
+  /// The gateway's order id.
+  orderId        String               @map("order_id")
+  /// The gateway's payment id once paid.
+  paymentRef     String?              @map("payment_ref")
+  /// Total charged, convenience fee included.
+  amount         Int
+  convenienceFee Int                  @default(0) @map("convenience_fee")
+  status         OnlinePaymentStatus  @default(created)
+  studentId      String?              @map("student_id") @db.Uuid
+  enquiryId      String?              @map("enquiry_id") @db.Uuid
+  academicYearId String?              @map("academic_year_id") @db.Uuid
+  /// What it pays: [{ instalmentId, feeHeadId|null, isFine, amount }].
+  allocation     Json                 @default("[]")
+  /// The signed-in person who paid (empty on the website form).
+  userId         String?              @map("user_id") @db.Uuid
+  error          String?
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  paidAt         DateTime?            @map("paid_at") @db.Timestamptz(6)
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student Student?     @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  enquiry Enquiry?     @relation(fields: [enquiryId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  receipt FeeReceipt?
+
+  @@unique([id, tenantId])
+  @@unique([provider, orderId])
+  @@index([tenantId, status])
+  @@map("online_payments")
 }

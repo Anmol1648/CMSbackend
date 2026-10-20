@@ -24,6 +24,8 @@ import { academicRoutes } from './modules/academic/academic.routes';
 import { studentRoutes } from './modules/students/students.routes';
 import { staffRoutes } from './modules/staff/staff.routes';
 import { admissionRoutes, publicEnquiryRoutes } from './modules/admissions/admissions.routes';
+import { feeRoutes } from './modules/fees/fees.routes';
+import { paymentRoutes, publicPaymentRoutes } from './modules/payments/payments.routes';
 
 export const app = express();
 
@@ -49,7 +51,8 @@ const corsOptions: CorsOptions = {
     exposedHeaders: ['X-Request-Id'],
 };
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '1mb' }));
+// Keep the exact bytes too: payment gateways sign their webhooks over them.
+app.use(express.json({ limit: '1mb', verify: (req, _res, buf) => ((req as Request).rawBody = buf) }));
 app.use(requestContext);
 
 // ─── Health Check (no database, no school) ───────────────────────────────────
@@ -77,6 +80,9 @@ app.use('/api/students', studentRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/admissions', admissionRoutes);
 app.use('/api/public/enquiry', publicEnquiryRoutes);
+app.use('/api/fees', feeRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/public/payments', publicPaymentRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

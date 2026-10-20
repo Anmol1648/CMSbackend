@@ -151,3 +151,40 @@ export const addParentLogin = async (guardianId: string) => {
     await sendWelcomeEmail(login);
     return { username: login.user.username, temporaryPassword: login.temporaryPassword, emailed: !!login.welcome };
 };
+
+/**
+ * Logins for the main contact of every family that has none yet (for a school switching parent
+ * logins on later). A batch at a time; the caller repeats while `remaining` > 0. Parents without a
+ * mobile or email, or whose mobile / email another login already uses, are skipped and listed.
+ */
+export const addParentLoginsBatch = async (batch = 40) => {
+    const { mode } = await getSettings({ mode: STUDENTS.parentLogin });
+    if (mode === 'off') throw forbidden('Parent logins are switched off (System Settings → Students)');
+    const where = { isPrimary: true, userId: null, family: { students: { some: { status: 'active' as const } } } };
+    const candidates = await db.guardian.findMany({ where, orderBy: { name: 'asc' }, take: batch * 3 });
+    const created: { for: string; username: string; temporaryPassword: string; emailed: boolean }[] = [];
+    const skipped: { for: string; reason: string }[] = [];
+    for (const g of candidates) {
+        if (created.length >= batch) break;
+        if (!g.mobile && !g.email) {
+            skipped.push({ for: g.name, reason: 'no mobile or email' });
+            continue;
+        }
+        const taken = await db.user.findFirst({ where: { OR: [...(g.mobile ? [{ mobile: g.mobile }] : []), ...(g.email ? [{ email: g.email }] : [])] }, select: { id: true } });
+        if (taken) {
+            skipped.push({ for: g.name, reason: 'mobile or email already used by another login' });
+            continue;
+        }
+        const login = await withTransaction(async (tx) => {
+            const l = await createLogin({ kind: 'guardian', displayName: g.name, email: g.email, mobile: g.mobile, usernameCandidates: [g.mobile ?? '', g.name] }, tx);
+            await tx.guardian.update({ where: { id: g.id }, data: { userId: l.user.id } });
+            return l;
+        });
+        await sendWelcomeEmail(login);
+        created.push({ for: g.name, username: login.user.username, temporaryPassword: login.temporaryPassword, emailed: !!login.welcome });
+    }
+    // Parents that can never get one this way are not "remaining".
+    const remaining = (await db.guardian.count({ where: { ...where, OR: [{ mobile: { not: null } }, { email: { not: null } }] } })) - skipped.filter((x) => x.reason !== 'no mobile or email').length;
+    await recordAudit({ action: 'parent_logins_created', entity: 'school', changes: { created: created.length } });
+    return { created, skipped, remaining: Math.max(0, remaining) };
+};
