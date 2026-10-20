@@ -10,6 +10,7 @@ import { STUDENTS } from './students.settings';
 import { counterKey, fullName } from './students.service';
 import { ROLL_ORDERS } from './enrolment.service';
 import { createDemoStaff } from '../staff/demo-staff';
+import { createDemoEnquiries } from '../admissions/demo-enquiries';
 import { randomUUID } from 'crypto';
 
 /**
@@ -248,8 +249,16 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
         if (left.userId) await db.user.update({ where: { id: left.userId }, data: { status: 'disabled' } });
     }
 
-    await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    // ─── Admission enquiries (the newly admitted students came through one) ────
+    const sessionStart = year.startDate.getTime();
+    const newcomers = planned
+        .map((p, i) => ({ p, st: students[i] }))
+        .filter(({ p }) => (p.student.admissionDate as Date).getTime() >= sessionStart - 90 * 86_400_000)
+        .map(({ p, st }) => ({ id: st.id, classId: p.classId, firstName: st.firstName, lastName: st.lastName, dateOfBirth: (p.student.dateOfBirth as Date | null) ?? null, genderId: (p.student.genderId as string | null) ?? null }));
+    const enquiries = await createDemoEnquiries(year, newcomers, { pick, between, chance: (p) => rand() < p });
+
+    await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries } });
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -258,6 +267,12 @@ export const clearDemoData = async () => {
     const demoStaff = (await db.staff.findMany({ where: { isDemo: true }, select: { id: true } })).map((x) => x.id);
     await db.section.updateMany({ where: { classTeacherId: { in: demoStaff } }, data: { classTeacherId: null } });
     // Reporting lines first (staff point at each other), then the records (assignments go with them).
+    // Enquiries point at demo students and staff.
+    const enquiries = await db.enquiry.deleteMany({ where: { isDemo: true } });
+    // Real enquiries keep their record, without the demo person.
+    await db.enquiry.updateMany({ where: { assignedTo: { isDemo: true } }, data: { assignedToId: null } });
+    await db.enquiry.updateMany({ where: { student: { isDemo: true } }, data: { studentId: null } });
+    if (!(await db.enquiry.count())) await db.numberSequence.deleteMany({ where: { OR: [{ key: { startsWith: 'enquiry' } }, { key: { startsWith: 'registration' } }] } });
     await db.staff.updateMany({ where: { isDemo: true }, data: { reportsToId: null } });
     const staffRemoved = await db.staff.deleteMany({ where: { isDemo: true } });
     const students = await db.student.deleteMany({ where: { isDemo: true } });
@@ -270,6 +285,6 @@ export const clearDemoData = async () => {
         counterReset = true;
     }
     if (!(await db.staff.count())) await db.numberSequence.deleteMany({ where: { key: 'staff' } });
-    await recordAudit({ action: 'demo_cleared', entity: 'school', changes: { students: students.count, families: families.count, staff: staffRemoved.count, logins: users.count } });
-    return { students: students.count, families: families.count, staff: staffRemoved.count, logins: users.count, counterReset };
+    await recordAudit({ action: 'demo_cleared', entity: 'school', changes: { students: students.count, families: families.count, staff: staffRemoved.count, enquiries: enquiries.count, logins: users.count } });
+    return { students: students.count, families: families.count, staff: staffRemoved.count, enquiries: enquiries.count, logins: users.count, counterReset };
 };

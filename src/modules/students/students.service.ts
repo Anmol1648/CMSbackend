@@ -15,6 +15,7 @@ import { STUDENTS, StudentField } from './students.settings';
 import { checkPlacement, enrolmentSchema, renumberSection, saveEnrolment } from './enrolment.service';
 import { guardianSchema, createGuardians } from './family.service';
 import type { studentFilters } from './students.schemas';
+import { assertConvertible, markConverted, type Viewer as EnquiryViewer } from '../admissions/enquiries.service';
 
 /** Student records, admission and the student list. */
 
@@ -435,6 +436,8 @@ export const admissionSchema = z.strictObject({
     enrolment: enrolmentSchema,
     /** Create the student's login now (when System Settings → Students says "when asked"). */
     createLogin: z.boolean().optional(),
+    /** The admission enquiry this admission comes from (Convert to admission). */
+    enquiryId: z.uuid().optional(),
 });
 export type AdmissionInput = z.infer<typeof admissionSchema>;
 
@@ -461,7 +464,9 @@ export const createStudentLogin = async (studentId: string, client: typeof db | 
     return login;
 };
 
-export const admitStudent = async (input: AdmissionInput, viewer: Viewer) => {
+/** `enquiry`: who converts the enquiry in `input.enquiryId` (the route checks enquiry.convert). */
+export const admitStudent = async (input: AdmissionInput, viewer: Viewer, enquiry?: EnquiryViewer) => {
+    if (input.enquiryId) await assertConvertible(input.enquiryId, enquiry ?? { userId: viewer.userId, scope: 'all' });
     const s = await getSettings({
         required: STUDENTS.requiredFields,
         hidden: STUDENTS.hiddenFields,
@@ -495,6 +500,7 @@ export const admitStudent = async (input: AdmissionInput, viewer: Viewer) => {
             const guardians = input.guardians?.length ? await createGuardians(familyId, input.guardians, tx) : [];
             const student = await tx.student.create({ data: { tenantId, ...dbFields({ ...fields, admissionNo }), firstName: fields.firstName, admissionNo, admissionDate, familyId } as Prisma.StudentUncheckedCreateInput });
             const placed = await saveEnrolment(student.id, enrolment, tx);
+            if (input.enquiryId) await markConverted(tx, input.enquiryId, student.id);
 
             if (s.studentLogin === 'auto' || (s.studentLogin === 'on_request' && input.createLogin)) {
                 const login = await createStudentLogin(student.id, tx);
@@ -519,7 +525,7 @@ export const admitStudent = async (input: AdmissionInput, viewer: Viewer) => {
     );
     for (const w of welcomes) await sendWelcomeEmail(w);
     if (result.placed.renumber) await renumberSection(result.placed.section.id);
-    await recordAudit({ action: 'admit', entity: 'student', entityId: result.student.id, changes: { admissionNo, section: `${section.schoolClass.name} ${section.name}` } });
+    await recordAudit({ action: 'admit', entity: 'student', entityId: result.student.id, changes: { admissionNo, section: `${section.schoolClass.name} ${section.name}`, ...(input.enquiryId ? { enquiryId: input.enquiryId } : {}) } });
     return {
         student: await getStudent(result.student.id, { ...viewer, scope: 'all' }),
         logins: logins.map(({ user: _u, ...l }) => l),

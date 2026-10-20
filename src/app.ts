@@ -23,6 +23,7 @@ import { masterRoutes } from './modules/masters/masters.routes';
 import { academicRoutes } from './modules/academic/academic.routes';
 import { studentRoutes } from './modules/students/students.routes';
 import { staffRoutes } from './modules/staff/staff.routes';
+import { admissionRoutes, publicEnquiryRoutes } from './modules/admissions/admissions.routes';
 
 export const app = express();
 
@@ -74,6 +75,8 @@ app.use('/api/masters', masterRoutes);
 app.use('/api/academic', academicRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/admissions', admissionRoutes);
+app.use('/api/public/enquiry', publicEnquiryRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

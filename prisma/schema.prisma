@@ -58,6 +58,8 @@ model Tenant {
   staffExperience    StaffExperience[]
   staffDocuments     StaffDocument[]
   teachingAssignments TeachingAssignment[]
+  enquiries          Enquiry[]
+  enquiryFollowUps   EnquiryFollowUp[]
   menuCustomizations MenuCustomization[]
   files              File[]
 
@@ -503,6 +505,12 @@ model MasterValue {
   studentsLeavingReason  Student[]         @relation("StudentLeavingReason")
   enrolmentsHouse        Enrolment[]       @relation("EnrolmentHouse")
   studentDocumentsType   StudentDocument[] @relation("StudentDocumentType")
+  enquiriesGender        Enquiry[]            @relation("EnquiryGender")
+  enquiriesRelation      Enquiry[]            @relation("EnquiryRelation")
+  enquiriesSource        Enquiry[]            @relation("EnquirySource")
+  enquiriesStage         Enquiry[]            @relation("EnquiryStage")
+  enquiriesLost          Enquiry[]            @relation("EnquiryLostReason")
+  followUpsOutcome       EnquiryFollowUp[]    @relation("FollowUpOutcome")
   staffGender            Staff[]              @relation("StaffGender")
   staffBloodGroup        Staff[]              @relation("StaffBloodGroup")
   staffReligion          Staff[]              @relation("StaffReligion")
@@ -556,6 +564,7 @@ model AcademicYear {
   classSubjects ClassSubject[]
   enrolments    Enrolment[]
   teachingAssignments TeachingAssignment[]
+  enquiries     Enquiry[]
 
   @@unique([id, tenantId])
   @@index([tenantId, startDate])
@@ -584,6 +593,7 @@ model SchoolClass {
   group         MasterValue?   @relation("ClassGroup", fields: [groupId, tenantId], references: [id, tenantId], onDelete: Restrict)
   sections      Section[]
   classSubjects ClassSubject[]
+  enquiries     Enquiry[]
 
   @@unique([id, tenantId])
   @@index([tenantId, sortOrder])
@@ -838,6 +848,7 @@ model Student {
   leavingReason MasterValue?      @relation("StudentLeavingReason", fields: [leavingReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
   enrolments    Enrolment[]
   documents     StudentDocument[]
+  enquiries     Enquiry[]         @relation("EnquiryStudent")
 
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
@@ -984,6 +995,7 @@ model Staff {
   documents       StaffDocument[]
   classTeacherOf  Section[]            @relation("SectionClassTeacher")
   assignments     TeachingAssignment[]
+  enquiries       Enquiry[]            @relation("EnquiryAssignedTo")
 
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
@@ -1071,4 +1083,97 @@ model TeachingAssignment {
   @@unique([sectionId, subjectId])
   @@index([tenantId, academicYearId, staffId])
   @@map("teaching_assignments")
+}
+
+// ─── Admissions: enquiries and follow-ups ────────────────────────────────────
+
+enum TestResult {
+  pending
+  passed
+  failed
+  not_needed
+}
+
+/// A family asking about admission; followed up until admitted (converted to a student) or lost.
+model Enquiry {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String      @map("tenant_id") @db.Uuid
+  enquiryNo        String      @map("enquiry_no")
+  enquiryDate      DateTime    @map("enquiry_date") @db.Date
+  academicYearId   String      @map("academic_year_id") @db.Uuid
+  /// The class applied for.
+  classId          String      @map("class_id") @db.Uuid
+  studentFirstName String      @map("student_first_name")
+  studentLastName  String?     @map("student_last_name")
+  dateOfBirth      DateTime?   @map("date_of_birth") @db.Date
+  genderId         String?     @map("gender_id") @db.Uuid
+  parentName       String      @map("parent_name")
+  relationId       String?     @map("relation_id") @db.Uuid
+  mobile           String
+  email            String?
+  area             String?
+  currentSchool    String?     @map("current_school")
+  /// Master "enquiry_source" (walk-in, phone, website…).
+  sourceId         String?     @map("source_id") @db.Uuid
+  /// Master "enquiry_stage" (Enquiry, Registered, … Admitted, Lost).
+  stageId          String      @map("stage_id") @db.Uuid
+  /// The staff member following it up.
+  assignedToId     String?     @map("assigned_to_id") @db.Uuid
+  nextFollowUp     DateTime?   @map("next_follow_up") @db.Date
+  lostReasonId     String?     @map("lost_reason_id") @db.Uuid
+  registrationNo   String?     @map("registration_no")
+  registrationDate DateTime?   @map("registration_date") @db.Date
+  testDate         DateTime?   @map("test_date") @db.Date
+  testScore        String?     @map("test_score")
+  testResult       TestResult  @default(not_needed) @map("test_result")
+  remarks          String?
+  /// Came in through the public enquiry form.
+  online           Boolean     @default(false)
+  /// The student it became (Convert to admission).
+  studentId        String?     @map("student_id") @db.Uuid
+  convertedAt      DateTime?   @map("converted_at") @db.Timestamptz(6)
+  isDemo           Boolean     @default(false) @map("is_demo")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String?     @map("created_by") @db.Uuid
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy        String?     @map("updated_by") @db.Uuid
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear      @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schoolClass  SchoolClass       @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  gender       MasterValue?      @relation("EnquiryGender", fields: [genderId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  relation     MasterValue?      @relation("EnquiryRelation", fields: [relationId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  source       MasterValue?      @relation("EnquirySource", fields: [sourceId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  stage        MasterValue       @relation("EnquiryStage", fields: [stageId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  lostReason   MasterValue?      @relation("EnquiryLostReason", fields: [lostReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  assignedTo   Staff?            @relation("EnquiryAssignedTo", fields: [assignedToId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  student      Student?          @relation("EnquiryStudent", fields: [studentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  followUps    EnquiryFollowUp[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, stageId])
+  @@index([tenantId, nextFollowUp])
+  @@index([tenantId, mobile])
+  @@map("enquiries")
+}
+
+/// One call, visit or message about an enquiry, with what was said and when to follow up next.
+model EnquiryFollowUp {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  enquiryId  String    @map("enquiry_id") @db.Uuid
+  date       DateTime  @db.Date
+  /// Master "follow_up_outcome" (interested, call back, visit scheduled…).
+  outcomeId  String?   @map("outcome_id") @db.Uuid
+  note       String?
+  nextDate   DateTime? @map("next_date") @db.Date
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy  String?   @map("created_by") @db.Uuid
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enquiry Enquiry      @relation(fields: [enquiryId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  outcome MasterValue? @relation("FollowUpOutcome", fields: [outcomeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, enquiryId])
+  @@map("enquiry_follow_ups")
 }

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, successResponse } from '../../core/index';
-import { badRequest, validationError } from '../../core/errors';
+import { badRequest, forbidden, validationError } from '../../core/errors';
 import { parseListQuery } from '../../core/http/list-query';
 import { sendFile, upload } from '../../core/http/files';
 import { getSetting } from '../../core/settings';
@@ -14,6 +14,7 @@ import * as family from './family.service';
 import * as files from './student-files.service';
 import { enrolmentSchema, placeStudent, renumberSection } from './enrolment.service';
 import { studentListSpec } from './students.schemas';
+import { enquiryViewer } from '../admissions/admissions.routes';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -72,7 +73,14 @@ studentRoutes.get('/families', can('student.create'), asyncHandler(async (req: R
 }));
 
 studentRoutes.post('/', can('student.create'), asyncHandler(async (req: Request, res: Response) => {
-    successResponse(res, await students.admitStudent(parse(students.admissionSchema, req.body), await viewer(req)), 'Student admitted', 201);
+    const input = parse(students.admissionSchema, req.body);
+    let enquiry;
+    if (input.enquiryId) {
+        const access = await getUserAccess(req.user!.userId);
+        if (!access.permissions['enquiry.convert']) throw forbidden('You may not convert enquiries into admissions');
+        enquiry = await enquiryViewer(req.user!.userId);
+    }
+    successResponse(res, await students.admitStudent(input, await viewer(req), enquiry), 'Student admitted', 201);
 }));
 
 studentRoutes.post('/sections/:sectionId/renumber', update, asyncHandler(async (req: Request, res: Response) => {

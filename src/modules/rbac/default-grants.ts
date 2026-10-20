@@ -30,13 +30,17 @@ export const DEFAULT_GRANTS: Record<string, { key: string; scope?: DataScope }[]
         { key: 'staff.import' },
         { key: 'staff.view_sensitive' },
         { key: 'teaching.assign' },
+        { key: 'enquiry.view' },
+        { key: 'enquiry.manage' },
+        { key: 'enquiry.convert' },
+        { key: 'enquiry.reports' },
     ],
-    principal: [{ key: 'user.view' }, { key: 'role.view' }, { key: 'masters.view' }, { key: 'academic.view' }, { key: 'academic.manage' }, { key: 'student.view' }, { key: 'student.view_sensitive' }, { key: 'staff.view' }, { key: 'staff.view_sensitive' }, { key: 'teaching.assign' }],
+    principal: [{ key: 'user.view' }, { key: 'role.view' }, { key: 'masters.view' }, { key: 'academic.view' }, { key: 'academic.manage' }, { key: 'student.view' }, { key: 'student.view_sensitive' }, { key: 'staff.view' }, { key: 'staff.view_sensitive' }, { key: 'teaching.assign' }, { key: 'enquiry.view' }, { key: 'enquiry.reports' }],
     // Teachers see the students of the sections they teach, and their own staff record.
     teacher: [{ key: 'student.view', scope: 'assigned' }, { key: 'staff.view', scope: 'own' }],
     // Class teachers see the students of their own sections.
     'class-teacher': [{ key: 'student.view', scope: 'assigned' }, { key: 'staff.view', scope: 'own' }],
-    'office-staff': [{ key: 'masters.view' }, { key: 'academic.view' }, { key: 'student.view' }, { key: 'student.create' }, { key: 'student.update' }, { key: 'student.import' }, { key: 'staff.view' }, { key: 'staff.create' }, { key: 'staff.update' }],
+    'office-staff': [{ key: 'masters.view' }, { key: 'academic.view' }, { key: 'student.view' }, { key: 'student.create' }, { key: 'student.update' }, { key: 'student.import' }, { key: 'staff.view' }, { key: 'staff.create' }, { key: 'staff.update' }, { key: 'enquiry.view' }, { key: 'enquiry.manage' }, { key: 'enquiry.convert' }, { key: 'enquiry.reports' }],
     accountant: [],
     // A student sees their own record; a parent sees their children.
     student: [{ key: 'student.view', scope: 'own' }],

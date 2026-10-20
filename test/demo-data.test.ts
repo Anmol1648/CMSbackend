@@ -22,6 +22,11 @@ describe('demo data', () => {
         expect(sections.every((s) => s.enrolments.filter((e) => e.rollNumber).length > 0)).toBe(true);
         const guardians = await inAlpha(() => db.guardian.count());
         expect(guardians).toBe(r.families * 2);
+        // Admission enquiries at every stage; the converted ones point at students of their class.
+        expect(r.enquiries.enquiries).toBe(150);
+        const converted = await inAlpha(() => db.enquiry.findMany({ where: { studentId: { not: null } }, include: { student: { include: { enrolments: { include: { section: true } } } } } }));
+        expect(converted.length).toBe(r.enquiries.converted);
+        expect(converted.every((e) => e.student!.enrolments[0].section.classId === e.classId)).toBe(true);
         await expect(inAlpha(() => createDemoData())).rejects.toThrow('already has demo data');
     }, 300_000);
 
@@ -29,6 +34,7 @@ describe('demo data', () => {
         const r = await inAlpha(clearDemoData);
         expect(r.counterReset).toBe(true);
         expect(await inAlpha(() => db.student.count())).toBe(0);
+        expect(await inAlpha(() => db.enquiry.count())).toBe(0);
         expect(await inAlpha(() => db.family.count())).toBe(0);
         expect(await inAlpha(() => db.user.count({ where: { isDemo: true } }))).toBe(0);
         expect(await inAlpha(() => db.section.count({ where: { classTeacherId: { not: null } } }))).toBe(0);
