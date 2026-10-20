@@ -119,7 +119,7 @@ registerImport<SectionCtx>({
             { key: 'stream', header: 'Stream', type: 'choice', choices: streams.map((s) => s.name), help: 'Only for classes with streams (XI, XII).' },
             { key: 'capacity', header: 'Capacity', type: 'number', help: 'Optional: most students in the section.' },
             { key: 'room', header: 'Room', type: 'text', max: 40 },
-            { key: 'teacher', header: 'Class teacher (username)', type: 'text', help: 'Optional: the class teacher’s username.' },
+            { key: 'teacher', header: 'Class teacher (employee code)', type: 'text', help: 'Optional: the class teacher’s employee code (Staff).' },
         ];
     },
     prepare: async () => {
@@ -127,14 +127,14 @@ registerImport<SectionCtx>({
             db.academicYear.findMany({ select: { id: true, name: true } }),
             db.schoolClass.findMany({ select: { id: true, name: true, hasStreams: true } }),
             db.masterValue.findMany({ where: { master: 'stream' }, select: { id: true, name: true } }),
-            db.user.findMany({ where: { status: 'active', kind: { in: ['staff', 'admin'] } }, select: { id: true, username: true } }),
+            db.staff.findMany({ where: { status: 'working' }, select: { id: true, employeeCode: true } }),
             db.section.findMany({ select: { id: true, academicYearId: true, classId: true, name: true } }),
         ]);
         return {
             years: new Map(years.map((y) => [y.name.toLowerCase(), y.id])),
             classes: new Map(classes.map((c) => [c.name.toLowerCase(), { id: c.id, hasStreams: c.hasStreams }])),
             streams: new Map(streams.map((s) => [s.name.toLowerCase(), s.id])),
-            teachers: new Map(teachers.map((t) => [t.username, t.id])),
+            teachers: new Map(teachers.map((t) => [t.employeeCode.toLowerCase(), t.id])),
             existing: new Map(sections.map((s) => [`${s.academicYearId}|${s.classId}|${s.name.toLowerCase()}`, s.id])),
             seen: new Set(),
         };
@@ -147,7 +147,7 @@ registerImport<SectionCtx>({
         if (v.capacity !== null && v.capacity !== undefined && (!Number.isInteger(v.capacity) || (v.capacity as number) < 1 || (v.capacity as number) > 500)) {
             row.issues.push({ field: 'Capacity', message: 'must be a whole number from 1 to 500' });
         }
-        if (v.teacher && !ctx.teachers.has(String(v.teacher).trim().toLowerCase())) row.issues.push({ field: 'Class teacher (username)', message: 'is not an active staff member' });
+        if (v.teacher && !ctx.teachers.has(String(v.teacher).trim().toLowerCase())) row.issues.push({ field: 'Class teacher (employee code)', message: 'is not a working staff member' });
         const key = `${v.year}|${v.class}|${String(v.name ?? '').toLowerCase()}`;
         if (ctx.seen.has(key)) row.issues.push({ field: 'Section', message: 'appears twice in the file' });
         ctx.seen.add(key);

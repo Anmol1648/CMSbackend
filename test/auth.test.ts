@@ -174,7 +174,9 @@ describe('staying signed in', () => {
         const full = await api().post('/api/auth/refresh?with=profile').set('Cookie', `cms_rt=${cookie2}`);
         expect(full.status).toBe(200);
         expect(full.body.data.me).toMatchObject({ user: { username: 'teacher.one' }, school: { code: 'alpha' }, mustChangePassword: false });
-        expect(full.body.data.access.menu.flatMap((g: { items: { key: string }[] }) => g.items.map((i) => i.key))).toEqual(['home', 'school-profile']);
+        const sidebar = full.body.data.access.menu.flatMap((g: { items: { key: string }[] }) => g.items.map((i) => i.key));
+        expect(sidebar).toEqual(expect.arrayContaining(['home', 'school-profile']));
+        expect(sidebar).not.toContain('users');
     });
 
     it('a copied (already used) refresh token ends the whole session', async () => {

@@ -22,6 +22,7 @@ import { emailTemplateRoutes } from './modules/email-templates/email-templates.r
 import { masterRoutes } from './modules/masters/masters.routes';
 import { academicRoutes } from './modules/academic/academic.routes';
 import { studentRoutes } from './modules/students/students.routes';
+import { staffRoutes } from './modules/staff/staff.routes';
 
 export const app = express();
 
@@ -72,6 +73,7 @@ app.use('/api/email-templates', emailTemplateRoutes);
 app.use('/api/masters', masterRoutes);
 app.use('/api/academic', academicRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/staff', staffRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

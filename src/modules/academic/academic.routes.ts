@@ -62,8 +62,8 @@ academicRoutes.get('/sections/export', view, asyncHandler(async (req: Request, r
         { header: 'Stream', value: (r) => r.s.stream?.name },
         { header: 'Capacity', value: (r) => r.s.capacity },
         { header: 'Room', value: (r) => r.s.room },
-        { header: 'Class teacher (username)', width: 24, value: (r) => r.s.classTeacher?.username },
-        { header: 'Class teacher', width: 24, value: (r) => r.s.classTeacher?.displayName },
+        { header: 'Class teacher (employee code)', width: 24, value: (r) => r.s.classTeacher?.code },
+        { header: 'Class teacher', width: 24, value: (r) => r.s.classTeacher?.name },
         { header: 'Active', value: (r) => (r.s.isActive ? 'Yes' : 'No') },
     ], rows);
     sendFile(res, `sections-${y.name.replace(/[^\w-]+/g, '-')}-${today()}.xlsx`, XLSX_MIME, data);

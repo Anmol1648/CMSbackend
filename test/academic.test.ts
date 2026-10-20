@@ -8,7 +8,7 @@ import { app } from '../src/app';
 import { db } from '../src/core/db';
 import { runAsTenant } from '../src/core/context';
 import { localStorageAt, useStorageForTests } from '../src/core/files/storage';
-import { makeTenant, makeUser, resetDatabase, tokenFor } from './helpers';
+import { makeStaff, makeTenant, makeUser, resetDatabase, tokenFor } from './helpers';
 
 const ORIGIN = 'https://alpha.test.in';
 const BETA = 'https://beta.test.in';
@@ -17,6 +17,7 @@ let superAdmin: string;
 let office: string;
 let teacher: string;
 let teacherUser: { id: string };
+let teacherStaff: { id: string };
 let betaAdmin: string;
 
 const as = (token: string, origin = ORIGIN) => ({
@@ -42,6 +43,7 @@ beforeAll(async () => {
     office = tokenFor(await makeUser(alpha.tenant.id, 'office.one', 'office-staff'));
     teacherUser = await makeUser(alpha.tenant.id, 'teacher.one', 'teacher');
     teacher = tokenFor(teacherUser);
+    teacherStaff = await makeStaff(alpha.tenant.id, 'Teacher', teacherUser.id);
     const beta = await makeTenant('beta', 'Beta School', 'beta.test.in');
     betaAdmin = tokenFor({ id: beta.admin.id, tenantId: beta.tenant.id });
 }, 240_000);
@@ -141,15 +143,15 @@ describe('classes and sections', () => {
         expect((await as(superAdmin).post('/api/academic/sections', { academicYearId: current, classId: xi.id, name: 'd', streamId: science })).status).toBe(409);
     });
 
-    it('a class teacher is an active staff member, of one section a year (a setting)', async () => {
+    it('a class teacher is a working staff member, of one section a year (a setting)', async () => {
         const vi = await classNamed(current, 'VI');
         const [a, b] = vi.sections;
-        expect((await as(superAdmin).patch(`/api/academic/sections/${a.id}`, { classTeacherId: teacherUser.id })).body.data.classTeacher).toMatchObject({ id: teacherUser.id });
-        const twice = await as(superAdmin).patch(`/api/academic/sections/${b.id}`, { classTeacherId: teacherUser.id });
+        expect((await as(superAdmin).patch(`/api/academic/sections/${a.id}`, { classTeacherId: teacherStaff.id })).body.data.classTeacher).toMatchObject({ id: teacherStaff.id, name: 'Teacher' });
+        const twice = await as(superAdmin).patch(`/api/academic/sections/${b.id}`, { classTeacherId: teacherStaff.id });
         expect(twice.status).toBe(409);
         expect(twice.body.error.message).toContain('already class teacher of Class VI A');
         await as(superAdmin).patch('/api/settings', { changes: { 'academic.one_section_per_class_teacher': false } });
-        expect((await as(superAdmin).patch(`/api/academic/sections/${b.id}`, { classTeacherId: teacherUser.id })).status).toBe(200);
+        expect((await as(superAdmin).patch(`/api/academic/sections/${b.id}`, { classTeacherId: teacherStaff.id })).status).toBe(200);
     });
 });
 

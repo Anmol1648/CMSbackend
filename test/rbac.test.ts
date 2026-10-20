@@ -61,10 +61,12 @@ describe('my access and sidebar', () => {
         expect(menuKeys(res.body)[0]).toBe('home');
     });
 
-    it('a teacher sees only what everyone sees', async () => {
+    it('a teacher gets only their own corner: students of their sections and their own staff record', async () => {
         const res = await as(teacher).get('/api/me/access');
-        expect(res.body.data).toMatchObject({ isSuperAdmin: false, permissions: {} });
-        expect(menuKeys(res.body)).toEqual(['home', 'school-profile']);
+        expect(res.body.data).toMatchObject({ isSuperAdmin: false, permissions: { 'student.view': 'assigned', 'staff.view': 'own' } });
+        const keys = menuKeys(res.body);
+        expect(keys).toEqual(expect.arrayContaining(['home', 'school-profile']));
+        for (const admin of ['users', 'roles', 'system-settings', 'audit', 'masters']) expect(keys).not.toContain(admin);
     });
 
     it('School Admin gets the users screen but cannot manage roles', async () => {

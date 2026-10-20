@@ -21,6 +21,10 @@ export const resetDatabase = async () => {
 export const makeTenant = (code: string, name: string, domain?: string, options: { starterData?: boolean } = {}): Promise<CreatedTenant> =>
     createTenant({ code, name, domain, admin: { username: 'admin', displayName: `${name} Admin` } }, { starterData: options.starterData ?? false });
 
+/** A staff record (optionally linked to a login), e.g. to be a class teacher. */
+export const makeStaff = (tenantId: string, firstName: string, userId?: string) =>
+    runAsTenant(tenantId, () => db.staff.create({ data: { tenantId, employeeCode: `T-${firstName}`, joiningDate: new Date('2020-04-01'), firstName, userId: userId ?? null } }));
+
 /** Adds a staff user holding the given role (by slug) to a school. */
 export const makeUser = async (tenantId: string, username: string, roleSlug: string) =>
     runAsTenant(tenantId, async () => {

@@ -29,15 +29,15 @@ const main = async () => {
     }
     if (values.clear) {
         const r = await runAsTenant(tenant.id, clearDemoData);
-        out(`${tenant.name}: removed ${r.students} demo students, ${r.families} families and ${r.logins} demo logins.${r.counterReset ? ' Admission numbers start again from the first.' : ''}`);
+        out(`${tenant.name}: removed ${r.students} demo students, ${r.families} families, ${r.staff} staff and ${r.logins} demo logins.${r.counterReset ? ' Numbers start again from the first.' : ''}`);
         return;
     }
     out(`${tenant.name}: creating demo data (this takes a minute)…`);
     const r = await runAsTenant(tenant.id, () => createDemoData());
-    out(`${tenant.name}: ${r.students} students in ${r.sections} sections of ${r.year}, ${r.families} families, ${r.teachers.length} class teachers, ${r.studentLogins} student logins.`);
+    out(`${tenant.name}: ${r.students} students in ${r.sections} sections of ${r.year}, ${r.families} families, ${r.staff.staff} staff (${r.staff.logins} with logins, ${r.staff.assignments} subject-teacher assignments), ${r.studentLogins} student logins.`);
     out('');
     out(`Every demo login uses the password ${DEMO_PASSWORD}`);
-    out(`  class teacher: ${r.teachers[0]}   (sees only their section's students)`);
+    if (r.staff.sampleTeacher) out(`  class teacher: ${r.staff.sampleTeacher}   (sees only their own sections' students)`);
     if (r.studentLogins && r.sampleStudent) out(`  student:       ${r.sampleStudent.replace(/[^A-Za-z0-9]/g, '').toLowerCase()}   (admission no ${r.sampleStudent})`);
     out('Remove it all later with: npm run demo:clear -- --school ' + tenant.code);
 };

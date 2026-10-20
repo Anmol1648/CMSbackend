@@ -40,7 +40,7 @@ export const classUpdateSchema = classInputSchema.partial();
 
 const sectionInclude = {
     stream: { select: { id: true, name: true } },
-    classTeacher: { select: { id: true, displayName: true, username: true } },
+    classTeacher: { select: { id: true, firstName: true, middleName: true, lastName: true, employeeCode: true } },
 } as const;
 type SectionRow = Prisma.SectionGetPayload<{ include: typeof sectionInclude }>;
 
@@ -52,7 +52,7 @@ const presentSection = (s: SectionRow) => ({
     stream: s.stream,
     capacity: s.capacity,
     room: s.room,
-    classTeacher: s.classTeacher,
+    classTeacher: s.classTeacher ? { id: s.classTeacher.id, name: [s.classTeacher.firstName, s.classTeacher.middleName, s.classTeacher.lastName].filter(Boolean).join(' '), code: s.classTeacher.employeeCode } : null,
     sortOrder: s.sortOrder,
     isActive: s.isActive,
 });
@@ -176,9 +176,11 @@ export const getSection = async (id: string) => {
     return presentSection(s);
 };
 
-/** Staff and administrators who can be class teachers. */
-export const teacherOptions = () =>
-    db.user.findMany({ where: { status: 'active', kind: { in: ['staff', 'admin'] } }, select: { id: true, displayName: true, username: true }, orderBy: { displayName: 'asc' } });
+/** Working staff who can be class teachers. */
+export const teacherOptions = async () =>
+    (
+        await db.staff.findMany({ where: { status: 'working' }, select: { id: true, firstName: true, middleName: true, lastName: true, employeeCode: true }, orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }] })
+    ).map((s) => ({ id: s.id, name: [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' '), code: s.employeeCode }));
 
 const checkSection = async (
     s: { academicYearId: string; classId: string; name: string; streamId?: string | null; classTeacherId?: string | null },
@@ -196,8 +198,9 @@ const checkSection = async (
     if (same) throw conflict(`${cls.name} already has a section ${s.name} this year`);
 
     if (s.classTeacherId) {
-        const teacher = await db.user.findFirst({ where: { id: s.classTeacherId, status: 'active', kind: { in: ['staff', 'admin'] } }, select: { displayName: true } });
-        if (!teacher) throw badRequest('Choose an active staff member as class teacher', [{ field: 'classTeacherId', message: 'is not an active staff member' }]);
+        const found = await db.staff.findFirst({ where: { id: s.classTeacherId, status: 'working' }, select: { firstName: true, lastName: true } });
+        if (!found) throw badRequest('Choose a working staff member as class teacher', [{ field: 'classTeacherId', message: 'is not a working staff member' }]);
+        const teacher = { displayName: [found.firstName, found.lastName].filter(Boolean).join(' ') };
         if (await getSetting(ACADEMIC.oneSectionPerClassTeacher)) {
             const other = await db.section.findFirst({
                 where: { academicYearId: s.academicYearId, classTeacherId: s.classTeacherId, ...except },

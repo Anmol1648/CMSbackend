@@ -9,6 +9,7 @@ import './audit/audit.permissions';
 import './auth/auth.emails';
 import './academic/academic.permissions';
 import './students/students.permissions';
+import './staff/staff.permissions';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

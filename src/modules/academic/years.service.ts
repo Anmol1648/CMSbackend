@@ -162,7 +162,7 @@ export const copyStructure = async (targetId: string, fromId: string, what: { se
 
     if (what.sections) {
         const [from, existing] = await Promise.all([
-            db.section.findMany({ where: { academicYearId: fromId, isActive: true }, include: { classTeacher: { select: { status: true, deletedAt: true } } } }),
+            db.section.findMany({ where: { academicYearId: fromId, isActive: true }, include: { classTeacher: { select: { status: true } } } }),
             db.section.findMany({ where: { academicYearId: targetId }, select: { classId: true } }),
         ]);
         const skip = new Set(existing.map((s) => s.classId));
@@ -178,7 +178,7 @@ export const copyStructure = async (targetId: string, fromId: string, what: { se
                     capacity: s.capacity,
                     room: s.room,
                     // A teacher who has left isn't copied.
-                    classTeacherId: s.classTeacher && s.classTeacher.status === 'active' && !s.classTeacher.deletedAt ? s.classTeacherId : null,
+                    classTeacherId: s.classTeacher && s.classTeacher.status === 'working' ? s.classTeacherId : null,
                     sortOrder: s.sortOrder,
                 })),
                 skipDuplicates: true,

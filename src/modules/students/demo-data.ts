@@ -9,6 +9,7 @@ import { currentYear } from '../academic/years.service';
 import { STUDENTS } from './students.settings';
 import { counterKey, fullName } from './students.service';
 import { ROLL_ORDERS } from './enrolment.service';
+import { createDemoStaff } from '../staff/demo-staff';
 import { randomUUID } from 'crypto';
 
 /**
@@ -37,13 +38,6 @@ const GIRLS = ['Aditi', 'Akanksha', 'Ananya', 'Anjali', 'Anushka', 'Bhawna', 'De
 const SURNAMES = ['Negi', 'Rawat', 'Bisht', 'Panwar', 'Bhandari', 'Joshi', 'Semwal', 'Thapliyal', 'Nautiyal', 'Chauhan', 'Rana', 'Butola', 'Kandari', 'Dimri', 'Sati', 'Bhatt', 'Gairola', 'Raturi', 'Uniyal', 'Pant', 'Kandpal', 'Rautela', 'Martolia', 'Farswan', 'Chamoli', 'Pundir', 'Kaintura', 'Mamgain', 'Sharma', 'Verma', 'Singh', 'Gupta'];
 const FATHERS = ['Ramesh', 'Suresh', 'Mahesh', 'Dinesh', 'Rajendra', 'Vinod', 'Pramod', 'Harish', 'Girish', 'Kailash', 'Mohan', 'Govind', 'Prakash', 'Narendra', 'Manoj', 'Sunil', 'Anil', 'Rakesh', 'Deepak', 'Jagdish', 'Bhupendra', 'Virendra', 'Kuldeep', 'Sandeep', 'Pradeep'];
 const MOTHERS = ['Sunita', 'Anita', 'Geeta', 'Kamla', 'Meena', 'Rekha', 'Savita', 'Usha', 'Poonam', 'Kiran', 'Sarita', 'Lata', 'Asha', 'Pushpa', 'Neelam', 'Manju', 'Seema', 'Renu', 'Bina', 'Rajni'];
-const TEACHERS: [string, string][] = [
-    ['Anita', 'Negi'], ['Rajesh', 'Rawat'], ['Sunita', 'Bisht'], ['Manoj', 'Joshi'], ['Kavita', 'Semwal'], ['Deepak', 'Thapliyal'], ['Pooja', 'Nautiyal'], ['Sanjay', 'Chauhan'],
-    ['Rekha', 'Rana'], ['Vinod', 'Butola'], ['Meena', 'Kandari'], ['Harish', 'Dimri'], ['Asha', 'Sati'], ['Pankaj', 'Bhatt'], ['Neelam', 'Gairola'], ['Rakesh', 'Raturi'],
-    ['Seema', 'Uniyal'], ['Girish', 'Pant'], ['Usha', 'Kandpal'], ['Naveen', 'Rautela'], ['Priyanka', 'Martolia'], ['Sandeep', 'Farswan'], ['Geeta', 'Pundir'], ['Mukesh', 'Mamgain'],
-    ['Renu', 'Sharma'], ['Alok', 'Verma'], ['Shalini', 'Gupta'], ['Vikram', 'Singh'], ['Archana', 'Bhandari'], ['Ravindra', 'Panwar'], ['Jyoti', 'Kaintura'], ['Hemant', 'Chamoli'],
-    ['Nisha', 'Negi'], ['Ajay', 'Rawat'],
-];
 /** Towns of Chamoli with their PIN codes and localities. */
 const TOWNS: [string, string, string[]][] = [
     ['Joshimath (Jyotirmath)', '246443', ['Marwari', 'Sunil', 'Singhdhar', 'Ravigram', 'Gandhinagar', 'Upper Bazaar', 'Manoharbagh']],
@@ -86,8 +80,8 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     const s = await getSettings({ pattern: STUDENTS.admissionPattern, reset: STUDENTS.admissionReset, start: STUDENTS.admissionStart, login: STUDENTS.studentLogin, byNumber: STUDENTS.studentUsername });
     const passwordHash = await hashPassword(DEMO_PASSWORD);
 
-    // ─── Class teachers ──────────────────────────────────────────────────────
-    const roles = await db.role.findMany({ where: { slug: { in: ['teacher', 'class-teacher', 'student'] } }, select: { id: true, slug: true } });
+    // ─── Staff: office, teachers (class and subject teachers of every section), support ────
+    const roles = await db.role.findMany({ where: { slug: { in: ['student'] } }, select: { id: true, slug: true } });
     const roleId = (slug: string) => roles.find((r) => r.slug === slug)?.id;
     const taken = new Set((await db.user.findMany({ select: { username: true } })).map((u) => u.username));
     const uniqueName = (base: string) => {
@@ -96,23 +90,7 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
         taken.add(name);
         return name;
     };
-    const teachers = await db.user.createManyAndReturn({
-        data: TEACHERS.slice(0, Math.max(sections.length, 1)).map(([first, last]) => ({
-            tenantId,
-            kind: 'staff' as const,
-            username: uniqueName(`${first}.${last}`.toLowerCase()),
-            displayName: `${first} ${last}`,
-            passwordHash,
-            mustChangePassword: false,
-            isDemo: true,
-        })),
-        select: { id: true, username: true, displayName: true },
-    });
-    await db.userRole.createMany({
-        data: teachers.flatMap((t) => [roleId('teacher'), roleId('class-teacher')].filter((r): r is string => !!r).map((r) => ({ tenantId, userId: t.id, roleId: r }))),
-        skipDuplicates: true,
-    });
-    for (const [i, sec] of sections.entries()) if (!sec.classTeacherId && teachers[i]) await db.section.update({ where: { id: sec.id }, data: { classTeacherId: teachers[i].id } });
+    const staff = await createDemoStaff(year.id, year.startDate.getUTCFullYear(), sections, passwordHash, { pick, between }, uniqueName);
 
     // ─── Students and families ───────────────────────────────────────────────
     const optional = await db.classSubject.findMany({ where: { academicYearId: year.id, isOptional: true }, select: { classId: true, streamId: true, subjectId: true } });
@@ -270,23 +248,28 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
         if (left.userId) await db.user.update({ where: { id: left.userId }, data: { status: 'disabled' } });
     }
 
-    await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, teachers: teachers.length } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, teachers: teachers.map((t) => t.username), studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff } });
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
 export const clearDemoData = async () => {
     const demoUsers = (await db.user.findMany({ where: { isDemo: true }, select: { id: true } })).map((u) => u.id);
-    await db.section.updateMany({ where: { classTeacherId: { in: demoUsers } }, data: { classTeacherId: null } });
+    const demoStaff = (await db.staff.findMany({ where: { isDemo: true }, select: { id: true } })).map((x) => x.id);
+    await db.section.updateMany({ where: { classTeacherId: { in: demoStaff } }, data: { classTeacherId: null } });
+    // Reporting lines first (staff point at each other), then the records (assignments go with them).
+    await db.staff.updateMany({ where: { isDemo: true }, data: { reportsToId: null } });
+    const staffRemoved = await db.staff.deleteMany({ where: { isDemo: true } });
     const students = await db.student.deleteMany({ where: { isDemo: true } });
     const families = await db.family.deleteMany({ where: { isDemo: true, students: { none: {} } } });
     const users = await db.user.deleteMany({ where: { id: { in: demoUsers } } });
-    // With no real students yet, admission numbers start again from the first one.
+    // With no real students (staff) yet, admission numbers (employee codes) start again from the first one.
     let counterReset = false;
     if (!(await db.student.count())) {
         await db.numberSequence.deleteMany({ where: { key: { startsWith: 'admission' } } });
         counterReset = true;
     }
-    await recordAudit({ action: 'demo_cleared', entity: 'school', changes: { students: students.count, families: families.count, logins: users.count } });
-    return { students: students.count, families: families.count, logins: users.count, counterReset };
+    if (!(await db.staff.count())) await db.numberSequence.deleteMany({ where: { key: 'staff' } });
+    await recordAudit({ action: 'demo_cleared', entity: 'school', changes: { students: students.count, families: families.count, staff: staffRemoved.count, logins: users.count } });
+    return { students: students.count, families: families.count, staff: staffRemoved.count, logins: users.count, counterReset };
 };

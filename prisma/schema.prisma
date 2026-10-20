@@ -53,6 +53,11 @@ model Tenant {
   students           Student[]
   enrolments         Enrolment[]
   studentDocuments   StudentDocument[]
+  staff              Staff[]
+  staffQualifications StaffQualification[]
+  staffExperience    StaffExperience[]
+  staffDocuments     StaffDocument[]
+  teachingAssignments TeachingAssignment[]
   menuCustomizations MenuCustomization[]
   files              File[]
 
@@ -160,7 +165,7 @@ model User {
   passwordResets  PasswordReset[]
   passwordHistory PasswordHistory[]
   roles           UserRole[]
-  classTeacherOf  Section[]         @relation("SectionClassTeacher")
+  staffLogin      Staff?            @relation("StaffLogin")
   studentLogin    Student?          @relation("StudentLogin")
   guardianLogin   Guardian?         @relation("GuardianLogin")
 
@@ -421,6 +426,9 @@ model File {
   studentPhotos    Student[]         @relation("StudentPhoto")
   studentDocuments StudentDocument[] @relation("StudentDocumentFile")
 
+  staffPhotos      Staff[]           @relation("StaffPhoto")
+  staffDocuments   StaffDocument[]   @relation("StaffDocumentFile")
+
   @@index([tenantId, purpose])
   @@map("files")
 }
@@ -495,6 +503,23 @@ model MasterValue {
   studentsLeavingReason  Student[]         @relation("StudentLeavingReason")
   enrolmentsHouse        Enrolment[]       @relation("EnrolmentHouse")
   studentDocumentsType   StudentDocument[] @relation("StudentDocumentType")
+  staffGender            Staff[]              @relation("StaffGender")
+  staffBloodGroup        Staff[]              @relation("StaffBloodGroup")
+  staffReligion          Staff[]              @relation("StaffReligion")
+  staffCaste             Staff[]              @relation("StaffCaste")
+  staffMarital           Staff[]              @relation("StaffMarital")
+  staffState             Staff[]              @relation("StaffState")
+  staffDistrict          Staff[]              @relation("StaffDistrict")
+  staffCity              Staff[]              @relation("StaffCity")
+  staffDepartment        Staff[]              @relation("StaffDepartment")
+  staffDesignation       Staff[]              @relation("StaffDesignation")
+  staffType              Staff[]              @relation("StaffType")
+  staffEmployment        Staff[]              @relation("StaffEmployment")
+  staffTeachingPost      Staff[]              @relation("StaffTeachingPost")
+  staffBank              Staff[]              @relation("StaffBank")
+  staffRelieving         Staff[]              @relation("StaffRelieving")
+  staffQualifications    StaffQualification[] @relation("StaffQualificationType")
+  staffDocumentsType     StaffDocument[]      @relation("StaffDocumentType")
   /// Through (parent_id, tenant_id): a parent option always belongs to the same school.
   parent   MasterValue?  @relation("MasterValueParent", fields: [parentId, tenantId], references: [id, tenantId], onDelete: Restrict)
   children MasterValue[] @relation("MasterValueParent")
@@ -530,6 +555,7 @@ model AcademicYear {
   sections      Section[]
   classSubjects ClassSubject[]
   enrolments    Enrolment[]
+  teachingAssignments TeachingAssignment[]
 
   @@unique([id, tenantId])
   @@index([tenantId, startDate])
@@ -575,7 +601,8 @@ model Section {
   streamId       String?  @map("stream_id") @db.Uuid
   capacity       Int?
   room           String?
-  classTeacherId String?  @map("class_teacher_id") @db.Uuid
+  /// A staff member (System Settings → Academic: one section per class teacher).
+  classTeacherId String?  @map("class_teacher_staff_id") @db.Uuid
   sortOrder      Int      @default(0) @map("sort_order")
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -589,7 +616,8 @@ model Section {
   stream       MasterValue? @relation("SectionStream", fields: [streamId, tenantId], references: [id, tenantId], onDelete: Restrict)
   /// Same school (through tenant_id). Users are never hard-deleted, only disabled or soft-deleted.
   enrolments   Enrolment[]
-  classTeacher User?        @relation("SectionClassTeacher", fields: [classTeacherId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  classTeacher Staff?       @relation("SectionClassTeacher", fields: [classTeacherId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  teachingAssignments TeachingAssignment[]
 
   @@unique([id, tenantId])
   @@index([tenantId, academicYearId, classId])
@@ -621,6 +649,7 @@ model Subject {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   type          MasterValue?   @relation("SubjectType", fields: [typeId, tenantId], references: [id, tenantId], onDelete: Restrict)
   classSubjects ClassSubject[]
+  teachingAssignments TeachingAssignment[]
 
   @@unique([id, tenantId])
   @@index([tenantId, sortOrder])
@@ -862,4 +891,184 @@ model StudentDocument {
 
   @@index([tenantId, studentId])
   @@map("student_documents")
+}
+
+// ─── Staff ───────────────────────────────────────────────────────────────────
+
+enum StaffStatus {
+  working
+  relieved
+  retired
+  suspended
+}
+
+model Staff {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String      @map("tenant_id") @db.Uuid
+  employeeCode      String      @map("employee_code")
+  joiningDate       DateTime    @map("joining_date") @db.Date
+  firstName         String      @map("first_name")
+  middleName        String?     @map("middle_name")
+  lastName          String?     @map("last_name")
+  dateOfBirth       DateTime?   @map("date_of_birth") @db.Date
+  genderId          String?     @map("gender_id") @db.Uuid
+  bloodGroupId      String?     @map("blood_group_id") @db.Uuid
+  religionId        String?     @map("religion_id") @db.Uuid
+  casteCategoryId   String?     @map("caste_category_id") @db.Uuid
+  maritalStatusId   String?     @map("marital_status_id") @db.Uuid
+  mobile            String?
+  email             String?
+  /// Sensitive (staff.view_sensitive).
+  aadhaar           String?
+  /// Sensitive (staff.view_sensitive).
+  pan               String?
+  addressLine       String?     @map("address_line")
+  stateId           String?     @map("state_id") @db.Uuid
+  districtId        String?     @map("district_id") @db.Uuid
+  cityId            String?     @map("city_id") @db.Uuid
+  pinCode           String?     @map("pin_code")
+  departmentId      String?     @map("department_id") @db.Uuid
+  designationId     String?     @map("designation_id") @db.Uuid
+  /// Master "staff_type" (Teaching / Non-teaching).
+  staffTypeId       String?     @map("staff_type_id") @db.Uuid
+  employmentTypeId  String?     @map("employment_type_id") @db.Uuid
+  /// Master "teaching_post" (PRT / TGT / PGT…), teachers only.
+  teachingPostId    String?     @map("teaching_post_id") @db.Uuid
+  reportsToId       String?     @map("reports_to_id") @db.Uuid
+  /// Subjects the person is able to teach (subject ids).
+  teachableSubjectIds String[]  @default([]) @map("teachable_subject_ids") @db.Uuid
+  bankId            String?     @map("bank_id") @db.Uuid
+  /// Sensitive (staff.view_sensitive).
+  bankAccountNo     String?     @map("bank_account_no")
+  ifsc              String?
+  /// Sensitive (staff.view_sensitive).
+  pfNumber          String?     @map("pf_number")
+  uan               String?
+  emergencyName     String?     @map("emergency_name")
+  emergencyPhone    String?     @map("emergency_phone")
+  photoFileId       String?     @map("photo_file_id") @db.Uuid
+  /// The staff member's login (optional: drivers or cooks may have none).
+  userId            String?     @map("user_id") @db.Uuid
+  status            StaffStatus @default(working)
+  statusDate        DateTime?   @map("status_date") @db.Date
+  relievingReasonId String?     @map("relieving_reason_id") @db.Uuid
+  statusNote        String?     @map("status_note")
+  isDemo            Boolean     @default(false) @map("is_demo")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy         String?     @map("created_by") @db.Uuid
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy         String?     @map("updated_by") @db.Uuid
+
+  tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User?                @relation("StaffLogin", fields: [userId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  photo           File?                @relation("StaffPhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
+  reportsTo       Staff?               @relation("StaffReportsTo", fields: [reportsToId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  reports         Staff[]              @relation("StaffReportsTo")
+  gender          MasterValue?         @relation("StaffGender", fields: [genderId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  bloodGroup      MasterValue?         @relation("StaffBloodGroup", fields: [bloodGroupId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  religion        MasterValue?         @relation("StaffReligion", fields: [religionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  casteCategory   MasterValue?         @relation("StaffCaste", fields: [casteCategoryId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  maritalStatus   MasterValue?         @relation("StaffMarital", fields: [maritalStatusId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  state           MasterValue?         @relation("StaffState", fields: [stateId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  district        MasterValue?         @relation("StaffDistrict", fields: [districtId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  city            MasterValue?         @relation("StaffCity", fields: [cityId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  department      MasterValue?         @relation("StaffDepartment", fields: [departmentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  designation     MasterValue?         @relation("StaffDesignation", fields: [designationId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  staffType       MasterValue?         @relation("StaffType", fields: [staffTypeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  employmentType  MasterValue?         @relation("StaffEmployment", fields: [employmentTypeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  teachingPost    MasterValue?         @relation("StaffTeachingPost", fields: [teachingPostId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  bank            MasterValue?         @relation("StaffBank", fields: [bankId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  relievingReason MasterValue?         @relation("StaffRelieving", fields: [relievingReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  qualifications  StaffQualification[]
+  experience      StaffExperience[]
+  documents       StaffDocument[]
+  classTeacherOf  Section[]            @relation("SectionClassTeacher")
+  assignments     TeachingAssignment[]
+
+  @@unique([id, tenantId])
+  @@unique([userId, tenantId])
+  @@index([tenantId, status])
+  @@map("staff")
+}
+
+model StaffQualification {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  staffId         String   @map("staff_id") @db.Uuid
+  /// Master "qualification" (Graduate, B.Ed…).
+  qualificationId String?  @map("qualification_id") @db.Uuid
+  subject         String?
+  institution     String?
+  year            Int?
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff         Staff        @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  qualification MasterValue? @relation("StaffQualificationType", fields: [qualificationId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, staffId])
+  @@map("staff_qualifications")
+}
+
+model StaffExperience {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  staffId      String    @map("staff_id") @db.Uuid
+  organisation String
+  role         String?
+  fromDate     DateTime? @map("from_date") @db.Date
+  toDate       DateTime? @map("to_date") @db.Date
+  sortOrder    Int       @default(0) @map("sort_order")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  Staff  @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, staffId])
+  @@map("staff_experience")
+}
+
+model StaffDocument {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  staffId   String   @map("staff_id") @db.Uuid
+  /// Master "staff_document".
+  typeId    String?  @map("type_id") @db.Uuid
+  fileId    String   @map("file_id") @db.Uuid
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  Staff        @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  type   MasterValue? @relation("StaffDocumentType", fields: [typeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  file   File         @relation("StaffDocumentFile", fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, staffId])
+  @@map("staff_documents")
+}
+
+/// Who teaches a subject to a section (the section fixes the year). One teacher per subject and section.
+model TeachingAssignment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  sectionId      String   @map("section_id") @db.Uuid
+  subjectId      String   @map("subject_id") @db.Uuid
+  staffId        String   @map("staff_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  section      Section      @relation(fields: [sectionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  staff        Staff        @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([sectionId, subjectId])
+  @@index([tenantId, academicYearId, staffId])
+  @@map("teaching_assignments")
 }

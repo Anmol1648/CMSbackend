@@ -32,7 +32,12 @@ export const scopeWhere = async (viewer: Viewer): Promise<Prisma.StudentWhereInp
     if (viewer.scope === 'all') return {};
     if (viewer.scope === 'assigned') {
         const year = await currentYear();
-        return { enrolments: { some: { section: { classTeacherId: viewer.userId, ...(year ? { academicYearId: year.id } : {}) } } } };
+        const mine = { staff: { userId: viewer.userId } };
+        return {
+            enrolments: {
+                some: { ...(year ? { academicYearId: year.id } : {}), section: { OR: [{ classTeacher: { userId: viewer.userId } }, { teachingAssignments: { some: mine } }] } },
+            },
+        };
     }
     return { OR: [{ userId: viewer.userId }, { family: { guardians: { some: { userId: viewer.userId } } } }] };
 };

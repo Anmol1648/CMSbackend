@@ -8,7 +8,7 @@ import { app } from '../src/app';
 import { db } from '../src/core/db';
 import { runAsTenant } from '../src/core/context';
 import { localStorageAt, useStorageForTests } from '../src/core/files/storage';
-import { makeTenant, makeUser, resetDatabase, tokenFor } from './helpers';
+import { makeStaff, makeTenant, makeUser, resetDatabase, tokenFor } from './helpers';
 
 const ORIGIN = 'https://alpha.test.in';
 let alpha: Awaited<ReturnType<typeof makeTenant>>;
@@ -16,6 +16,7 @@ let admin: string;
 let office: string;
 let classTeacher: string;
 let classTeacherUser: { id: string };
+let classTeacherStaff: { id: string };
 let year: string;
 
 const as = (token: string) => ({
@@ -51,6 +52,7 @@ beforeAll(async () => {
     office = tokenFor(await makeUser(alpha.tenant.id, 'office.one', 'office-staff'));
     classTeacherUser = await makeUser(alpha.tenant.id, 'ct.one', 'class-teacher');
     classTeacher = tokenFor(classTeacherUser);
+    classTeacherStaff = await makeStaff(alpha.tenant.id, 'Ct', classTeacherUser.id);
     year = ((await as(admin).get('/api/academic/years')).body.data as { id: string }[])[0].id;
     [female, male, father, mother] = await Promise.all([option('gender', 'Female'), option('gender', 'Male'), option('relation', 'Father'), option('relation', 'Mother')]);
 }, 240_000);
@@ -146,7 +148,7 @@ describe('roll numbers and sections', () => {
 describe('who sees what', () => {
     it('a class teacher sees only the students of their own section', async () => {
         const vi = await section('VI', 'A');
-        await as(admin).patch(`/api/academic/sections/${vi}`, { classTeacherId: classTeacherUser.id });
+        await as(admin).patch(`/api/academic/sections/${vi}`, { classTeacherId: classTeacherStaff.id });
         const seen = (await as(classTeacher).get('/api/students')).body.data.items as { section: { label: string } }[];
         expect(seen.length).toBeGreaterThan(0);
         expect(new Set(seen.map((s) => s.section.label))).toEqual(new Set(['VI-A']));
