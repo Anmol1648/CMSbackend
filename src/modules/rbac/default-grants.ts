@@ -41,19 +41,23 @@ export const DEFAULT_GRANTS: Record<string, { key: string; scope?: DataScope }[]
         { key: 'fee.concession' },
         { key: 'fee.reports' },
         { key: 'payment.configure' },
+        { key: 'timetable.view' },
+        { key: 'timetable.manage' },
+        { key: 'timetable.substitute' },
+        { key: 'timetable.mine' },
     ],
-    principal: [{ key: 'user.view' }, { key: 'role.view' }, { key: 'masters.view' }, { key: 'academic.view' }, { key: 'academic.manage' }, { key: 'student.view' }, { key: 'student.view_sensitive' }, { key: 'staff.view' }, { key: 'staff.view_sensitive' }, { key: 'teaching.assign' }, { key: 'enquiry.view' }, { key: 'enquiry.reports' }, { key: 'fee.view' }, { key: 'fee.reports' }, { key: 'fee.concession' }],
+    principal: [{ key: 'user.view' }, { key: 'role.view' }, { key: 'masters.view' }, { key: 'academic.view' }, { key: 'academic.manage' }, { key: 'student.view' }, { key: 'student.view_sensitive' }, { key: 'staff.view' }, { key: 'staff.view_sensitive' }, { key: 'teaching.assign' }, { key: 'enquiry.view' }, { key: 'enquiry.reports' }, { key: 'fee.view' }, { key: 'fee.reports' }, { key: 'fee.concession' }, { key: 'timetable.view' }, { key: 'timetable.manage' }, { key: 'timetable.substitute' }, { key: 'timetable.mine' }],
     // Teachers see the students of the sections they teach, and their own staff record.
-    teacher: [{ key: 'student.view', scope: 'assigned' }, { key: 'staff.view', scope: 'own' }, { key: 'fee.view', scope: 'assigned' }],
+    teacher: [{ key: 'student.view', scope: 'assigned' }, { key: 'staff.view', scope: 'own' }, { key: 'fee.view', scope: 'assigned' }, { key: 'timetable.mine' }],
     // Class teachers see the students of their own sections.
-    'class-teacher': [{ key: 'student.view', scope: 'assigned' }, { key: 'staff.view', scope: 'own' }, { key: 'fee.view', scope: 'assigned' }],
-    'office-staff': [{ key: 'masters.view' }, { key: 'academic.view' }, { key: 'student.view' }, { key: 'student.create' }, { key: 'student.update' }, { key: 'student.import' }, { key: 'staff.view' }, { key: 'staff.create' }, { key: 'staff.update' }, { key: 'enquiry.view' }, { key: 'enquiry.manage' }, { key: 'enquiry.convert' }, { key: 'enquiry.reports' }, { key: 'fee.view' }, { key: 'fee.collect' }],
+    'class-teacher': [{ key: 'student.view', scope: 'assigned' }, { key: 'staff.view', scope: 'own' }, { key: 'fee.view', scope: 'assigned' }, { key: 'timetable.mine' }],
+    'office-staff': [{ key: 'masters.view' }, { key: 'academic.view' }, { key: 'student.view' }, { key: 'student.create' }, { key: 'student.update' }, { key: 'student.import' }, { key: 'staff.view' }, { key: 'staff.create' }, { key: 'staff.update' }, { key: 'enquiry.view' }, { key: 'enquiry.manage' }, { key: 'enquiry.convert' }, { key: 'enquiry.reports' }, { key: 'fee.view' }, { key: 'fee.collect' }, { key: 'timetable.view' }, { key: 'timetable.substitute' }],
     // The accountant runs fees: set-up, counter, concessions and reports (cancelling stays with the admin).
     accountant: [{ key: 'masters.view' }, { key: 'academic.view' }, { key: 'fee.setup' }, { key: 'fee.view' }, { key: 'fee.collect' }, { key: 'fee.concession' }, { key: 'fee.reports' }],
     // A student sees their own record; a parent sees their children.
     // My Fees shows their own fees and receipts (fee.view is the office's list of everyone's).
-    student: [{ key: 'student.view', scope: 'own' }, { key: 'fee.pay_online' }],
-    guardian: [{ key: 'student.view', scope: 'own' }, { key: 'fee.pay_online' }],
+    student: [{ key: 'student.view', scope: 'own' }, { key: 'fee.pay_online' }, { key: 'timetable.mine' }],
+    guardian: [{ key: 'student.view', scope: 'own' }, { key: 'fee.pay_online' }, { key: 'timetable.mine' }],
 };
 
 /**

@@ -26,6 +26,7 @@ import { staffRoutes } from './modules/staff/staff.routes';
 import { admissionRoutes, publicEnquiryRoutes } from './modules/admissions/admissions.routes';
 import { feeRoutes } from './modules/fees/fees.routes';
 import { paymentRoutes, publicPaymentRoutes } from './modules/payments/payments.routes';
+import { myTimetableRoutes, substitutionRoutes, timetableRoutes } from './modules/timetable/timetable.routes';
 
 export const app = express();
 
@@ -83,6 +84,9 @@ app.use('/api/public/enquiry', publicEnquiryRoutes);
 app.use('/api/fees', feeRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/public/payments', publicPaymentRoutes);
+app.use('/api/timetable-subs', substitutionRoutes);
+app.use('/api/my-timetable', myTimetableRoutes);
+app.use('/api/timetable', timetableRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

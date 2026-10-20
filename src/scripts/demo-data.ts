@@ -36,6 +36,7 @@ const main = async () => {
     const r = await runAsTenant(tenant.id, () => createDemoData());
     out(`${tenant.name}: ${r.students} students in ${r.sections} sections of ${r.year}, ${r.families} families, ${r.staff.staff} staff (${r.staff.logins} with logins, ${r.staff.assignments} subject-teacher assignments), ${r.studentLogins} student logins.`);
     out(`${tenant.name}: ${r.enquiries.enquiries} admission enquiries, ${r.fees.receipts} fee receipts, ${r.fees.parentLogins} parent logins (username = the parent's mobile).`);
+    if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
     out(`Every demo login uses the password ${DEMO_PASSWORD}`);
     if (r.staff.sampleTeacher) out(`  class teacher: ${r.staff.sampleTeacher}   (sees only their own sections' students)`);

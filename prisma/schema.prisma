@@ -36,42 +36,50 @@ model Tenant {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  profile            SchoolProfile?
-  users              User[]
-  roles              Role[]
-  settings           TenantSetting[]
-  emailTemplates     EmailTemplate[]
-  masterValues       MasterValue[]
-  academicYears      AcademicYear[]
-  classes            SchoolClass[]
-  sections           Section[]
-  subjects           Subject[]
-  classSubjects      ClassSubject[]
-  numberSequences    NumberSequence[]
-  families           Family[]
-  guardians          Guardian[]
-  students           Student[]
-  enrolments         Enrolment[]
-  studentDocuments   StudentDocument[]
-  staff              Staff[]
-  staffQualifications StaffQualification[]
-  staffExperience    StaffExperience[]
-  staffDocuments     StaffDocument[]
-  teachingAssignments TeachingAssignment[]
-  enquiries          Enquiry[]
-  enquiryFollowUps   EnquiryFollowUp[]
-  feeInstalments     FeeInstalment[]
-  feeStructureLines  FeeStructureLine[]
-  feeConcessions     FeeConcession[]
-  feeConcessionLines FeeConcessionLine[]
+  profile               SchoolProfile?
+  users                 User[]
+  roles                 Role[]
+  settings              TenantSetting[]
+  emailTemplates        EmailTemplate[]
+  masterValues          MasterValue[]
+  academicYears         AcademicYear[]
+  classes               SchoolClass[]
+  sections              Section[]
+  subjects              Subject[]
+  classSubjects         ClassSubject[]
+  numberSequences       NumberSequence[]
+  families              Family[]
+  guardians             Guardian[]
+  students              Student[]
+  enrolments            Enrolment[]
+  studentDocuments      StudentDocument[]
+  staff                 Staff[]
+  staffQualifications   StaffQualification[]
+  staffExperience       StaffExperience[]
+  staffDocuments        StaffDocument[]
+  teachingAssignments   TeachingAssignment[]
+  enquiries             Enquiry[]
+  enquiryFollowUps      EnquiryFollowUp[]
+  feeInstalments        FeeInstalment[]
+  feeStructureLines     FeeStructureLine[]
+  feeConcessions        FeeConcession[]
+  feeConcessionLines    FeeConcessionLine[]
   studentFeeConcessions StudentFeeConcession[]
-  feeAdjustments     FeeAdjustment[]
-  feeReceipts        FeeReceipt[]
-  feeReceiptLines    FeeReceiptLine[]
-  paymentGateway     PaymentGateway?
-  onlinePayments     OnlinePayment[]
-  menuCustomizations MenuCustomization[]
-  files              File[]
+  feeAdjustments        FeeAdjustment[]
+  feeReceipts           FeeReceipt[]
+  feeReceiptLines       FeeReceiptLine[]
+  paymentGateway        PaymentGateway?
+  onlinePayments        OnlinePayment[]
+  ttSchedules           TtSchedule[]
+  ttSlots               TtSlot[]
+  ttDays                TtDay[]
+  ttLoads               TtLoad[]
+  ttTeacherRules        TtTeacherRule[]
+  timetables            Timetable[]
+  ttEntries             TtEntry[]
+  ttSubstitutions       TtSubstitution[]
+  menuCustomizations    MenuCustomization[]
+  files                 File[]
 
   @@map("tenants")
 }
@@ -438,8 +446,8 @@ model File {
   studentPhotos    Student[]         @relation("StudentPhoto")
   studentDocuments StudentDocument[] @relation("StudentDocumentFile")
 
-  staffPhotos      Staff[]           @relation("StaffPhoto")
-  staffDocuments   StaffDocument[]   @relation("StaffDocumentFile")
+  staffPhotos    Staff[]         @relation("StaffPhoto")
+  staffDocuments StaffDocument[] @relation("StaffDocumentFile")
 
   @@index([tenantId, purpose])
   @@map("files")
@@ -490,31 +498,31 @@ model MasterValue {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy String?  @map("updated_by") @db.Uuid
 
-  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  classesInGroup        SchoolClass[]  @relation("ClassGroup")
-  sectionsOfStream      Section[]      @relation("SectionStream")
-  subjectsOfType        Subject[]      @relation("SubjectType")
-  classSubjectsOfStream ClassSubject[] @relation("ClassSubjectStream")
-  guardiansRelation      Guardian[]        @relation("GuardianRelation")
-  guardiansOccupation    Guardian[]        @relation("GuardianOccupation")
-  guardiansQualification Guardian[]        @relation("GuardianQualification")
-  guardiansIncome        Guardian[]        @relation("GuardianIncome")
-  studentsAdmissionType  Student[]         @relation("StudentAdmissionType")
-  studentsGender         Student[]         @relation("StudentGender")
-  studentsBloodGroup     Student[]         @relation("StudentBloodGroup")
-  studentsReligion       Student[]         @relation("StudentReligion")
-  studentsCaste          Student[]         @relation("StudentCaste")
-  studentsMotherTongue   Student[]         @relation("StudentMotherTongue")
-  studentsNationality    Student[]         @relation("StudentNationality")
-  studentsDisability     Student[]         @relation("StudentDisability")
-  studentsCategory       Student[]         @relation("StudentCategory")
-  studentsState          Student[]         @relation("StudentState")
-  studentsDistrict       Student[]         @relation("StudentDistrict")
-  studentsCity           Student[]         @relation("StudentCity")
-  studentsPreviousBoard  Student[]         @relation("StudentPreviousBoard")
-  studentsLeavingReason  Student[]         @relation("StudentLeavingReason")
-  enrolmentsHouse        Enrolment[]       @relation("EnrolmentHouse")
-  studentDocumentsType   StudentDocument[] @relation("StudentDocumentType")
+  tenant                 Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classesInGroup         SchoolClass[]        @relation("ClassGroup")
+  sectionsOfStream       Section[]            @relation("SectionStream")
+  subjectsOfType         Subject[]            @relation("SubjectType")
+  classSubjectsOfStream  ClassSubject[]       @relation("ClassSubjectStream")
+  guardiansRelation      Guardian[]           @relation("GuardianRelation")
+  guardiansOccupation    Guardian[]           @relation("GuardianOccupation")
+  guardiansQualification Guardian[]           @relation("GuardianQualification")
+  guardiansIncome        Guardian[]           @relation("GuardianIncome")
+  studentsAdmissionType  Student[]            @relation("StudentAdmissionType")
+  studentsGender         Student[]            @relation("StudentGender")
+  studentsBloodGroup     Student[]            @relation("StudentBloodGroup")
+  studentsReligion       Student[]            @relation("StudentReligion")
+  studentsCaste          Student[]            @relation("StudentCaste")
+  studentsMotherTongue   Student[]            @relation("StudentMotherTongue")
+  studentsNationality    Student[]            @relation("StudentNationality")
+  studentsDisability     Student[]            @relation("StudentDisability")
+  studentsCategory       Student[]            @relation("StudentCategory")
+  studentsState          Student[]            @relation("StudentState")
+  studentsDistrict       Student[]            @relation("StudentDistrict")
+  studentsCity           Student[]            @relation("StudentCity")
+  studentsPreviousBoard  Student[]            @relation("StudentPreviousBoard")
+  studentsLeavingReason  Student[]            @relation("StudentLeavingReason")
+  enrolmentsHouse        Enrolment[]          @relation("EnrolmentHouse")
+  studentDocumentsType   StudentDocument[]    @relation("StudentDocumentType")
   enquiriesGender        Enquiry[]            @relation("EnquiryGender")
   enquiriesRelation      Enquiry[]            @relation("EnquiryRelation")
   enquiriesSource        Enquiry[]            @relation("EnquirySource")
@@ -525,6 +533,9 @@ model MasterValue {
   feeConcessionLines     FeeConcessionLine[]  @relation("FeeConcessionHead")
   feeAdjustments         FeeAdjustment[]      @relation("FeeAdjustmentHead")
   feeReceiptLines        FeeReceiptLine[]     @relation("FeeReceiptHead")
+  ttLoadsStream          TtLoad[]             @relation("TtLoadStream")
+  ttLoadsRoom            TtLoad[]             @relation("TtLoadRoom")
+  ttEntriesRoom          TtEntry[]            @relation("TtEntryRoom")
   staffGender            Staff[]              @relation("StaffGender")
   staffBloodGroup        Staff[]              @relation("StaffBloodGroup")
   staffReligion          Staff[]              @relation("StaffReligion")
@@ -543,8 +554,8 @@ model MasterValue {
   staffQualifications    StaffQualification[] @relation("StaffQualificationType")
   staffDocumentsType     StaffDocument[]      @relation("StaffDocumentType")
   /// Through (parent_id, tenant_id): a parent option always belongs to the same school.
-  parent   MasterValue?  @relation("MasterValueParent", fields: [parentId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  children MasterValue[] @relation("MasterValueParent")
+  parent                 MasterValue?         @relation("MasterValueParent", fields: [parentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  children               MasterValue[]        @relation("MasterValueParent")
 
   @@unique([id, tenantId])
   @@index([tenantId, master, parentId, sortOrder])
@@ -573,17 +584,22 @@ model AcademicYear {
   updatedAt DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy String?            @map("updated_by") @db.Uuid
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sections      Section[]
-  classSubjects ClassSubject[]
-  enrolments    Enrolment[]
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sections            Section[]
+  classSubjects       ClassSubject[]
+  enrolments          Enrolment[]
   teachingAssignments TeachingAssignment[]
-  enquiries     Enquiry[]
-  feeInstalments FeeInstalment[]
-  feeStructureLines FeeStructureLine[]
-  feeConcessions FeeConcession[]
-  feeAdjustments FeeAdjustment[]
-  feeReceipts   FeeReceipt[]
+  enquiries           Enquiry[]
+  feeInstalments      FeeInstalment[]
+  feeStructureLines   FeeStructureLine[]
+  feeConcessions      FeeConcession[]
+  feeAdjustments      FeeAdjustment[]
+  feeReceipts         FeeReceipt[]
+  ttSchedules         TtSchedule[]
+  ttDays              TtDay[]
+  ttLoads             TtLoad[]
+  ttTeacherRules      TtTeacherRule[]
+  timetables          Timetable[]
 
   @@unique([id, tenantId])
   @@index([tenantId, startDate])
@@ -608,12 +624,13 @@ model SchoolClass {
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy  String?  @map("updated_by") @db.Uuid
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  group         MasterValue?   @relation("ClassGroup", fields: [groupId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  sections      Section[]
-  classSubjects ClassSubject[]
-  enquiries     Enquiry[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group             MasterValue?       @relation("ClassGroup", fields: [groupId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  sections          Section[]
+  classSubjects     ClassSubject[]
+  enquiries         Enquiry[]
   feeStructureLines FeeStructureLine[]
+  ttLoads           TtLoad[]
 
   @@unique([id, tenantId])
   @@index([tenantId, sortOrder])
@@ -640,14 +657,16 @@ model Section {
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy      String?  @map("updated_by") @db.Uuid
 
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  schoolClass  SchoolClass  @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  stream       MasterValue? @relation("SectionStream", fields: [streamId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear        AcademicYear         @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schoolClass         SchoolClass          @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  stream              MasterValue?         @relation("SectionStream", fields: [streamId, tenantId], references: [id, tenantId], onDelete: Restrict)
   /// Same school (through tenant_id). Users are never hard-deleted, only disabled or soft-deleted.
-  enrolments   Enrolment[]
-  classTeacher Staff?       @relation("SectionClassTeacher", fields: [classTeacherId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  enrolments          Enrolment[]
+  classTeacher        Staff?               @relation("SectionClassTeacher", fields: [classTeacherId, tenantId], references: [id, tenantId], onDelete: Restrict)
   teachingAssignments TeachingAssignment[]
+  ttEntries           TtEntry[]
+  ttSubstitutions     TtSubstitution[]
 
   @@unique([id, tenantId])
   @@index([tenantId, academicYearId, classId])
@@ -676,10 +695,13 @@ model Subject {
   updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy  String?           @map("updated_by") @db.Uuid
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  type          MasterValue?   @relation("SubjectType", fields: [typeId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  classSubjects ClassSubject[]
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type                MasterValue?         @relation("SubjectType", fields: [typeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  classSubjects       ClassSubject[]
   teachingAssignments TeachingAssignment[]
+  ttLoads             TtLoad[]
+  ttEntries           TtEntry[]
+  ttSubstitutions     TtSubstitution[]
 
   @@unique([id, tenantId])
   @@index([tenantId, sortOrder])
@@ -732,14 +754,14 @@ model NumberSequence {
 
 /// A household: the parents / guardians shared by siblings.
 model Family {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String    @map("tenant_id") @db.Uuid
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
   /// Created by the demo data script (removed by `npm run demo:clear`).
-  isDemo    Boolean   @default(false) @map("is_demo")
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy String?   @map("created_by") @db.Uuid
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy String?   @map("updated_by") @db.Uuid
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
 
   tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   guardians Guardian[]
@@ -796,82 +818,82 @@ enum StudentStatus {
 }
 
 model Student {
-  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String        @map("tenant_id") @db.Uuid
-  admissionNo        String        @map("admission_no")
-  admissionDate      DateTime      @map("admission_date") @db.Date
-  admissionTypeId    String?       @map("admission_type_id") @db.Uuid
-  firstName          String        @map("first_name")
-  middleName         String?       @map("middle_name")
-  lastName           String?       @map("last_name")
-  dateOfBirth        DateTime?     @map("date_of_birth") @db.Date
-  genderId           String?       @map("gender_id") @db.Uuid
-  bloodGroupId       String?       @map("blood_group_id") @db.Uuid
-  religionId         String?       @map("religion_id") @db.Uuid
-  casteCategoryId    String?       @map("caste_category_id") @db.Uuid
-  motherTongueId     String?       @map("mother_tongue_id") @db.Uuid
-  nationalityId      String?       @map("nationality_id") @db.Uuid
-  disabilityId       String?       @map("disability_id") @db.Uuid
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  admissionNo     String        @map("admission_no")
+  admissionDate   DateTime      @map("admission_date") @db.Date
+  admissionTypeId String?       @map("admission_type_id") @db.Uuid
+  firstName       String        @map("first_name")
+  middleName      String?       @map("middle_name")
+  lastName        String?       @map("last_name")
+  dateOfBirth     DateTime?     @map("date_of_birth") @db.Date
+  genderId        String?       @map("gender_id") @db.Uuid
+  bloodGroupId    String?       @map("blood_group_id") @db.Uuid
+  religionId      String?       @map("religion_id") @db.Uuid
+  casteCategoryId String?       @map("caste_category_id") @db.Uuid
+  motherTongueId  String?       @map("mother_tongue_id") @db.Uuid
+  nationalityId   String?       @map("nationality_id") @db.Uuid
+  disabilityId    String?       @map("disability_id") @db.Uuid
   /// Master "student_category" (e.g. KV admission priority category).
-  categoryId         String?       @map("category_id") @db.Uuid
+  categoryId      String?       @map("category_id") @db.Uuid
   /// Sensitive (student.view_sensitive).
-  aadhaar            String?
-  apaarId            String?       @map("apaar_id")
+  aadhaar         String?
+  apaarId         String?       @map("apaar_id")
   /// UDISE+ Permanent Education Number.
-  pen                String?
-  mobile             String?
-  email              String?
-  addressLine        String?       @map("address_line")
-  stateId            String?       @map("state_id") @db.Uuid
-  districtId         String?       @map("district_id") @db.Uuid
-  cityId             String?       @map("city_id") @db.Uuid
-  pinCode            String?       @map("pin_code")
-  previousSchool     String?       @map("previous_school")
-  previousBoardId    String?       @map("previous_board_id") @db.Uuid
-  previousClass      String?       @map("previous_class")
-  tcNumber           String?       @map("tc_number")
+  pen             String?
+  mobile          String?
+  email           String?
+  addressLine     String?       @map("address_line")
+  stateId         String?       @map("state_id") @db.Uuid
+  districtId      String?       @map("district_id") @db.Uuid
+  cityId          String?       @map("city_id") @db.Uuid
+  pinCode         String?       @map("pin_code")
+  previousSchool  String?       @map("previous_school")
+  previousBoardId String?       @map("previous_board_id") @db.Uuid
+  previousClass   String?       @map("previous_class")
+  tcNumber        String?       @map("tc_number")
   /// Sensitive (student.view_sensitive).
-  medicalNotes       String?       @map("medical_notes")
-  emergencyName      String?       @map("emergency_name")
-  emergencyPhone     String?       @map("emergency_phone")
-  photoFileId        String?       @map("photo_file_id") @db.Uuid
-  familyId           String?       @map("family_id") @db.Uuid
+  medicalNotes    String?       @map("medical_notes")
+  emergencyName   String?       @map("emergency_name")
+  emergencyPhone  String?       @map("emergency_phone")
+  photoFileId     String?       @map("photo_file_id") @db.Uuid
+  familyId        String?       @map("family_id") @db.Uuid
   /// The student's own login.
-  userId             String?       @map("user_id") @db.Uuid
-  status             StudentStatus @default(active)
-  statusDate         DateTime?     @map("status_date") @db.Date
-  leavingReasonId    String?       @map("leaving_reason_id") @db.Uuid
-  statusNote         String?       @map("status_note")
-  isDemo             Boolean       @default(false) @map("is_demo")
-  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy          String?       @map("created_by") @db.Uuid
-  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy          String?       @map("updated_by") @db.Uuid
+  userId          String?       @map("user_id") @db.Uuid
+  status          StudentStatus @default(active)
+  statusDate      DateTime?     @map("status_date") @db.Date
+  leavingReasonId String?       @map("leaving_reason_id") @db.Uuid
+  statusNote      String?       @map("status_note")
+  isDemo          Boolean       @default(false) @map("is_demo")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       String?       @map("created_by") @db.Uuid
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy       String?       @map("updated_by") @db.Uuid
 
-  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  family        Family?           @relation(fields: [familyId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  user          User?             @relation("StudentLogin", fields: [userId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  photo         File?             @relation("StudentPhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
-  admissionType MasterValue?      @relation("StudentAdmissionType", fields: [admissionTypeId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  gender        MasterValue?      @relation("StudentGender", fields: [genderId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  bloodGroup    MasterValue?      @relation("StudentBloodGroup", fields: [bloodGroupId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  religion      MasterValue?      @relation("StudentReligion", fields: [religionId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  casteCategory MasterValue?      @relation("StudentCaste", fields: [casteCategoryId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  motherTongue  MasterValue?      @relation("StudentMotherTongue", fields: [motherTongueId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  nationality   MasterValue?      @relation("StudentNationality", fields: [nationalityId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  disability    MasterValue?      @relation("StudentDisability", fields: [disabilityId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  category      MasterValue?      @relation("StudentCategory", fields: [categoryId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  state         MasterValue?      @relation("StudentState", fields: [stateId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  district      MasterValue?      @relation("StudentDistrict", fields: [districtId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  city          MasterValue?      @relation("StudentCity", fields: [cityId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  previousBoard MasterValue?      @relation("StudentPreviousBoard", fields: [previousBoardId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  leavingReason MasterValue?      @relation("StudentLeavingReason", fields: [leavingReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  enrolments    Enrolment[]
-  documents     StudentDocument[]
-  enquiries     Enquiry[]         @relation("EnquiryStudent")
+  tenant         Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  family         Family?                @relation(fields: [familyId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  user           User?                  @relation("StudentLogin", fields: [userId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  photo          File?                  @relation("StudentPhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
+  admissionType  MasterValue?           @relation("StudentAdmissionType", fields: [admissionTypeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  gender         MasterValue?           @relation("StudentGender", fields: [genderId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  bloodGroup     MasterValue?           @relation("StudentBloodGroup", fields: [bloodGroupId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  religion       MasterValue?           @relation("StudentReligion", fields: [religionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  casteCategory  MasterValue?           @relation("StudentCaste", fields: [casteCategoryId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  motherTongue   MasterValue?           @relation("StudentMotherTongue", fields: [motherTongueId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  nationality    MasterValue?           @relation("StudentNationality", fields: [nationalityId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  disability     MasterValue?           @relation("StudentDisability", fields: [disabilityId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  category       MasterValue?           @relation("StudentCategory", fields: [categoryId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  state          MasterValue?           @relation("StudentState", fields: [stateId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  district       MasterValue?           @relation("StudentDistrict", fields: [districtId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  city           MasterValue?           @relation("StudentCity", fields: [cityId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  previousBoard  MasterValue?           @relation("StudentPreviousBoard", fields: [previousBoardId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  leavingReason  MasterValue?           @relation("StudentLeavingReason", fields: [leavingReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  enrolments     Enrolment[]
+  documents      StudentDocument[]
+  enquiries      Enquiry[]              @relation("EnquiryStudent")
   feeConcessions StudentFeeConcession[]
   feeAdjustments FeeAdjustment[]
-  feeReceipts   FeeReceipt[]
+  feeReceipts    FeeReceipt[]
   onlinePayments OnlinePayment[]
 
   @@unique([id, tenantId])
@@ -883,19 +905,19 @@ model Student {
 
 /// A student's place in one academic year: section, roll number, house, chosen optional subjects.
 model Enrolment {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String   @map("tenant_id") @db.Uuid
-  studentId      String   @map("student_id") @db.Uuid
-  academicYearId String   @map("academic_year_id") @db.Uuid
-  sectionId      String   @map("section_id") @db.Uuid
-  rollNumber     Int?     @map("roll_number")
-  houseId        String?  @map("house_id") @db.Uuid
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  studentId          String   @map("student_id") @db.Uuid
+  academicYearId     String   @map("academic_year_id") @db.Uuid
+  sectionId          String   @map("section_id") @db.Uuid
+  rollNumber         Int?     @map("roll_number")
+  houseId            String?  @map("house_id") @db.Uuid
   /// Optional subjects the student chose (subject ids of the class's optional subjects).
   optionalSubjectIds String[] @default([]) @map("optional_subject_ids") @db.Uuid
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy      String?  @map("created_by") @db.Uuid
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy      String?  @map("updated_by") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy          String?  @map("created_by") @db.Uuid
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy          String?  @map("updated_by") @db.Uuid
 
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   student      Student      @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
@@ -938,61 +960,61 @@ enum StaffStatus {
 }
 
 model Staff {
-  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String      @map("tenant_id") @db.Uuid
-  employeeCode      String      @map("employee_code")
-  joiningDate       DateTime    @map("joining_date") @db.Date
-  firstName         String      @map("first_name")
-  middleName        String?     @map("middle_name")
-  lastName          String?     @map("last_name")
-  dateOfBirth       DateTime?   @map("date_of_birth") @db.Date
-  genderId          String?     @map("gender_id") @db.Uuid
-  bloodGroupId      String?     @map("blood_group_id") @db.Uuid
-  religionId        String?     @map("religion_id") @db.Uuid
-  casteCategoryId   String?     @map("caste_category_id") @db.Uuid
-  maritalStatusId   String?     @map("marital_status_id") @db.Uuid
-  mobile            String?
-  email             String?
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String      @map("tenant_id") @db.Uuid
+  employeeCode        String      @map("employee_code")
+  joiningDate         DateTime    @map("joining_date") @db.Date
+  firstName           String      @map("first_name")
+  middleName          String?     @map("middle_name")
+  lastName            String?     @map("last_name")
+  dateOfBirth         DateTime?   @map("date_of_birth") @db.Date
+  genderId            String?     @map("gender_id") @db.Uuid
+  bloodGroupId        String?     @map("blood_group_id") @db.Uuid
+  religionId          String?     @map("religion_id") @db.Uuid
+  casteCategoryId     String?     @map("caste_category_id") @db.Uuid
+  maritalStatusId     String?     @map("marital_status_id") @db.Uuid
+  mobile              String?
+  email               String?
   /// Sensitive (staff.view_sensitive).
-  aadhaar           String?
+  aadhaar             String?
   /// Sensitive (staff.view_sensitive).
-  pan               String?
-  addressLine       String?     @map("address_line")
-  stateId           String?     @map("state_id") @db.Uuid
-  districtId        String?     @map("district_id") @db.Uuid
-  cityId            String?     @map("city_id") @db.Uuid
-  pinCode           String?     @map("pin_code")
-  departmentId      String?     @map("department_id") @db.Uuid
-  designationId     String?     @map("designation_id") @db.Uuid
+  pan                 String?
+  addressLine         String?     @map("address_line")
+  stateId             String?     @map("state_id") @db.Uuid
+  districtId          String?     @map("district_id") @db.Uuid
+  cityId              String?     @map("city_id") @db.Uuid
+  pinCode             String?     @map("pin_code")
+  departmentId        String?     @map("department_id") @db.Uuid
+  designationId       String?     @map("designation_id") @db.Uuid
   /// Master "staff_type" (Teaching / Non-teaching).
-  staffTypeId       String?     @map("staff_type_id") @db.Uuid
-  employmentTypeId  String?     @map("employment_type_id") @db.Uuid
+  staffTypeId         String?     @map("staff_type_id") @db.Uuid
+  employmentTypeId    String?     @map("employment_type_id") @db.Uuid
   /// Master "teaching_post" (PRT / TGT / PGT…), teachers only.
-  teachingPostId    String?     @map("teaching_post_id") @db.Uuid
-  reportsToId       String?     @map("reports_to_id") @db.Uuid
+  teachingPostId      String?     @map("teaching_post_id") @db.Uuid
+  reportsToId         String?     @map("reports_to_id") @db.Uuid
   /// Subjects the person is able to teach (subject ids).
-  teachableSubjectIds String[]  @default([]) @map("teachable_subject_ids") @db.Uuid
-  bankId            String?     @map("bank_id") @db.Uuid
+  teachableSubjectIds String[]    @default([]) @map("teachable_subject_ids") @db.Uuid
+  bankId              String?     @map("bank_id") @db.Uuid
   /// Sensitive (staff.view_sensitive).
-  bankAccountNo     String?     @map("bank_account_no")
-  ifsc              String?
+  bankAccountNo       String?     @map("bank_account_no")
+  ifsc                String?
   /// Sensitive (staff.view_sensitive).
-  pfNumber          String?     @map("pf_number")
-  uan               String?
-  emergencyName     String?     @map("emergency_name")
-  emergencyPhone    String?     @map("emergency_phone")
-  photoFileId       String?     @map("photo_file_id") @db.Uuid
+  pfNumber            String?     @map("pf_number")
+  uan                 String?
+  emergencyName       String?     @map("emergency_name")
+  emergencyPhone      String?     @map("emergency_phone")
+  photoFileId         String?     @map("photo_file_id") @db.Uuid
   /// The staff member's login (optional: drivers or cooks may have none).
-  userId            String?     @map("user_id") @db.Uuid
-  status            StaffStatus @default(working)
-  statusDate        DateTime?   @map("status_date") @db.Date
-  relievingReasonId String?     @map("relieving_reason_id") @db.Uuid
-  statusNote        String?     @map("status_note")
-  isDemo            Boolean     @default(false) @map("is_demo")
-  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy         String?     @map("created_by") @db.Uuid
-  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy         String?     @map("updated_by") @db.Uuid
+  userId              String?     @map("user_id") @db.Uuid
+  status              StaffStatus @default(working)
+  statusDate          DateTime?   @map("status_date") @db.Date
+  relievingReasonId   String?     @map("relieving_reason_id") @db.Uuid
+  statusNote          String?     @map("status_note")
+  isDemo              Boolean     @default(false) @map("is_demo")
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy           String?     @map("created_by") @db.Uuid
+  updatedAt           DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy           String?     @map("updated_by") @db.Uuid
 
   tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user            User?                @relation("StaffLogin", fields: [userId, tenantId], references: [id, tenantId], onDelete: Restrict)
@@ -1020,6 +1042,10 @@ model Staff {
   classTeacherOf  Section[]            @relation("SectionClassTeacher")
   assignments     TeachingAssignment[]
   enquiries       Enquiry[]            @relation("EnquiryAssignedTo")
+  ttRules         TtTeacherRule[]      @relation("TtTeacherRule")
+  ttEntries       TtEntry[]            @relation("TtEntryStaff")
+  ttAbsences      TtSubstitution[]     @relation("TtSubAbsent")
+  ttSubstitutions TtSubstitution[]     @relation("TtSubSubstitute")
 
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
@@ -1120,63 +1146,63 @@ enum TestResult {
 
 /// A family asking about admission; followed up until admitted (converted to a student) or lost.
 model Enquiry {
-  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String      @map("tenant_id") @db.Uuid
-  enquiryNo        String      @map("enquiry_no")
-  enquiryDate      DateTime    @map("enquiry_date") @db.Date
-  academicYearId   String      @map("academic_year_id") @db.Uuid
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String       @map("tenant_id") @db.Uuid
+  enquiryNo           String       @map("enquiry_no")
+  enquiryDate         DateTime     @map("enquiry_date") @db.Date
+  academicYearId      String       @map("academic_year_id") @db.Uuid
   /// The class applied for.
-  classId          String      @map("class_id") @db.Uuid
-  studentFirstName String      @map("student_first_name")
-  studentLastName  String?     @map("student_last_name")
-  dateOfBirth      DateTime?   @map("date_of_birth") @db.Date
-  genderId         String?     @map("gender_id") @db.Uuid
-  parentName       String      @map("parent_name")
-  relationId       String?     @map("relation_id") @db.Uuid
-  mobile           String
-  email            String?
-  area             String?
-  currentSchool    String?     @map("current_school")
+  classId             String       @map("class_id") @db.Uuid
+  studentFirstName    String       @map("student_first_name")
+  studentLastName     String?      @map("student_last_name")
+  dateOfBirth         DateTime?    @map("date_of_birth") @db.Date
+  genderId            String?      @map("gender_id") @db.Uuid
+  parentName          String       @map("parent_name")
+  relationId          String?      @map("relation_id") @db.Uuid
+  mobile              String
+  email               String?
+  area                String?
+  currentSchool       String?      @map("current_school")
   /// Master "enquiry_source" (walk-in, phone, website…).
-  sourceId         String?     @map("source_id") @db.Uuid
+  sourceId            String?      @map("source_id") @db.Uuid
   /// Master "enquiry_stage" (Enquiry, Registered, … Admitted, Lost).
-  stageId          String      @map("stage_id") @db.Uuid
+  stageId             String       @map("stage_id") @db.Uuid
   /// The staff member following it up.
-  assignedToId     String?     @map("assigned_to_id") @db.Uuid
-  nextFollowUp     DateTime?   @map("next_follow_up") @db.Date
-  lostReasonId     String?     @map("lost_reason_id") @db.Uuid
-  registrationNo   String?     @map("registration_no")
-  registrationDate DateTime?   @map("registration_date") @db.Date
+  assignedToId        String?      @map("assigned_to_id") @db.Uuid
+  nextFollowUp        DateTime?    @map("next_follow_up") @db.Date
+  lostReasonId        String?      @map("lost_reason_id") @db.Uuid
+  registrationNo      String?      @map("registration_no")
+  registrationDate    DateTime?    @map("registration_date") @db.Date
   /// Registration fee received (rupees), how and its reference.
   registrationFee     Int?         @map("registration_fee")
   registrationFeeMode PaymentMode? @map("registration_fee_mode")
   registrationFeeRef  String?      @map("registration_fee_ref")
-  testDate         DateTime?   @map("test_date") @db.Date
-  testScore        String?     @map("test_score")
-  testResult       TestResult  @default(not_needed) @map("test_result")
-  remarks          String?
+  testDate            DateTime?    @map("test_date") @db.Date
+  testScore           String?      @map("test_score")
+  testResult          TestResult   @default(not_needed) @map("test_result")
+  remarks             String?
   /// Came in through the public enquiry form.
-  online           Boolean     @default(false)
+  online              Boolean      @default(false)
   /// The student it became (Convert to admission).
-  studentId        String?     @map("student_id") @db.Uuid
-  convertedAt      DateTime?   @map("converted_at") @db.Timestamptz(6)
-  isDemo           Boolean     @default(false) @map("is_demo")
-  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy        String?     @map("created_by") @db.Uuid
-  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy        String?     @map("updated_by") @db.Uuid
+  studentId           String?      @map("student_id") @db.Uuid
+  convertedAt         DateTime?    @map("converted_at") @db.Timestamptz(6)
+  isDemo              Boolean      @default(false) @map("is_demo")
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy           String?      @map("created_by") @db.Uuid
+  updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy           String?      @map("updated_by") @db.Uuid
 
-  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear      @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  schoolClass  SchoolClass       @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  gender       MasterValue?      @relation("EnquiryGender", fields: [genderId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  relation     MasterValue?      @relation("EnquiryRelation", fields: [relationId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  source       MasterValue?      @relation("EnquirySource", fields: [sourceId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  stage        MasterValue       @relation("EnquiryStage", fields: [stageId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  lostReason   MasterValue?      @relation("EnquiryLostReason", fields: [lostReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  assignedTo   Staff?            @relation("EnquiryAssignedTo", fields: [assignedToId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  student      Student?          @relation("EnquiryStudent", fields: [studentId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  followUps    EnquiryFollowUp[]
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear      @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schoolClass    SchoolClass       @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  gender         MasterValue?      @relation("EnquiryGender", fields: [genderId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  relation       MasterValue?      @relation("EnquiryRelation", fields: [relationId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  source         MasterValue?      @relation("EnquirySource", fields: [sourceId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  stage          MasterValue       @relation("EnquiryStage", fields: [stageId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  lostReason     MasterValue?      @relation("EnquiryLostReason", fields: [lostReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  assignedTo     Staff?            @relation("EnquiryAssignedTo", fields: [assignedToId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  student        Student?          @relation("EnquiryStudent", fields: [studentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  followUps      EnquiryFollowUp[]
   onlinePayments OnlinePayment[]
 
   @@unique([id, tenantId])
@@ -1188,16 +1214,16 @@ model Enquiry {
 
 /// One call, visit or message about an enquiry, with what was said and when to follow up next.
 model EnquiryFollowUp {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String    @map("tenant_id") @db.Uuid
-  enquiryId  String    @map("enquiry_id") @db.Uuid
-  date       DateTime  @db.Date
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  enquiryId String    @map("enquiry_id") @db.Uuid
+  date      DateTime  @db.Date
   /// Master "follow_up_outcome" (interested, call back, visit scheduled…).
-  outcomeId  String?   @map("outcome_id") @db.Uuid
-  note       String?
-  nextDate   DateTime? @map("next_date") @db.Date
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy  String?   @map("created_by") @db.Uuid
+  outcomeId String?   @map("outcome_id") @db.Uuid
+  note      String?
+  nextDate  DateTime? @map("next_date") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
 
   tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   enquiry Enquiry      @relation(fields: [enquiryId, tenantId], references: [id, tenantId], onDelete: Cascade)
@@ -1477,13 +1503,217 @@ model OnlinePayment {
   createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   paidAt         DateTime?            @map("paid_at") @db.Timestamptz(6)
 
-  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  student Student?     @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  enquiry Enquiry?     @relation(fields: [enquiryId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student Student?    @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  enquiry Enquiry?    @relation(fields: [enquiryId, tenantId], references: [id, tenantId], onDelete: Restrict)
   receipt FeeReceipt?
 
   @@unique([id, tenantId])
   @@unique([provider, orderId])
   @@index([tenantId, status])
   @@map("online_payments")
+}
+
+// ─── Time-table ───────────────────────────────────────────────────────────────
+
+enum TtSlotKind {
+  period
+  break
+}
+
+enum TimetableStatus {
+  draft
+  published
+  archived
+}
+
+/// A bell schedule of a year (Regular, Winter, Short Saturday…): its periods and breaks with times.
+model TtSchedule {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  name           String
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  slots        TtSlot[]
+  days         TtDay[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, academicYearId])
+  @@map("tt_schedules")
+}
+
+/// One row of a bell schedule: a period (numbered 1, 2…) or a break, with its start and end ("08:00").
+model TtSlot {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String     @map("tenant_id") @db.Uuid
+  scheduleId String     @map("schedule_id") @db.Uuid
+  sortOrder  Int        @map("sort_order")
+  kind       TtSlotKind
+  /// Periods only: 1, 2, 3… in order.
+  periodNo   Int?       @map("period_no")
+  label      String
+  startTime  String     @map("start_time")
+  endTime    String     @map("end_time")
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  schedule TtSchedule @relation(fields: [scheduleId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, scheduleId])
+  @@map("tt_slots")
+}
+
+/// Which bell schedule a weekday follows (none = not a school day).
+model TtDay {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String  @map("tenant_id") @db.Uuid
+  academicYearId String  @map("academic_year_id") @db.Uuid
+  /// 1 = Monday … 7 = Sunday.
+  weekday        Int
+  scheduleId     String? @map("schedule_id") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schedule     TtSchedule?  @relation(fields: [scheduleId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([tenantId, academicYearId, weekday])
+  @@map("tt_days")
+}
+
+/// How many periods a week a subject gets in a class (stream), how many of them as double periods,
+/// whether it runs at the same time as other subjects (optional subjects: same group, same periods),
+/// and the room it needs.
+model TtLoad {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  classId        String   @map("class_id") @db.Uuid
+  streamId       String?  @map("stream_id") @db.Uuid
+  subjectId      String   @map("subject_id") @db.Uuid
+  perWeek        Int      @map("per_week")
+  doubles        Int      @default(0)
+  parallelGroup  String?  @map("parallel_group")
+  /// Master "room" (a lab, the computer room…); empty = the class's own room.
+  roomId         String?  @map("room_id") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schoolClass  SchoolClass  @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  stream       MasterValue? @relation("TtLoadStream", fields: [streamId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  subject      Subject      @relation(fields: [subjectId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  room         MasterValue? @relation("TtLoadRoom", fields: [roomId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, academicYearId, classId])
+  @@map("tt_loads")
+}
+
+/// A teacher's limits for the year: most periods a day / week, and periods they can't take.
+model TtTeacherRule {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  staffId        String   @map("staff_id") @db.Uuid
+  maxPerDay      Int?     @map("max_per_day")
+  maxPerWeek     Int?     @map("max_per_week")
+  /// [{ weekday, periodNo }]
+  unavailable    Json     @default("[]")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  staff        Staff        @relation("TtTeacherRule", fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([tenantId, academicYearId, staffId])
+  @@map("tt_teacher_rules")
+}
+
+/// A timetable of a year: drafts are generated and edited; one is published (what everyone sees).
+model Timetable {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  academicYearId String          @map("academic_year_id") @db.Uuid
+  name           String
+  status         TimetableStatus @default(draft)
+  /// What the generator could not place: [{ sectionId, subjectId, missing, reason }].
+  unplaced       Json            @default("[]")
+  generatedAt    DateTime?       @map("generated_at") @db.Timestamptz(6)
+  publishedAt    DateTime?       @map("published_at") @db.Timestamptz(6)
+  isDemo         Boolean         @default(false) @map("is_demo")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?         @map("created_by") @db.Uuid
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?         @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  entries      TtEntry[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, academicYearId, status])
+  @@map("timetables")
+}
+
+/// One lesson in a timetable: a section's period on a weekday. Optional subjects of a parallel group
+/// share the same period (one row each).
+model TtEntry {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  timetableId String  @map("timetable_id") @db.Uuid
+  sectionId   String  @map("section_id") @db.Uuid
+  weekday     Int
+  periodNo    Int     @map("period_no")
+  subjectId   String  @map("subject_id") @db.Uuid
+  staffId     String? @map("staff_id") @db.Uuid
+  roomId      String? @map("room_id") @db.Uuid
+  /// Kept as it is when the timetable is generated again.
+  locked      Boolean @default(false)
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  timetable Timetable    @relation(fields: [timetableId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  section   Section      @relation(fields: [sectionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  subject   Subject      @relation(fields: [subjectId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  staff     Staff?       @relation("TtEntryStaff", fields: [staffId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  room      MasterValue? @relation("TtEntryRoom", fields: [roomId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([timetableId, sectionId, weekday, periodNo, subjectId])
+  @@index([tenantId, timetableId, staffId, weekday, periodNo])
+  @@map("tt_entries")
+}
+
+/// On a date, someone else takes an absent teacher's period.
+model TtSubstitution {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  date              DateTime @db.Date
+  sectionId         String   @map("section_id") @db.Uuid
+  periodNo          Int      @map("period_no")
+  subjectId         String?  @map("subject_id") @db.Uuid
+  absentStaffId     String   @map("absent_staff_id") @db.Uuid
+  /// Empty = not arranged yet (the class is free / with the duty teacher).
+  substituteStaffId String?  @map("substitute_staff_id") @db.Uuid
+  note              String?
+  isDemo            Boolean  @default(false) @map("is_demo")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy         String?  @map("created_by") @db.Uuid
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy         String?  @map("updated_by") @db.Uuid
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  section    Section  @relation(fields: [sectionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  subject    Subject? @relation(fields: [subjectId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  absent     Staff    @relation("TtSubAbsent", fields: [absentStaffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  substitute Staff?   @relation("TtSubSubstitute", fields: [substituteStaffId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([tenantId, date, sectionId, periodNo, absentStaffId])
+  @@index([tenantId, date])
+  @@map("tt_substitutions")
 }

@@ -12,6 +12,7 @@ import { ROLL_ORDERS } from './enrolment.service';
 import { createDemoStaff } from '../staff/demo-staff';
 import { createDemoEnquiries } from '../admissions/demo-enquiries';
 import { clearDemoFees, createDemoFees, createDemoParentLogins } from '../fees/demo-fees';
+import { clearDemoTimetable, createDemoTimetable } from '../timetable/demo-timetable';
 import { randomUUID } from 'crypto';
 
 /**
@@ -261,9 +262,10 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     // ─── Parent logins and fees ──────────────────────────────────────────────
     const parentLogins = await createDemoParentLogins(passwordHash);
     const fees = { ...(await createDemoFees(year, { pick, between, chance: (p) => rand() < p })), parentLogins };
+    const timetable = await createDemoTimetable(year.id);
 
     await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries, receipts: fees.receipts } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -274,6 +276,8 @@ export const clearDemoData = async () => {
     // Reporting lines first (staff point at each other), then the records (assignments go with them).
     // Fee receipts and online payments of demo students go first (they keep students).
     const receipts = await clearDemoFees();
+    // Timetables point at demo staff.
+    await clearDemoTimetable();
     // Enquiries point at demo students and staff.
     const enquiries = await db.enquiry.deleteMany({ where: { isDemo: true } });
     // Real enquiries keep their record, without the demo person.
