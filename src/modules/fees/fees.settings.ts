@@ -31,6 +31,20 @@ export const FEES = {
         default: true,
         schema: z.boolean(),
     }),
+    newStudentFrom: defineSetting<'all' | 'current' | 'next'>({
+        key: 'fees.new_student_from',
+        group: G,
+        label: 'A student admitted during the year pays',
+        help: '"New admissions only" heads (e.g. admission fee) are always charged, in the first instalment they pay.',
+        type: 'select',
+        default: 'current',
+        schema: z.enum(['all', 'current', 'next']),
+        options: [
+            { value: 'current', label: 'From the instalment they join in (the one last due)' },
+            { value: 'next', label: 'From the next instalment due after joining' },
+            { value: 'all', label: 'The whole year' },
+        ],
+    }),
     fineMode: defineSetting<'none' | 'fixed' | 'per_day' | 'per_month'>({
         key: 'fees.late_fine_mode',
         group: G,

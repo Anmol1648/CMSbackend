@@ -48,7 +48,7 @@ beforeAll(async () => {
     year = ((await as(admin).get('/api/academic/years')).body.data as { id: string; isCurrent: boolean }[]).find((y) => y.isCurrent)!.id;
     classVI = ((await as(admin).get('/api/academic/classes/options')).body.data as { id: string; shortName: string }[]).find((c) => c.shortName === 'VI')!.id;
     sectionVI = ((await as(admin).get(`/api/academic/sections/options?year=${year}`)).body.data as { id: string; label: string }[]).find((s) => s.label.startsWith('VI-A'))!.id;
-    await settings({ 'fees.late_fine_mode': 'fixed', 'fees.late_fine_amount': 50, 'fees.late_fine_grace_days': 10, 'students.parent_login': 'on_request' });
+    await settings({ 'fees.late_fine_mode': 'fixed', 'fees.late_fine_amount': 50, 'fees.late_fine_grace_days': 10, 'students.parent_login': 'on_request', 'fees.new_student_from': 'all' });
     boy = await admit('Rohit', 'Male', '9800000001');
     girl = await admit('Meera', 'Female', '9800000002');
 }, 480_000);
@@ -107,6 +107,22 @@ describe('dues', () => {
         expect(b).toMatchObject({ net: 1500, fine: { charged: 0 }, overdue: true });
         expect(c).toMatchObject({ net: 1500, overdue: false });
         expect(d.totals).toMatchObject({ net: 4525, balance: 4575, overdue: 3075 });
+    });
+
+    it('a student admitted during the year pays from the instalment they join in, or the next (a setting)', async () => {
+        const line = (d: { instalments: { id: string; net: number; lines: { head: string }[] }[] }, id: string) => d.instalments.find((i) => i.id === id);
+        await settings({ 'fees.new_student_from': 'current' });
+        let d = (await fees(boy)).dues;
+        // Joined after B fell due: A is not charged; the admission fee moves to B.
+        expect(line(d, instA)).toBeUndefined();
+        expect(line(d, instB)).toMatchObject({ net: 1525 });
+        expect(line(d, instB)!.lines.map((l) => l.head)).toContain('Admission fee');
+        await settings({ 'fees.new_student_from': 'next' });
+        d = (await fees(boy)).dues;
+        expect(line(d, instB)).toBeUndefined();
+        expect(line(d, instC)).toMatchObject({ net: 1525 });
+        await settings({ 'fees.new_student_from': 'all' });
+        expect((await fees(boy)).dues.totals.net).toBe(4525);
     });
 });
 
