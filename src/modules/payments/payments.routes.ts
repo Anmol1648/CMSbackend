@@ -45,6 +45,11 @@ paymentRoutes.post('/:id/check', configure, asyncHandler(async (req: Request, re
 
 // A parent or student paying fees
 paymentRoutes.post('/fees', can('fee.pay_online'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await payments.startFeePayment(req.user!.userId, parse(payments.payFeesSchema, req.body)), 'Payment started', 201)));
+// UPI QR codes: the parent in My Fees, or the cashier at the counter, shows one; the screen asks until it is paid.
+paymentRoutes.post('/fees/qr', can('fee.pay_online'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await payments.startQrPayment(req.user!.userId, parse(payments.qrSchema, req.body), false), 'Scan to pay', 201)));
+paymentRoutes.post('/counter-qr', can('fee.collect'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await payments.startQrPayment(req.user!.userId, parse(payments.qrSchema, req.body), true), 'Scan to pay', 201)));
+paymentRoutes.get('/:id/qr', authenticated, asyncHandler(async (req: Request, res: Response) => successResponse(res, await payments.pollQr(req.params.id, req.user!.userId), 'Payment')));
+paymentRoutes.post('/:id/qr/cancel', authenticated, asyncHandler(async (req: Request, res: Response) => successResponse(res, await payments.cancelQr(req.params.id, req.user!.userId), 'QR code closed')));
 paymentRoutes.post('/:id/confirm', authenticated, asyncHandler(async (req: Request, res: Response) => successResponse(res, await payments.confirmPayment(req.params.id, parse(payments.confirmSchema, req.body), req.user!.userId), 'Payment received')));
 paymentRoutes.post('/:id/failed', authenticated, asyncHandler(async (req: Request, res: Response) => successResponse(res, await payments.reportFailure(req.params.id, parse(payments.failSchema, req.body), req.user!.userId), 'Payment not completed')));
 paymentRoutes.post('/:id/mock', authenticated, asyncHandler(async (req: Request, res: Response) => successResponse(res, await payments.mockComplete(req.params.id, parse(payments.mockSchema, req.body), req.user!.userId), 'Test payment done')));

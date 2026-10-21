@@ -28,17 +28,19 @@ const uuidOk = (id: string) => z.uuid().safeParse(id).success;
 // ─── The school's gateway ────────────────────────────────────────────────────
 
 export const mockAllowed = () => !isProduction;
+type Mode = 'test' | 'live';
+type ModeConfig = GatewayConfig & { mode: Mode };
 
-const loadGateway = async (): Promise<GatewayConfig | null> => {
+/** The keys of a mode (the one in use, unless asked): test keys, or the live ones (real money). */
+const loadGateway = async (mode?: Mode): Promise<ModeConfig | null> => {
     const g = await db.paymentGateway.findFirst();
     if (!g) return null;
     if (g.provider === 'mock' && !mockAllowed()) return null;
-    return {
-        provider: g.provider as GatewayConfig['provider'],
-        keyId: g.keyId,
-        keySecret: g.keySecretEnc ? decryptSecret(g.keySecretEnc) : null,
-        webhookSecret: g.webhookSecretEnc ? decryptSecret(g.webhookSecretEnc) : null,
-    };
+    const m = (mode ?? g.mode) as Mode;
+    const dec = (v: string | null) => (v ? decryptSecret(v) : null);
+    return m === 'live'
+        ? { provider: g.provider as GatewayConfig['provider'], mode: 'live', keyId: g.liveKeyId, keySecret: dec(g.liveKeySecretEnc), webhookSecret: dec(g.liveWebhookSecretEnc) }
+        : { provider: g.provider as GatewayConfig['provider'], mode: 'test', keyId: g.keyId, keySecret: dec(g.keySecretEnc), webhookSecret: dec(g.webhookSecretEnc) };
 };
 
 const ready = (g: GatewayConfig | null) => !!g && (g.provider === 'mock' || (!!g.keyId && !!g.keySecret));
@@ -49,9 +51,9 @@ export const gatewaySettings = async (webhookBase: string, schoolCode: string) =
     const s = await getSettings({ fees: FEES.onlineFees, registration: FEES.onlineRegistration });
     return {
         provider: g?.provider ?? null,
-        keyId: g?.keyId ?? null,
-        hasKeySecret: !!g?.keySecretEnc,
-        hasWebhookSecret: !!g?.webhookSecretEnc,
+        mode: (g?.mode ?? 'test') as Mode,
+        test: { keyId: g?.keyId ?? null, hasKeySecret: !!g?.keySecretEnc, hasWebhookSecret: !!g?.webhookSecretEnc, ready: ready(await loadGateway('test')) },
+        live: { keyId: g?.liveKeyId ?? null, hasKeySecret: !!g?.liveKeySecretEnc, hasWebhookSecret: !!g?.liveWebhookSecretEnc, ready: g?.provider === 'razorpay' && ready(await loadGateway('live')) },
         ready: ready(await loadGateway()),
         mockAllowed: mockAllowed(),
         webhookUrl: `${webhookBase}/api/public/payments/razorpay/webhook/${schoolCode}`,
@@ -61,26 +63,48 @@ export const gatewaySettings = async (webhookBase: string, schoolCode: string) =
     };
 };
 
+const optionalText = z.union([z.literal('').transform(() => null), z.string().trim().max(100), z.null()]).optional();
 export const gatewaySchema = z.strictObject({
     provider: z.enum(['razorpay', 'mock']),
-    keyId: z.union([z.literal('').transform(() => null), z.string().trim().max(100), z.null()]).optional(),
+    /** Which keys are used: test (no real money) or live. */
+    mode: z.enum(['test', 'live']).optional(),
+    keyId: optionalText,
     /** Empty / left out = keep the saved one. */
     keySecret: z.string().trim().max(200).optional(),
     webhookSecret: z.string().trim().max(200).optional(),
+    liveKeyId: optionalText,
+    liveKeySecret: z.string().trim().max(200).optional(),
+    liveWebhookSecret: z.string().trim().max(200).optional(),
 });
 
 export const saveGateway = async (input: z.infer<typeof gatewaySchema>) => {
     if (input.provider === 'mock' && !mockAllowed()) throw badRequest('The test gateway is not available on the live system');
-    if (input.provider === 'razorpay' && input.keyId && !/^rzp_(test|live)_[A-Za-z0-9]+$/.test(input.keyId)) throw badRequest('A Razorpay key id looks like rzp_test_… or rzp_live_…', [{ field: 'keyId', message: 'should start with rzp_test_ or rzp_live_' }]);
+    if (input.provider === 'razorpay' && input.keyId && !/^rzp_test_[A-Za-z0-9]+$/.test(input.keyId)) throw badRequest('A Razorpay test key id looks like rzp_test_…', [{ field: 'keyId', message: 'should start with rzp_test_' }]);
+    if (input.liveKeyId && !/^rzp_live_[A-Za-z0-9]+$/.test(input.liveKeyId)) throw badRequest('A Razorpay live key id looks like rzp_live_…', [{ field: 'liveKeyId', message: 'should start with rzp_live_' }]);
     const tenantId = getTenantId()!;
+    const current = await db.paymentGateway.findFirst();
     const data = {
         provider: input.provider,
         ...(input.keyId !== undefined ? { keyId: input.keyId } : {}),
         ...(input.keySecret ? { keySecretEnc: encryptSecret(input.keySecret) } : {}),
         ...(input.webhookSecret ? { webhookSecretEnc: encryptSecret(input.webhookSecret) } : {}),
+        ...(input.liveKeyId !== undefined ? { liveKeyId: input.liveKeyId } : {}),
+        ...(input.liveKeySecret ? { liveKeySecretEnc: encryptSecret(input.liveKeySecret) } : {}),
+        ...(input.liveWebhookSecret ? { liveWebhookSecretEnc: encryptSecret(input.liveWebhookSecret) } : {}),
+        ...(input.mode ? { mode: input.mode } : {}),
     };
+    // Live mode needs live keys (the test gateway has no live mode).
+    const liveKeyId = input.liveKeyId !== undefined ? input.liveKeyId : current?.liveKeyId;
+    const liveSecret = !!input.liveKeySecret || !!current?.liveKeySecretEnc;
+    if ((input.mode ?? current?.mode) === 'live' && (input.provider !== 'razorpay' || !liveKeyId || !liveSecret)) {
+        throw badRequest('Live mode needs the Razorpay live key id and secret', [{ field: 'mode', message: 'enter the live keys first' }]);
+    }
     await db.paymentGateway.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
-    await recordAudit({ action: 'payment_gateway_saved', entity: 'school', changes: { provider: input.provider, keyId: input.keyId ?? undefined, keySecretChanged: !!input.keySecret, webhookSecretChanged: !!input.webhookSecret } });
+    await recordAudit({
+        action: 'payment_gateway_saved',
+        entity: 'school',
+        changes: { provider: input.provider, mode: input.mode ?? current?.mode ?? 'test', keyId: input.keyId ?? undefined, liveKeyId: input.liveKeyId ?? undefined, secretsChanged: !!(input.keySecret || input.webhookSecret || input.liveKeySecret || input.liveWebhookSecret) },
+    });
 };
 
 // ─── Starting a payment ──────────────────────────────────────────────────────
@@ -119,12 +143,16 @@ export const payFeesSchema = z.strictObject({
     amount: z.number().int('whole rupees').min(1).max(10_000_000).optional(),
 });
 
-export const startFeePayment = async (userId: string, input: z.infer<typeof payFeesSchema>) => {
+/** What a fee payment pays (the dues it clears) and its total, checked the same way everywhere. */
+const prepareFeePayment = async (studentId: string, input: { instalmentIds?: string[]; amount?: number }, opts: { counter: boolean; userId: string }) => {
     const s = await getSettings({ enabled: FEES.onlineFees, partial: FEES.partialPayment, minimum: FEES.minimumOnline });
-    if (!s.enabled) throw forbidden('Online payment is switched off; please pay at the school office');
+    if (!opts.counter && !s.enabled) throw forbidden('Online payment is switched off; please pay at the school office');
     const g = await loadGateway();
-    if (!ready(g)) throw badRequest('Online payment is not set up yet; please pay at the school office');
-    const student = await assertPayer(userId, input.studentId);
+    if (!ready(g)) throw badRequest(opts.counter ? 'Set up the payment gateway first (Fees → Online Payments)' : 'Online payment is not set up yet; please pay at the school office');
+    const student = opts.counter
+        ? await db.student.findUnique({ where: { id: studentId }, include: { family: { select: { guardians: { where: { isPrimary: true }, select: { name: true, email: true, mobile: true } } } } } })
+        : await assertPayer(opts.userId, studentId);
+    if (!student) throw notFound('Student not found');
     const year = await currentYear();
     if (!year) throw badRequest('No current academic year');
     const dues = await duesOf(student.id, year.id);
@@ -137,15 +165,91 @@ export const startFeePayment = async (userId: string, input: z.infer<typeof payF
     if (amount < Math.min(s.minimum, payable)) throw badRequest(`The smallest online payment is ₹${s.minimum}`, [{ field: 'amount', message: `must be at least ₹${s.minimum}` }]);
     const { lines } = allocate(dues, amount, only);
     if (!s.partial && !coversWhole(dues, lines)) throw badRequest('Pay whole instalments (part payment is switched off)', [{ field: 'amount', message: 'must cover whole instalments' }]);
-    const fee = await convenienceFee(amount);
-    const total = amount + fee;
+    // The school takes it at its own counter: no convenience fee there.
+    const fee = opts.counter ? 0 : await convenienceFee(amount);
+    return { g: g!, student, year, lines, amount, fee, total: amount + fee };
+};
+
+export const startFeePayment = async (userId: string, input: z.infer<typeof payFeesSchema>) => {
+    const { g, student, year, lines, fee, total } = await prepareFeePayment(input.studentId, input, { counter: false, userId });
     const reference = `fee-${crypto.randomUUID().slice(0, 8)}`;
-    const order = await PROVIDERS[g!.provider].createOrder(g!, total, reference, { student: student.admissionNo, purpose: 'fees' });
+    const order = await PROVIDERS[g.provider].createOrder(g, total, reference, { student: student.admissionNo, purpose: 'fees' });
     const p = await db.onlinePayment.create({
-        data: { tenantId: getTenantId()!, purpose: 'fees', provider: g!.provider, orderId: order.orderId, amount: total, convenienceFee: fee, studentId: student.id, academicYearId: year.id, allocation: lines as unknown as Prisma.InputJsonValue, userId },
+        data: { tenantId: getTenantId()!, purpose: 'fees', provider: g.provider, mode: g.mode, orderId: order.orderId, amount: total, convenienceFee: fee, studentId: student.id, academicYearId: year.id, allocation: lines as unknown as Prisma.InputJsonValue, userId },
     });
     const payer = student.family?.guardians[0];
-    return checkout(g!, p, `Fees of ${fullName(student)} (${student.admissionNo})`, { name: payer?.name ?? fullName(student), email: payer?.email ?? student.email, contact: payer?.mobile ?? null });
+    return checkout(g, p, `Fees of ${fullName(student)} (${student.admissionNo})`, { name: payer?.name ?? fullName(student), email: payer?.email ?? student.email, contact: payer?.mobile ?? null });
+};
+
+// ─── UPI QR codes ────────────────────────────────────────────────────────────
+
+const QR_MINUTES = 15;
+
+export const qrSchema = payFeesSchema;
+
+/**
+ * A UPI QR code for exactly the amount: the parent scans it with any UPI app. At the counter the
+ * cashier shows it (`counter`); in My Fees the parent opens it. The screen asks every few seconds
+ * whether it was paid; the receipt is made as soon as the gateway says so.
+ */
+export const startQrPayment = async (userId: string, input: z.infer<typeof qrSchema>, counter: boolean) => {
+    const { g, student, year, lines, fee, total } = await prepareFeePayment(input.studentId, input, { counter, userId });
+    const closeBy = new Date(Date.now() + QR_MINUTES * 60_000);
+    const qr = await PROVIDERS[g.provider].createQr(g, total, `Fees ${student.admissionNo}`, `Fees of ${fullName(student)} (${student.admissionNo})`, closeBy, { student: student.admissionNo, purpose: 'fees' });
+    const p = await db.onlinePayment.create({
+        data: {
+            tenantId: getTenantId()!,
+            purpose: 'fees',
+            provider: g.provider,
+            mode: g.mode,
+            method: 'qr',
+            orderId: qr.qrId,
+            qrImageUrl: qr.imageUrl,
+            expiresAt: closeBy,
+            amount: total,
+            convenienceFee: fee,
+            studentId: student.id,
+            academicYearId: year.id,
+            allocation: lines as unknown as Prisma.InputJsonValue,
+            userId,
+        },
+    });
+    await recordAudit({ action: 'qr_payment_started', entity: 'online_payment', entityId: p.id, changes: { amount: total, student: student.admissionNo, counter } });
+    return paymentResult(p.id);
+};
+
+/** Has the QR code been paid? (asked by the screen showing it). An expired one is closed. */
+export const pollQr = async (paymentId: string, userId: string | null) => {
+    const p = uuidOk(paymentId) ? await db.onlinePayment.findUnique({ where: { id: paymentId } }) : null;
+    if (!p || p.method !== 'qr' || (p.userId && p.userId !== userId)) throw notFound('Payment not found');
+    if (p.status !== 'created') return paymentResult(p.id);
+    const g = await loadGateway(p.mode as Mode);
+    if (!g || g.provider !== p.provider) return paymentResult(p.id);
+    const s = await PROVIDERS[g.provider].fetchQr(g, p.orderId);
+    if (s.paid && s.paymentRef) await markPaid(p.id, s.paymentRef);
+    else if (p.expiresAt && p.expiresAt < new Date()) {
+        await PROVIDERS[g.provider].closeQr(g, p.orderId);
+        await markFailed(p.id, 'The QR code expired before it was paid');
+    }
+    return paymentResult(p.id);
+};
+
+/** The payer went away: the QR code stops taking money (a payment that already came is still recorded). */
+export const cancelQr = async (paymentId: string, userId: string | null) => {
+    const p = uuidOk(paymentId) ? await db.onlinePayment.findUnique({ where: { id: paymentId } }) : null;
+    if (!p || p.method !== 'qr' || (p.userId && p.userId !== userId)) throw notFound('Payment not found');
+    if (p.status !== 'created') return paymentResult(p.id);
+    const g = await loadGateway(p.mode as Mode);
+    if (g && g.provider === p.provider) {
+        const s = await PROVIDERS[g.provider].fetchQr(g, p.orderId);
+        if (s.paid && s.paymentRef) {
+            await markPaid(p.id, s.paymentRef);
+            return paymentResult(p.id);
+        }
+        await PROVIDERS[g.provider].closeQr(g, p.orderId);
+    }
+    await markFailed(p.id, 'Cancelled before it was paid');
+    return paymentResult(p.id);
 };
 
 /** The website form's registration fee (no login). */
@@ -158,7 +262,7 @@ export const startRegistrationPayment = async (enquiryId: string) => {
     if (e.registrationFee) return null;
     const fee = await convenienceFee(s.fee);
     const order = await PROVIDERS[g!.provider].createOrder(g!, s.fee + fee, `reg-${e.enquiryNo}`, { enquiry: e.enquiryNo, purpose: 'registration' });
-    const p = await db.onlinePayment.create({ data: { tenantId: getTenantId()!, purpose: 'registration', provider: g!.provider, orderId: order.orderId, amount: s.fee + fee, convenienceFee: fee, enquiryId: e.id } });
+    const p = await db.onlinePayment.create({ data: { tenantId: getTenantId()!, purpose: 'registration', provider: g!.provider, mode: g!.mode, orderId: order.orderId, amount: s.fee + fee, convenienceFee: fee, enquiryId: e.id } });
     return checkout(g!, p, `Registration fee for ${e.studentFirstName} (${e.enquiryNo})`, { name: e.parentName, email: e.email, contact: e.mobile });
 };
 
@@ -187,7 +291,7 @@ const markPaid = async (paymentId: string, paymentRef: string) => {
             if (p.purpose === 'fees') {
                 const r = await recordReceipt(
                     tx,
-                    { studentId: p.studentId!, yearId: p.academicYearId!, date: today(), mode: 'online', reference: paymentRef, amount: p.amount - p.convenienceFee, onlinePaymentId: p.id, note: p.convenienceFee ? `Convenience fee ₹${p.convenienceFee} paid online with it.` : null },
+                    { studentId: p.studentId!, yearId: p.academicYearId!, date: today(), mode: p.method === 'qr' ? 'upi' : 'online', reference: paymentRef, amount: p.amount - p.convenienceFee, onlinePaymentId: p.id, note: p.convenienceFee ? `Convenience fee ₹${p.convenienceFee} paid online with it.` : null },
                     { allowExcess: true }
                 );
                 receiptId = r.receipt?.id ?? null;
@@ -217,7 +321,7 @@ export const confirmSchema = z.strictObject({ paymentRef: z.string().trim().min(
 export const confirmPayment = async (paymentId: string, input: z.infer<typeof confirmSchema>, userId: string | null) => {
     const p = uuidOk(paymentId) ? await db.onlinePayment.findUnique({ where: { id: paymentId } }) : null;
     if (!p || (p.userId && p.userId !== userId)) throw notFound('Payment not found');
-    const g = await loadGateway();
+    const g = await loadGateway(p.mode as Mode);
     if (!g || g.provider !== p.provider) throw conflict('The payment gateway was changed; ask the school to check this payment');
     if (!PROVIDERS[g.provider].verifyPayment(g, p.orderId, input.paymentRef, input.signature)) throw badRequest('The payment could not be verified. If money was taken, it will be confirmed by the gateway shortly.');
     const r = await markPaid(p.id, input.paymentRef);
@@ -248,9 +352,20 @@ export const mockComplete = async (paymentId: string, input: z.infer<typeof mock
 
 /** The gateway's server-to-server message (the school is in the URL). */
 export const handleWebhook = async (provider: string, rawBody: Buffer, headers: Record<string, string | string[] | undefined>) => {
-    const g = await loadGateway();
-    if (!g || g.provider !== provider) throw notFound('No such gateway');
-    const event = PROVIDERS[g.provider].parseWebhook(g, rawBody, headers);
+    // Test and live webhooks come to the same address, each signed with its own secret.
+    const configs = (await Promise.all((['live', 'test'] as Mode[]).map((m) => loadGateway(m)))).filter((g): g is ModeConfig => !!g && g.provider === provider && !!g.webhookSecret);
+    if (!configs.length) throw notFound('No such gateway');
+    let event: ReturnType<(typeof PROVIDERS)['razorpay']['parseWebhook']> | null = null;
+    let lastError: unknown = null;
+    for (const g of configs) {
+        try {
+            event = PROVIDERS[g.provider].parseWebhook(g, rawBody, headers);
+            break;
+        } catch (err) {
+            lastError = err;
+        }
+    }
+    if (!event) throw lastError;
     if (event.kind === 'ignored' || !event.orderId) return { handled: false };
     const p = await db.onlinePayment.findFirst({ where: { provider, orderId: event.orderId } });
     if (!p) return { handled: false };
@@ -264,8 +379,13 @@ export const checkStatus = async (paymentId: string) => {
     const p = uuidOk(paymentId) ? await db.onlinePayment.findUnique({ where: { id: paymentId } }) : null;
     if (!p) throw notFound('Payment not found');
     if (p.status === 'paid') return paymentResult(p.id);
-    const g = await loadGateway();
+    const g = await loadGateway(p.mode as Mode);
     if (!g || g.provider !== p.provider) throw conflict('This payment was made with another gateway set-up');
+    if (p.method === 'qr') {
+        const q = await PROVIDERS[g.provider].fetchQr(g, p.orderId);
+        if (q.paid && q.paymentRef) await markPaid(p.id, q.paymentRef);
+        return paymentResult(p.id);
+    }
     const s = await PROVIDERS[g.provider].fetchStatus(g, p.orderId);
     if (s.paid && s.paymentRef) await markPaid(p.id, s.paymentRef);
     else if (s.failed) await markFailed(p.id, 'Failed at the gateway');
@@ -285,6 +405,11 @@ export const paymentResult = async (paymentId: string) => {
         receipt: p.receipt,
         registrationNo: p.enquiry?.registrationNo ?? null,
         enquiryNo: p.enquiry?.enquiryNo ?? null,
+        mode: p.mode,
+        method: p.method,
+        provider: p.provider,
+        qrImageUrl: p.method === 'qr' && p.status === 'created' ? p.qrImageUrl : null,
+        expiresAt: p.expiresAt,
     };
 };
 
@@ -325,6 +450,8 @@ export const listOnlinePayments = async (q: ListQuery<typeof onlinePaymentFilter
             paidAt: p.paidAt,
             purpose: p.purpose,
             provider: p.provider,
+            mode: p.mode,
+            method: p.method,
             orderId: p.orderId,
             paymentRef: p.paymentRef,
             amount: p.amount,

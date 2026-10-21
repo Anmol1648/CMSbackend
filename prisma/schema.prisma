@@ -1463,15 +1463,20 @@ model FeeReceiptLine {
 
 /// The school's payment gateway account (one per school). Secrets are stored encrypted.
 model PaymentGateway {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String   @unique @map("tenant_id") @db.Uuid
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String   @unique @map("tenant_id") @db.Uuid
   /// "razorpay", or "mock" (a pretend gateway for trying the flow; never in production).
-  provider         String
-  keyId            String?  @map("key_id")
-  keySecretEnc     String?  @map("key_secret_enc")
-  webhookSecretEnc String?  @map("webhook_secret_enc")
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy        String?  @map("updated_by") @db.Uuid
+  provider             String
+  keyId                String?  @map("key_id")
+  keySecretEnc         String?  @map("key_secret_enc")
+  webhookSecretEnc     String?  @map("webhook_secret_enc")
+  /// "test" uses the key fields above; "live" uses the live ones (real money).
+  mode                 String   @default("test")
+  liveKeyId            String?  @map("live_key_id")
+  liveKeySecretEnc     String?  @map("live_key_secret_enc")
+  liveWebhookSecretEnc String?  @map("live_webhook_secret_enc")
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy            String?  @map("updated_by") @db.Uuid
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -1492,6 +1497,12 @@ model OnlinePayment {
   amount         Int
   convenienceFee Int                  @default(0) @map("convenience_fee")
   status         OnlinePaymentStatus  @default(created)
+  /// Which keys made it ("test" / "live"), so it is checked with the same ones.
+  mode           String               @default("test")
+  /// "checkout" = the gateway's payment window; "qr" = a UPI QR code for the exact amount.
+  method         String               @default("checkout")
+  qrImageUrl     String?              @map("qr_image_url")
+  expiresAt      DateTime?            @map("expires_at") @db.Timestamptz(6)
   studentId      String?              @map("student_id") @db.Uuid
   enquiryId      String?              @map("enquiry_id") @db.Uuid
   academicYearId String?              @map("academic_year_id") @db.Uuid

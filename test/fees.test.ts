@@ -219,7 +219,7 @@ describe('parents and online payment', () => {
     it('accepts a Razorpay webhook only with the right signature', async () => {
         await as(admin).put('/api/payments/gateway', { provider: 'razorpay', keyId: 'rzp_test_abc123', keySecret: 'key-secret', webhookSecret: 'hook-secret' });
         const gw = (await as(admin).get('/api/payments/gateway')).body.data;
-        expect(gw).toMatchObject({ provider: 'razorpay', keyId: 'rzp_test_abc123', hasKeySecret: true, hasWebhookSecret: true, ready: true });
+        expect(gw).toMatchObject({ provider: 'razorpay', mode: 'test', test: { keyId: 'rzp_test_abc123', hasKeySecret: true, hasWebhookSecret: true, ready: true }, live: { ready: false }, ready: true });
         expect(JSON.stringify(gw)).not.toContain('key-secret');
         // An order as Razorpay would have made it.
         const payment = await inAlpha(() =>
@@ -235,6 +235,46 @@ describe('parents and online payment', () => {
         // The browser's callback is checked the same way.
         const bad = await as(admin).post(`/api/payments/${payment.id}/confirm`, { paymentRef: 'pay_X', signature: 'f'.repeat(64) });
         expect(bad.status).toBe(400);
+    });
+
+    it('keeps test and live keys apart: live needs live keys, and a live webhook is checked with the live secret', async () => {
+        expect((await as(admin).put('/api/payments/gateway', { provider: 'razorpay', mode: 'live' })).status).toBe(400);
+        expect((await as(admin).put('/api/payments/gateway', { provider: 'razorpay', liveKeyId: 'rzp_test_wrong' })).status).toBe(400);
+        const saved = await as(admin).put('/api/payments/gateway', { provider: 'razorpay', mode: 'live', liveKeyId: 'rzp_live_abc123', liveKeySecret: 'live-secret', liveWebhookSecret: 'live-hook' });
+        expect(saved.body.data).toMatchObject({ mode: 'live', live: { keyId: 'rzp_live_abc123', ready: true }, test: { keyId: 'rzp_test_abc123' } });
+        expect(JSON.stringify(saved.body.data)).not.toContain('live-secret');
+        const payment = await inAlpha(() =>
+            db.onlinePayment.create({ data: { tenantId: alpha.tenant.id, purpose: 'fees', provider: 'razorpay', mode: 'live', orderId: 'order_LIVE1', amount: 100, studentId: boy, academicYearId: year, allocation: [] } })
+        );
+        const body = JSON.stringify({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_LIVE1', order_id: 'order_LIVE1' } } } });
+        const ok = await request(app).post('/api/public/payments/razorpay/webhook/alpha').set('Content-Type', 'application/json').set('X-Razorpay-Signature', crypto.createHmac('sha256', 'live-hook').update(body).digest('hex')).send(body);
+        expect(ok.status).toBe(200);
+        expect((await inAlpha(() => db.onlinePayment.findUniqueOrThrow({ where: { id: payment.id } }))).status).toBe('paid');
+        // Back to test mode: the live keys stay saved.
+        const back = await as(admin).put('/api/payments/gateway', { provider: 'razorpay', mode: 'test' });
+        expect(back.body.data).toMatchObject({ mode: 'test', live: { ready: true } });
+    });
+
+    it('takes a fee by UPI QR at the counter: the receipt is made when it is paid', async () => {
+        await as(admin).put('/api/payments/gateway', { provider: 'mock' });
+        const qr = await as(admin).post('/api/payments/counter-qr', { studentId: girl, amount: 300 });
+        expect(qr.status).toBe(201);
+        expect(qr.body.data).toMatchObject({ method: 'qr', status: 'created', amount: 300, convenienceFee: 0 });
+        expect(qr.body.data.qrImageUrl).toMatch(/^data:image\/svg\+xml/);
+        // Not paid yet.
+        expect((await as(admin).get(`/api/payments/${qr.body.data.id}/qr`)).body.data.status).toBe('created');
+        // The parent scans and pays (the test gateway's "simulate" button).
+        const paid = await as(admin).post(`/api/payments/${qr.body.data.id}/mock`, { outcome: 'paid' });
+        expect(paid.body.data).toMatchObject({ status: 'paid', receipt: { receiptNo: expect.stringMatching(/^RCP\//) }, qrImageUrl: null });
+        const receipt = (await as(admin).get(`/api/fees/receipts/${paid.body.data.receipt.id}`)).body.data;
+        expect(receipt).toMatchObject({ mode: 'upi', amount: 300 });
+        // A QR the parent walks away from is closed.
+        const other = await as(admin).post('/api/payments/counter-qr', { studentId: girl, amount: 100 });
+        const closed = await as(admin).post(`/api/payments/${other.body.data.id}/qr/cancel`);
+        expect(closed.body.data).toMatchObject({ status: 'failed' });
+        // A parent can't poll the cashier's QR.
+        const g = await inAlpha(() => db.guardian.findFirstOrThrow({ where: { family: { students: { some: { id: boy } } } }, include: { user: true } }));
+        expect((await as(tokenFor({ id: g.userId!, tenantId: alpha.tenant.id })).get(`/api/payments/${other.body.data.id}/qr`)).status).toBe(404);
     });
 
     it('the website form takes the registration fee online', async () => {
