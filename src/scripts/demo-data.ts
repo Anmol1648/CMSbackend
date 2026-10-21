@@ -11,11 +11,12 @@ import { db } from '../core/db';
 import { cache } from '../core/cache';
 import { runAsSystem, runAsTenant } from '../core/context';
 import { clearDemoData, createDemoData, DEMO_PASSWORD } from '../modules/students/demo-data';
+import { createDemoAttendance } from '../modules/attendance/demo-attendance';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -32,10 +33,21 @@ const main = async () => {
         out(`${tenant.name}: removed ${r.students} demo students, ${r.families} families, ${r.staff} staff, ${r.enquiries} enquiries, ${r.receipts} fee receipts and ${r.logins} demo logins.${r.counterReset ? ' Numbers start again from the first.' : ''}`);
         return;
     }
+    if (values.attendance) {
+        // Only attendance, for a school that already has its demo students (added after them).
+        const r = await runAsTenant(tenant.id, async () => {
+            const year = await db.academicYear.findFirst({ where: { isCurrent: true } });
+            if (!year) throw new Error('No current academic year');
+            return createDemoAttendance(year);
+        });
+        out(`${tenant.name}: ${r.holidays} holidays, ${r.registers} registers over ${r.days} school days, ${r.staffDays} staff check-ins.`);
+        return;
+    }
     out(`${tenant.name}: creating demo data (this takes a minute)…`);
     const r = await runAsTenant(tenant.id, () => createDemoData());
     out(`${tenant.name}: ${r.students} students in ${r.sections} sections of ${r.year}, ${r.families} families, ${r.staff.staff} staff (${r.staff.logins} with logins, ${r.staff.assignments} subject-teacher assignments), ${r.studentLogins} student logins.`);
     out(`${tenant.name}: ${r.enquiries.enquiries} admission enquiries, ${r.fees.receipts} fee receipts, ${r.fees.parentLogins} parent logins (username = the parent's mobile).`);
+    out(`${tenant.name}: attendance for the last ${r.attendance.days} school days (${r.attendance.registers} registers), ${r.attendance.staffDays} staff check-ins, ${r.attendance.holidays} holidays.`);
     if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
     out(`Every demo login uses the password ${DEMO_PASSWORD}`);

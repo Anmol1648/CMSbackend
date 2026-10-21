@@ -17,6 +17,7 @@ registerPermissions({ key: 'reports', label: 'Report Center', order: 87 }, [
 registerMenuItems([{ key: 'report-center', label: 'Report Center', icon: 'summarize', href: '/reports', group: 'main', order: 30, permission: 'report.view' }]);
 
 registerReportCategory('Students', 5);
+registerReportCategory('Attendance', 8);
 registerReportCategory('Fees', 10);
 registerReportCategory('Admissions', 20);
 registerReportCategory('Timetable', 30);

@@ -85,6 +85,11 @@ model Tenant {
   reportSettings        ReportSetting[]
   customReports         CustomReport[]
 
+  holidays         Holiday[]
+  attendanceSheets AttendanceSheet[]
+  attendanceMarks  AttendanceMark[]
+  staffAttendance  StaffAttendance[]
+
   @@map("tenants")
 }
 
@@ -561,6 +566,9 @@ model MasterValue {
   parent                 MasterValue?         @relation("MasterValueParent", fields: [parentId, tenantId], references: [id, tenantId], onDelete: Restrict)
   children               MasterValue[]        @relation("MasterValueParent")
 
+  attendanceMarks AttendanceMark[]  @relation("AttendanceMarkStatus")
+  staffAttendance StaffAttendance[] @relation("StaffAttendanceStatus")
+
   @@unique([id, tenantId])
   @@index([tenantId, master, parentId, sortOrder])
   @@map("master_values")
@@ -671,6 +679,8 @@ model Section {
   teachingAssignments TeachingAssignment[]
   ttEntries           TtEntry[]
   ttSubstitutions     TtSubstitution[]
+
+  attendanceSheets AttendanceSheet[]
 
   @@unique([id, tenantId])
   @@index([tenantId, academicYearId, classId])
@@ -900,6 +910,8 @@ model Student {
   feeReceipts    FeeReceipt[]
   onlinePayments OnlinePayment[]
 
+  attendanceMarks AttendanceMark[]
+
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
   @@index([tenantId, status])
@@ -1050,6 +1062,8 @@ model Staff {
   ttEntries       TtEntry[]            @relation("TtEntryStaff")
   ttAbsences      TtSubstitution[]     @relation("TtSubAbsent")
   ttSubstitutions TtSubstitution[]     @relation("TtSubSubstitute")
+
+  attendance StaffAttendance[]
 
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
@@ -1811,4 +1825,102 @@ model CustomReport {
 
   @@index([tenantId])
   @@map("custom_reports")
+}
+
+// ─── Attendance ───────────────────────────────────────────────────────────────
+
+/// A day the school is closed, or has no classes (exams, events): for students, staff or both.
+model Holiday {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  date        DateTime @db.Date
+  name        String
+  forStudents Boolean  @default(true) @map("for_students")
+  forStaff    Boolean  @default(true) @map("for_staff")
+  isDemo      Boolean  @default(false) @map("is_demo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, date])
+  @@map("holidays")
+}
+
+/// One register: a section's attendance on a date. slot "day" (once a day), "am" / "pm" (twice a day).
+model AttendanceSheet {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  sectionId String   @map("section_id") @db.Uuid
+  date      DateTime @db.Date
+  slot      String   @default("day")
+  /// Who marked it first (the user) and when.
+  markedBy  String?  @map("marked_by") @db.Uuid
+  markedAt  DateTime @default(now()) @map("marked_at") @db.Timestamptz(6)
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant  Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  section Section          @relation(fields: [sectionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  marks   AttendanceMark[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, sectionId, date, slot])
+  @@index([tenantId, date])
+  @@map("attendance_sheets")
+}
+
+/// A student's status in a register (Present, Absent, Late… from the "attendance_status" list).
+model AttendanceMark {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  sheetId   String  @map("sheet_id") @db.Uuid
+  studentId String  @map("student_id") @db.Uuid
+  statusId  String  @map("status_id") @db.Uuid
+  note      String?
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sheet   AttendanceSheet @relation(fields: [sheetId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  student Student         @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  status  MasterValue     @relation("AttendanceMarkStatus", fields: [statusId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([sheetId, studentId])
+  @@index([tenantId, studentId])
+  @@map("attendance_marks")
+}
+
+/// A staff member's day: check-in / check-out (button, admin, later a biometric device) and the status.
+model StaffAttendance {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  staffId    String    @map("staff_id") @db.Uuid
+  date       DateTime  @db.Date
+  checkIn    DateTime? @map("check_in") @db.Timestamptz(6)
+  checkOut   DateTime? @map("check_out") @db.Timestamptz(6)
+  statusId   String?   @map("status_id") @db.Uuid
+  late       Boolean   @default(false)
+  earlyOut   Boolean   @default(false) @map("early_out")
+  /// button (the person), admin (a correction), device, import.
+  source     String    @default("button")
+  checkInIp  String?   @map("check_in_ip")
+  checkOutIp String?   @map("check_out_ip")
+  note       String?
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy  String?   @map("created_by") @db.Uuid
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy  String?   @map("updated_by") @db.Uuid
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  Staff        @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  status MasterValue? @relation("StaffAttendanceStatus", fields: [statusId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([tenantId, staffId, date])
+  @@index([tenantId, date])
+  @@map("staff_attendance")
 }

@@ -23,6 +23,8 @@ import './staff/staff.datasources';
 import './fees/fee.datasources';
 import './admissions/admission.datasources';
 import './timetable/timetable.datasources';
+import './attendance/attendance.permissions';
+import './attendance/attendance.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.
