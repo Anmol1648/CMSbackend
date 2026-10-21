@@ -15,6 +15,14 @@ import './fees/fees.permissions';
 import './timetable/timetable.permissions';
 import './documents/documents.permissions';
 import './fees/fee.documents';
+import './reports/reports.permissions';
+import './fees/fee.reports';
+import './admissions/admission.reports';
+import './students/student.datasources';
+import './staff/staff.datasources';
+import './fees/fee.datasources';
+import './admissions/admission.datasources';
+import './timetable/timetable.datasources';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

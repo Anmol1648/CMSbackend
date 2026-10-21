@@ -32,6 +32,11 @@ const envSchema = z.object({
 
     // Chrome / Chromium / Edge used to make PDF documents. Empty = found automatically on this machine.
     PDF_BROWSER_PATH: optional,
+    // The report renderer (jasper-service). Empty = http://127.0.0.1:8090; without it running, reports
+    // fall back to the built-in table layout.
+    JASPER_URL: optional,
+    // Sent to the renderer as "Authorization: Bearer …" (set the same value on both).
+    JASPER_TOKEN: optional,
 
     SMTP_HOST: optional,
     SMTP_PORT: z.coerce.number().int().positive().optional(),

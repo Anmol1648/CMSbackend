@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fonts every report can use (embedded in the PDFs, so they look the same on every computer).
+  In a design, use the font "School": English, numbers and the ₹ sign come from Noto Sans, Hindi
+  (Devanagari) from Noto Sans Devanagari, picked letter by letter.
+-->
+<fontFamilies>
+    <fontFamily name="Noto Sans">
+        <normal><![CDATA[fonts/NotoSans-Regular.ttf]]></normal>
+        <bold><![CDATA[fonts/NotoSans-Bold.ttf]]></bold>
+        <italic><![CDATA[fonts/NotoSans-Italic.ttf]]></italic>
+        <boldItalic><![CDATA[fonts/NotoSans-BoldItalic.ttf]]></boldItalic>
+        <pdfEncoding><![CDATA[Identity-H]]></pdfEncoding>
+        <pdfEmbedded><![CDATA[true]]></pdfEmbedded>
+        <exportFonts>
+            <export key="net.sf.jasperreports.html"><![CDATA['Noto Sans', Arial, sans-serif]]></export>
+        </exportFonts>
+    </fontFamily>
+    <fontFamily name="Noto Sans Devanagari">
+        <normal><![CDATA[fonts/NotoSansDevanagari-Regular.ttf]]></normal>
+        <bold><![CDATA[fonts/NotoSansDevanagari-Bold.ttf]]></bold>
+        <pdfEncoding><![CDATA[Identity-H]]></pdfEncoding>
+        <pdfEmbedded><![CDATA[true]]></pdfEmbedded>
+        <exportFonts>
+            <export key="net.sf.jasperreports.html"><![CDATA['Noto Sans Devanagari', 'Nirmala UI', sans-serif]]></export>
+        </exportFonts>
+    </fontFamily>
+    <fontSet name="School">
+        <family familyName="Noto Sans" primary="true"/>
+        <family familyName="Noto Sans Devanagari">
+            <includedScripts>
+                <script name="Devanagari"/>
+            </includedScripts>
+        </family>
+    </fontSet>
+</fontFamilies>

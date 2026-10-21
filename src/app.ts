@@ -28,6 +28,7 @@ import { feeRoutes } from './modules/fees/fees.routes';
 import { paymentRoutes, publicPaymentRoutes } from './modules/payments/payments.routes';
 import { myTimetableRoutes, substitutionRoutes, timetableRoutes } from './modules/timetable/timetable.routes';
 import { documentRoutes } from './modules/documents/documents.routes';
+import { reportRoutes } from './modules/reports/reports.routes';
 
 export const app = express();
 
@@ -89,6 +90,7 @@ app.use('/api/timetable-subs', substitutionRoutes);
 app.use('/api/my-timetable', myTimetableRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

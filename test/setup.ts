@@ -19,3 +19,6 @@ process.env.DATABASE_URL = testUrl;
 process.env.DIRECT_URL = testDirect;
 process.env.DEFAULT_TENANT_CODE = '';
 process.env.NODE_ENV = 'test';
+// The report service: none (reports use the built-in layout) unless JASPER_TEST_URL points at one.
+process.env.JASPER_URL = process.env.JASPER_TEST_URL || 'http://127.0.0.1:1';
+process.env.JASPER_TOKEN = '';

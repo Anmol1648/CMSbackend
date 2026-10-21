@@ -56,7 +56,7 @@ const compile = (html: string) => {
 
 // ─── The school's letterhead ─────────────────────────────────────────────────
 
-const schoolContext = async () => {
+export const schoolContext = async () => {
     const p = await db.schoolProfile.findUnique({ where: { tenantId: getTenantId()! }, include: { tenant: { select: { name: true } } } });
     let logo: string | null = null;
     if (p?.logoFileId) {

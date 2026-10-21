@@ -25,7 +25,8 @@
     "starter:seed": "tsx src/scripts/seed-starter-data.ts",
     "masters:seed": "tsx src/scripts/seed-starter-data.ts",
     "demo:seed": "tsx src/scripts/demo-data.ts",
-    "demo:clear": "tsx src/scripts/demo-data.ts --clear"
+    "demo:clear": "tsx src/scripts/demo-data.ts --clear",
+    "jasper": "node scripts/jasper.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

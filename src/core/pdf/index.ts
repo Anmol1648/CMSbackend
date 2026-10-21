@@ -84,8 +84,11 @@ ${css}
 </style></head><body>${body}</body></html>`;
 };
 
-/** Renders the HTML to PDF bytes. */
-export const htmlToPdf = async (html: string, paper: Paper): Promise<Buffer> => {
+/**
+ * Renders the HTML to PDF bytes. `footer` (optional) is a line printed at the bottom of every page;
+ * {page} and {pages} in it become the page number and the page count.
+ */
+export const htmlToPdf = async (html: string, paper: Paper, footer?: string): Promise<Buffer> => {
     const b = await browser();
     const page = await b.newPage();
     try {
@@ -97,9 +100,16 @@ export const htmlToPdf = async (html: string, paper: Paper): Promise<Buffer> => 
         if (!s.height) await page.setViewport({ width: Math.round(80 * 3.78), height: 600 });
         await page.setContent(html, { waitUntil: 'load', timeout: 20_000 });
         const landscape = paper.orientation === 'landscape' && !!s.height;
+        const footerHtml = footer
+            ? `<div style="width:100%;font-size:7px;color:#666;padding:0 ${paper.margin}mm;display:flex;justify-content:space-between;font-family:'Segoe UI',Arial,sans-serif"><span>${escapeHtml(footer)
+                  .replace('{page}', '<span class="pageNumber"></span>')
+                  .replace('{pages}', '<span class="totalPages"></span>')
+                  .replace(' | ', '</span><span>')}</span></div>`
+            : undefined;
         const pdf = await page.pdf({
             printBackground: true,
             preferCSSPageSize: true,
+            ...(footerHtml ? { displayHeaderFooter: true, headerTemplate: '<span></span>', footerTemplate: footerHtml } : {}),
             ...(s.height ? { width: landscape ? s.height : s.width, height: landscape ? s.width : s.height } : { width: s.width, height: `${Math.ceil((await page.evaluate(() => document.documentElement.scrollHeight)) * 0.2646) + paper.margin * 2 + 2}mm` }),
         });
         return Buffer.from(pdf);
@@ -110,6 +120,8 @@ export const htmlToPdf = async (html: string, paper: Paper): Promise<Buffer> => 
         await page.close().catch(() => undefined);
     }
 };
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** Closes the shared browser (tests, shutdown). */
 export const closePdfBrowser = async () => {

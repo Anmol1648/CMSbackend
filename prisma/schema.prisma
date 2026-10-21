@@ -80,7 +80,10 @@ model Tenant {
   ttSubstitutions       TtSubstitution[]
   menuCustomizations    MenuCustomization[]
   files                 File[]
-  documentTemplates  DocumentTemplate[]
+  documentTemplates     DocumentTemplate[]
+  reportDesigns         ReportDesign[]
+  reportSettings        ReportSetting[]
+  customReports         CustomReport[]
 
   @@map("tenants")
 }
@@ -1748,4 +1751,64 @@ model DocumentTemplate {
 
   @@unique([tenantId, key])
   @@map("document_templates")
+}
+
+/// A school's Jasper design (.jrxml) for a report; several versions, at most one in use.
+model ReportDesign {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  reportKey String   @map("report_key")
+  version   Int
+  fileName  String   @map("file_name")
+  note      String?
+  jrxml     String
+  /// What the design expects (fields, parameters, page), as the report service read it.
+  info      Json     @default("{}")
+  isActive  Boolean  @default(false) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, reportKey, version])
+  @@index([tenantId, reportKey])
+  @@map("report_designs")
+}
+
+/// How a school makes a report: auto (its Jasper design if there is one), jasper, or the built-in table.
+model ReportSetting {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  reportKey String   @map("report_key")
+  engine    String   @default("auto")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, reportKey])
+  @@map("report_settings")
+}
+
+/// A report made in the Report Builder: a data source with the columns, filters, sorting and grouping chosen.
+model CustomReport {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String   @default("")
+  /// Library section it is listed under.
+  category    String   @default("My reports")
+  /// { source, params, columns, filters, sort, groupBy, orientation } (see builder.service).
+  definition  Json
+  /// Roles that may run it (besides people who build reports). Empty = only report builders.
+  roleIds     String[] @default([]) @map("role_ids") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("custom_reports")
 }

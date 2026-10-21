@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fee collection register (built-in design, JasperReports 7). Open it in Jaspersoft Studio 7 to change it,
+  then upload it in Report Center → Fee collection register → Design.
+  Rows: one per receipt, sorted by groupKey. GROUPED_BY is empty when the person chose "No subtotals".
+-->
+<jasperReport name="fee_collection_register" language="java" pageWidth="842" pageHeight="595" orientation="Landscape" whenNoDataType="NoDataSection" columnWidth="786" leftMargin="28" rightMargin="28" topMargin="24" bottomMargin="24">
+	<property name="net.sf.jasperreports.export.xls.sheet.names.all" value="Collection"/>
+	<style name="Base" default="true" fontName="School" fontSize="8.0" vTextAlign="Middle"/>
+	<parameter name="SCHOOL_NAME" class="java.lang.String"/>
+	<parameter name="SCHOOL_ADDRESS" class="java.lang.String"/>
+	<parameter name="SCHOOL_CONTACT" class="java.lang.String"/>
+	<parameter name="SCHOOL_CODES" class="java.lang.String"/>
+	<parameter name="SCHOOL_LOGO" class="java.io.InputStream"/>
+	<parameter name="REPORT_TITLE" class="java.lang.String"/>
+	<parameter name="REPORT_SUBTITLE" class="java.lang.String"/>
+	<parameter name="GROUPED_BY" class="java.lang.String"/>
+	<parameter name="PRINTED_BY" class="java.lang.String"/>
+	<parameter name="PRINTED_AT" class="java.lang.String"/>
+	<field name="date" class="java.util.Date"/>
+	<field name="receiptNo" class="java.lang.String"/>
+	<field name="student" class="java.lang.String"/>
+	<field name="admissionNo" class="java.lang.String"/>
+	<field name="className" class="java.lang.String"/>
+	<field name="mode" class="java.lang.String"/>
+	<field name="reference" class="java.lang.String"/>
+	<field name="collectedBy" class="java.lang.String"/>
+	<field name="amount" class="java.math.BigDecimal"/>
+	<field name="groupKey" class="java.lang.String"/>
+	<field name="groupLabel" class="java.lang.String"/>
+	<variable name="groupCount" resetType="Group" calculation="Count" resetGroup="grp" class="java.lang.Integer">
+		<expression><![CDATA[$F{receiptNo}]]></expression>
+	</variable>
+	<variable name="groupAmount" resetType="Group" calculation="Sum" resetGroup="grp" class="java.math.BigDecimal">
+		<expression><![CDATA[$F{amount}]]></expression>
+	</variable>
+	<variable name="totalAmount" calculation="Sum" class="java.math.BigDecimal">
+		<expression><![CDATA[$F{amount}]]></expression>
+	</variable>
+	<group name="grp" minHeightToStartNewPage="40">
+		<expression><![CDATA[$F{groupKey}]]></expression>
+		<groupHeader>
+			<band height="18" splitType="Prevent">
+				<printWhenExpression><![CDATA[$P{GROUPED_BY} != null && !$P{GROUPED_BY}.isEmpty()]]></printWhenExpression>
+				<element kind="textField" mode="Opaque" x="0" y="2" width="786" height="16" forecolor="#1A365D" backcolor="#EEF2F7" bold="true" fontSize="8.5">
+					<expression><![CDATA[$P{GROUPED_BY} + ": " + $F{groupLabel}]]></expression>
+					<box leftPadding="4">
+						<bottomPen lineWidth="0.75" lineColor="#C9D3E0"/>
+					</box>
+				</element>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="17" splitType="Prevent">
+				<printWhenExpression><![CDATA[$P{GROUPED_BY} != null && !$P{GROUPED_BY}.isEmpty()]]></printWhenExpression>
+				<element kind="textField" x="0" y="0" width="706" height="15" bold="true">
+					<expression><![CDATA["Total for " + $F{groupLabel} + " · " + $V{groupCount} + ($V{groupCount} == 1 ? " receipt" : " receipts")]]></expression>
+					<box leftPadding="4">
+						<bottomPen lineWidth="0.75" lineColor="#999999"/>
+					</box>
+				</element>
+				<element kind="textField" x="706" y="0" width="80" height="15" bold="true" pattern="₹ #,##,##0" hTextAlign="Right">
+					<expression><![CDATA[$V{groupAmount}]]></expression>
+					<box rightPadding="4">
+						<bottomPen lineWidth="0.75" lineColor="#999999"/>
+					</box>
+				</element>
+			</band>
+		</groupFooter>
+	</group>
+	<title height="90" splitType="Prevent">
+		<element kind="image" x="0" y="0" width="48" height="48" scaleImage="RetainShape" hImageAlign="Center" vImageAlign="Middle">
+			<printWhenExpression><![CDATA[$P{SCHOOL_LOGO} != null]]></printWhenExpression>
+			<expression><![CDATA[$P{SCHOOL_LOGO}]]></expression>
+		</element>
+		<element kind="textField" x="56" y="0" width="730" height="22" forecolor="#1A365D" bold="true" fontSize="13.0" blankWhenNull="true">
+			<expression><![CDATA[$P{SCHOOL_NAME} == null ? "" : $P{SCHOOL_NAME}.toUpperCase()]]></expression>
+		</element>
+		<element kind="textField" x="56" y="22" width="730" height="13" forecolor="#444444" fontSize="8.0" blankWhenNull="true">
+			<expression><![CDATA[$P{SCHOOL_ADDRESS}]]></expression>
+		</element>
+		<element kind="textField" x="56" y="35" width="730" height="12" forecolor="#444444" fontSize="7.5" blankWhenNull="true">
+			<expression><![CDATA[$P{SCHOOL_CONTACT} + ($P{SCHOOL_CODES} == null || $P{SCHOOL_CODES}.isEmpty() ? "" : "   ·   " + $P{SCHOOL_CODES})]]></expression>
+		</element>
+		<element kind="line" x="0" y="53" width="786" height="1" forecolor="#1A365D">
+			<pen lineWidth="1.5"/>
+		</element>
+		<element kind="textField" x="0" y="58" width="786" height="18" bold="true" fontSize="11.0">
+			<expression><![CDATA[$P{REPORT_TITLE}]]></expression>
+		</element>
+		<element kind="textField" x="0" y="76" width="786" height="13" forecolor="#555555" fontSize="7.5" blankWhenNull="true">
+			<expression><![CDATA[$P{REPORT_SUBTITLE}]]></expression>
+		</element>
+	</title>
+	<columnHeader height="20">
+		<element kind="rectangle" mode="Opaque" x="0" y="2" width="786" height="18" forecolor="#1A365D" backcolor="#1A365D"/>
+		<element kind="staticText" x="0" y="2" width="68" height="18" forecolor="#FFFFFF" bold="true"><text><![CDATA[Date]]></text><box leftPadding="4"/></element>
+		<element kind="staticText" x="68" y="2" width="92" height="18" forecolor="#FFFFFF" bold="true"><text><![CDATA[Receipt no.]]></text><box leftPadding="4"/></element>
+		<element kind="staticText" x="160" y="2" width="152" height="18" forecolor="#FFFFFF" bold="true"><text><![CDATA[Student]]></text><box leftPadding="4"/></element>
+		<element kind="staticText" x="312" y="2" width="70" height="18" forecolor="#FFFFFF" bold="true"><text><![CDATA[Adm. no.]]></text><box leftPadding="4"/></element>
+		<element kind="staticText" x="382" y="2" width="60" height="18" forecolor="#FFFFFF" bold="true"><text><![CDATA[Class]]></text><box leftPadding="4"/></element>
+		<element kind="staticText" x="442" y="2" width="74" height="18" forecolor="#FFFFFF" bold="true"><text><![CDATA[Mode]]></text><box leftPadding="4"/></element>
+		<element kind="staticText" x="516" y="2" width="92" height="18" forecolor="#FFFFFF" bold="true"><text><![CDATA[Reference]]></text><box leftPadding="4"/></element>
+		<element kind="staticText" x="608" y="2" width="98" height="18" forecolor="#FFFFFF" bold="true"><text><![CDATA[Collected by]]></text><box leftPadding="4"/></element>
+		<element kind="staticText" x="706" y="2" width="80" height="18" forecolor="#FFFFFF" bold="true" hTextAlign="Right"><text><![CDATA[Amount]]></text><box rightPadding="4"/></element>
+	</columnHeader>
+	<detail>
+		<band height="15">
+			<element kind="textField" stretchType="ContainerHeight" x="0" y="0" width="68" height="15" pattern="dd MMM yyyy"><expression><![CDATA[$F{date}]]></expression><box leftPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+			<element kind="textField" stretchType="ContainerHeight" x="68" y="0" width="92" height="15"><expression><![CDATA[$F{receiptNo}]]></expression><box leftPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+			<element kind="textField" stretchType="ContainerHeight" x="160" y="0" width="152" height="15" textAdjust="StretchHeight"><expression><![CDATA[$F{student}]]></expression><box leftPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+			<element kind="textField" stretchType="ContainerHeight" x="312" y="0" width="70" height="15"><expression><![CDATA[$F{admissionNo}]]></expression><box leftPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+			<element kind="textField" stretchType="ContainerHeight" x="382" y="0" width="60" height="15"><expression><![CDATA[$F{className}]]></expression><box leftPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+			<element kind="textField" stretchType="ContainerHeight" x="442" y="0" width="74" height="15"><expression><![CDATA[$F{mode}]]></expression><box leftPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+			<element kind="textField" stretchType="ContainerHeight" x="516" y="0" width="92" height="15" textAdjust="StretchHeight" blankWhenNull="true"><expression><![CDATA[$F{reference}]]></expression><box leftPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+			<element kind="textField" stretchType="ContainerHeight" x="608" y="0" width="98" height="15" textAdjust="StretchHeight"><expression><![CDATA[$F{collectedBy}]]></expression><box leftPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+			<element kind="textField" stretchType="ContainerHeight" x="706" y="0" width="80" height="15" pattern="₹ #,##,##0" hTextAlign="Right"><expression><![CDATA[$F{amount}]]></expression><box rightPadding="4"><bottomPen lineWidth="0.5" lineColor="#DDDDDD"/></box></element>
+		</band>
+	</detail>
+	<pageFooter height="18">
+		<element kind="textField" x="0" y="6" width="600" height="12" forecolor="#666666" fontSize="7.0">
+			<expression><![CDATA["Printed by " + $P{PRINTED_BY} + " on " + $P{PRINTED_AT}]]></expression>
+		</element>
+		<element kind="textField" x="600" y="6" width="160" height="12" forecolor="#666666" fontSize="7.0" hTextAlign="Right">
+			<expression><![CDATA["Page " + $V{PAGE_NUMBER} + " of"]]></expression>
+		</element>
+		<element kind="textField" x="760" y="6" width="26" height="12" forecolor="#666666" fontSize="7.0" evaluationTime="Report">
+			<expression><![CDATA[$V{PAGE_NUMBER}]]></expression>
+			<box leftPadding="2"/>
+		</element>
+	</pageFooter>
+	<summary height="26" splitType="Prevent">
+		<element kind="textField" x="0" y="6" width="706" height="18" bold="true" fontSize="9.0">
+			<expression><![CDATA["Grand total · " + $V{REPORT_COUNT} + ($V{REPORT_COUNT} == 1 ? " receipt" : " receipts")]]></expression>
+			<box leftPadding="4">
+				<topPen lineWidth="1.5" lineColor="#1A365D"/>
+				<bottomPen lineWidth="1.5" lineColor="#1A365D"/>
+			</box>
+		</element>
+		<element kind="textField" x="706" y="6" width="80" height="18" bold="true" fontSize="9.0" pattern="₹ #,##,##0" hTextAlign="Right">
+			<expression><![CDATA[$V{totalAmount}]]></expression>
+			<box rightPadding="4">
+				<topPen lineWidth="1.5" lineColor="#1A365D"/>
+				<bottomPen lineWidth="1.5" lineColor="#1A365D"/>
+			</box>
+		</element>
+	</summary>
+	<noData height="120">
+		<element kind="textField" x="0" y="0" width="786" height="22" forecolor="#1A365D" bold="true" fontSize="13.0" blankWhenNull="true">
+			<expression><![CDATA[$P{SCHOOL_NAME}]]></expression>
+		</element>
+		<element kind="textField" x="0" y="26" width="786" height="18" bold="true" fontSize="11.0">
+			<expression><![CDATA[$P{REPORT_TITLE}]]></expression>
+		</element>
+		<element kind="textField" x="0" y="44" width="786" height="13" forecolor="#555555" blankWhenNull="true">
+			<expression><![CDATA[$P{REPORT_SUBTITLE}]]></expression>
+		</element>
+		<element kind="staticText" x="0" y="70" width="786" height="20" forecolor="#777777" hTextAlign="Center" fontSize="10.0">
+			<text><![CDATA[Nothing to show for these filters.]]></text>
+		</element>
+	</noData>
+</jasperReport>
