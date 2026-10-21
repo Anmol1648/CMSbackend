@@ -1,10 +1,11 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import crypto from 'crypto';
 import request from 'supertest';
 import { app } from '../src/app';
 import { db } from '../src/core/db';
 import { runAsTenant } from '../src/core/context';
 import { makeTenant, makeUser, resetDatabase, resetRateLimits, tokenFor } from './helpers';
+import { closePdfBrowser } from '../src/core/pdf';
 
 const ORIGIN = 'https://alpha.test.in';
 let alpha: Awaited<ReturnType<typeof makeTenant>>;
@@ -52,6 +53,7 @@ beforeAll(async () => {
     boy = await admit('Rohit', 'Male', '9800000001');
     girl = await admit('Meera', 'Female', '9800000002');
 }, 480_000);
+afterAll(() => closePdfBrowser());
 
 describe('fee set-up', () => {
     it('makes instalments (by plan, or one by one) within the year', async () => {
@@ -210,6 +212,12 @@ describe('parents and online payment', () => {
         expect(paid.body.data).toMatchObject({ status: 'paid', convenienceFee: 22, receipt: { receiptNo: expect.stringMatching(/^RCP\//) } });
         const again = await as(parent).post(`/api/payments/${start.body.data.paymentId}/mock`, { outcome: 'paid' });
         expect(again.body.data.receipt.id).toBe(paid.body.data.receipt.id);
+        // The receipt as a PDF: the parent may open their own child's, nobody else's.
+        const pdf = await as(parent).get(`/api/documents/fee_receipt/pdf?id=${paid.body.data.receipt.id}`);
+        expect(pdf.status).toBe(200);
+        expect(pdf.headers['content-type']).toBe('application/pdf');
+        const girlReceipt = await inAlpha(() => db.feeReceipt.findFirst({ where: { studentId: girl } }));
+        if (girlReceipt) expect((await as(parent).get(`/api/documents/fee_receipt/pdf?id=${girlReceipt.id}`)).status).toBe(404);
         const receipt = (await as(parent).get(`/api/fees/my/receipts/${paid.body.data.receipt.id}`)).body.data;
         expect(receipt).toMatchObject({ mode: 'online', amount: 1075, online: { convenienceFee: 22 } });
         expect((await fees(boy)).dues.instalments.find((i: { id: string }) => i.id === instB).balance).toBe(0);

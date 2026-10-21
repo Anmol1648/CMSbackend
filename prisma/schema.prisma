@@ -80,6 +80,7 @@ model Tenant {
   ttSubstitutions       TtSubstitution[]
   menuCustomizations    MenuCustomization[]
   files                 File[]
+  documentTemplates  DocumentTemplate[]
 
   @@map("tenants")
 }
@@ -1727,4 +1728,24 @@ model TtSubstitution {
   @@unique([tenantId, date, sectionId, periodNo, absentStaffId])
   @@index([tenantId, date])
   @@map("tt_substitutions")
+}
+
+// ─── Documents ────────────────────────────────────────────────────────────────
+
+/// A school's own version of a document template (fee receipt, due slip…); without one the built-in default is used.
+model DocumentTemplate {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  key       String
+  html      String
+  css       String   @default("")
+  /// { size: "A4" | "A5" | "A4_HALF" | "THERMAL_80", orientation: "portrait" | "landscape", copies, margins mm }
+  paper     Json     @default("{}")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@map("document_templates")
 }

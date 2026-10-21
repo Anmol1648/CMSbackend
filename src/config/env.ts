@@ -30,6 +30,9 @@ const envSchema = z.object({
     MFA_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, 'must be 64 hex characters (32 bytes)'),
     SALT_ROUNDS: z.coerce.number().int().min(10).max(15).default(10),
 
+    // Chrome / Chromium / Edge used to make PDF documents. Empty = found automatically on this machine.
+    PDF_BROWSER_PATH: optional,
+
     SMTP_HOST: optional,
     SMTP_PORT: z.coerce.number().int().positive().optional(),
     SMTP_USER: optional,
