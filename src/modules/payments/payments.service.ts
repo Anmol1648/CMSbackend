@@ -64,16 +64,23 @@ export const gatewaySettings = async (webhookBase: string, schoolCode: string) =
 };
 
 const optionalText = z.union([z.literal('').transform(() => null), z.string().trim().max(100), z.null()]).optional();
+/** A Razorpay secret is letters and digits (24 today); this stops a browser's saved password being stored. */
+const secret = z
+    .string()
+    .trim()
+    .max(200)
+    .refine((v) => v === '' || /^[A-Za-z0-9]{16,64}$/.test(v), "doesn't look like a Razorpay secret (letters and digits only, from the dashboard)")
+    .optional();
 export const gatewaySchema = z.strictObject({
     provider: z.enum(['razorpay', 'mock']),
     /** Which keys are used: test (no real money) or live. */
     mode: z.enum(['test', 'live']).optional(),
     keyId: optionalText,
     /** Empty / left out = keep the saved one. */
-    keySecret: z.string().trim().max(200).optional(),
+    keySecret: secret,
     webhookSecret: z.string().trim().max(200).optional(),
     liveKeyId: optionalText,
-    liveKeySecret: z.string().trim().max(200).optional(),
+    liveKeySecret: secret,
     liveWebhookSecret: z.string().trim().max(200).optional(),
 });
 

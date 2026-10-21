@@ -217,10 +217,10 @@ describe('parents and online payment', () => {
     });
 
     it('accepts a Razorpay webhook only with the right signature', async () => {
-        await as(admin).put('/api/payments/gateway', { provider: 'razorpay', keyId: 'rzp_test_abc123', keySecret: 'key-secret', webhookSecret: 'hook-secret' });
+        await as(admin).put('/api/payments/gateway', { provider: 'razorpay', keyId: 'rzp_test_abc123', keySecret: 'TestKeySecret0123456789ab', webhookSecret: 'hook-secret' });
         const gw = (await as(admin).get('/api/payments/gateway')).body.data;
         expect(gw).toMatchObject({ provider: 'razorpay', mode: 'test', test: { keyId: 'rzp_test_abc123', hasKeySecret: true, hasWebhookSecret: true, ready: true }, live: { ready: false }, ready: true });
-        expect(JSON.stringify(gw)).not.toContain('key-secret');
+        expect(JSON.stringify(gw)).not.toContain('TestKeySecret0123456789ab');
         // An order as Razorpay would have made it.
         const payment = await inAlpha(() =>
             db.onlinePayment.create({ data: { tenantId: alpha.tenant.id, purpose: 'fees', provider: 'razorpay', orderId: 'order_TEST1', amount: 500, studentId: boy, academicYearId: year, allocation: [] } })
@@ -240,9 +240,11 @@ describe('parents and online payment', () => {
     it('keeps test and live keys apart: live needs live keys, and a live webhook is checked with the live secret', async () => {
         expect((await as(admin).put('/api/payments/gateway', { provider: 'razorpay', mode: 'live' })).status).toBe(400);
         expect((await as(admin).put('/api/payments/gateway', { provider: 'razorpay', liveKeyId: 'rzp_test_wrong' })).status).toBe(400);
-        const saved = await as(admin).put('/api/payments/gateway', { provider: 'razorpay', mode: 'live', liveKeyId: 'rzp_live_abc123', liveKeySecret: 'live-secret', liveWebhookSecret: 'live-hook' });
+        // A browser's saved password typed into the secret box is refused.
+        expect((await as(admin).put('/api/payments/gateway', { provider: 'razorpay', keySecret: 'Demo@2026' })).status).toBe(400);
+        const saved = await as(admin).put('/api/payments/gateway', { provider: 'razorpay', mode: 'live', liveKeyId: 'rzp_live_abc123', liveKeySecret: 'LiveKeySecret0123456789ab', liveWebhookSecret: 'live-hook' });
         expect(saved.body.data).toMatchObject({ mode: 'live', live: { keyId: 'rzp_live_abc123', ready: true }, test: { keyId: 'rzp_test_abc123' } });
-        expect(JSON.stringify(saved.body.data)).not.toContain('live-secret');
+        expect(JSON.stringify(saved.body.data)).not.toContain('LiveKeySecret0123456789ab');
         const payment = await inAlpha(() =>
             db.onlinePayment.create({ data: { tenantId: alpha.tenant.id, purpose: 'fees', provider: 'razorpay', mode: 'live', orderId: 'order_LIVE1', amount: 100, studentId: boy, academicYearId: year, allocation: [] } })
         );
