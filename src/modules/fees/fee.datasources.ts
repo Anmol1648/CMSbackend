@@ -4,7 +4,7 @@ import { scopeWhere as studentScope, fullName } from '../students/students.servi
 import { defineDataSource, isoDay } from '../reports/datasources.registry';
 import { duesReport } from './fee-reports.service';
 import { feeViewer } from './fee.reports';
-import { PAYMENT_MODE_LABELS } from './fees.labels';
+import { modeNames } from './payment-modes';
 
 /** Fee data for the Report Builder: each student's dues, and every receipt. */
 
@@ -105,6 +105,7 @@ defineDataSource({
               })
             : [];
         const sectionOf = new Map(enrolments.map((e) => [`${e.studentId}|${e.academicYearId}`, e.section]));
+        const modeName = await modeNames();
         const users = new Map((await db.user.findMany({ where: { id: { in: [...new Set(receipts.map((r) => r.createdBy).filter((x): x is string => !!x))] } }, select: { id: true, displayName: true } })).map((u) => [u.id, u.displayName]));
         return receipts.map((r) => {
             const sec = sectionOf.get(`${r.studentId}|${r.academicYearId}`);
@@ -116,7 +117,7 @@ defineDataSource({
                 className: sec?.schoolClass.name ?? null,
                 section: sec ? `${sec.schoolClass.shortName ?? sec.schoolClass.name}-${sec.name}` : null,
                 session: r.academicYear.name,
-                mode: PAYMENT_MODE_LABELS[r.mode] ?? r.mode,
+                mode: modeName(r.mode),
                 reference: r.reference,
                 bankName: r.bankName,
                 amount: r.amount,

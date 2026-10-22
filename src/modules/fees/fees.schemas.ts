@@ -4,7 +4,7 @@ import type { ListSpec } from '../../core/http/list-query';
 export const receiptFilters = {
     from: z.iso.date(),
     to: z.iso.date(),
-    mode: z.enum(['cash', 'upi', 'cheque', 'dd', 'bank_transfer', 'card', 'online']),
+    mode: z.string().trim().max(20),
     status: z.enum(['active', 'cancelled']),
     year: z.uuid(),
     class: z.uuid(),

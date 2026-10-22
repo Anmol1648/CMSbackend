@@ -10,7 +10,8 @@ import { currentYear } from '../academic/years.service';
 import { scopeWhere as studentScope, fullName } from '../students/students.service';
 import { ATTENDANCE, dayDate, isoOf, todayIST } from './attendance.settings';
 import { schoolDays } from './calendar.service';
-import { leaveStatus, markableSections, statuses } from './student-attendance.service';
+import { leaveStatus, leaveTypes, markableSections, statuses } from './student-attendance.service';
+import { codedLabel, requireCode } from '../masters/coded-lists';
 
 /**
  * Student leave: a parent or the student asks (or the office records it), the class teacher or the
@@ -37,6 +38,7 @@ const present = async (rows: Prisma.StudentLeaveGetPayload<{ include: { student:
           )
         : new Map();
     const schoolDaysOf = await Promise.all(rows.map((r) => schoolDays(day(r.fromDate), day(r.toDate), 'students')));
+    const types = await leaveTypes();
     return rows.map((r, i) => {
         const e = sections.get(r.studentId);
         return {
@@ -46,6 +48,7 @@ const present = async (rows: Prisma.StudentLeaveGetPayload<{ include: { student:
             to: day(r.toDate),
             days: schoolDaysOf[i].length,
             kind: r.kind,
+            kindName: codedLabel(types, r.kind) ?? r.kind,
             reason: r.reason,
             status: r.status,
             appliedBy: r.appliedBy ? (users.get(r.appliedBy) ?? null) : null,
@@ -75,7 +78,8 @@ export const applySchema = z
         student: z.uuid(),
         from: ISO,
         to: ISO,
-        kind: z.enum(['leave', 'medical']).default('leave'),
+        /** A student leave type's code (Masters → Student leave types). */
+        kind: z.string().trim().min(1).max(20).default('leave'),
         reason: z.string().trim().min(3, 'is too short').max(500),
     })
     .refine((x) => x.to >= x.from, { message: '“To” is before “from”', path: ['to'] });
@@ -100,7 +104,8 @@ export const applyLeave = async (input: z.infer<typeof applySchema>, userId: str
     if (!(await schoolDays(input.from, input.to, 'students')).length) throw badRequest('There are no school days in those dates', [{ field: 'from', message: 'has no school days' }]);
     const overlap = await db.studentLeave.findFirst({ where: { studentId: student.id, status: { in: ['pending', 'approved'] }, fromDate: { lte: dayDate(input.to) }, toDate: { gte: dayDate(input.from) } }, select: { fromDate: true, toDate: true, status: true } });
     if (overlap) throw conflict(`There is already ${overlap.status === 'approved' ? 'approved' : 'a pending request for'} leave from ${show(day(overlap.fromDate))} to ${show(day(overlap.toDate))}`);
-    const row = await db.studentLeave.create({ data: { tenantId: getTenantId()!, studentId: student.id, fromDate: dayDate(input.from), toDate: dayDate(input.to), kind: input.kind, reason: input.reason, appliedBy: userId } });
+    const kind = requireCode(await leaveTypes(), input.kind, 'leave type', 'kind').code;
+    const row = await db.studentLeave.create({ data: { tenantId: getTenantId()!, studentId: student.id, fromDate: dayDate(input.from), toDate: dayDate(input.to), kind, reason: input.reason, appliedBy: userId } });
     await recordAudit({ action: 'student_leave_asked', entity: 'student_leave', entityId: row.id, changes: { student: fullName(student), from: input.from, to: input.to, kind: input.kind } });
     // The office's own entry needs no second step.
     if (office) return decideLeave(row.id, { approve: true, note: 'Recorded by the office' }, userId);
@@ -153,7 +158,7 @@ export const decideLeave = async (id: string, input: z.infer<typeof decideSchema
     if (!r) throw notFound('Leave request not found');
     if (!(await mayDecide(userId, r.studentId))) throw forbidden('Only the class teacher or the office can decide this');
     if (r.status !== 'pending') throw badRequest('This request has already been decided');
-    const status = leaveStatus(await statuses(), r.kind);
+    const status = leaveStatus(await statuses(), r.kind, await leaveTypes());
     await withTransaction(async (tx) => {
         await tx.studentLeave.update({ where: { id }, data: { status: input.approve ? 'approved' : 'rejected', decidedBy: userId, decidedAt: new Date(), decisionNote: input.note || null } });
         // Registers already marked for those days now show the leave.

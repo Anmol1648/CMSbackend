@@ -1177,60 +1177,53 @@ model TeachingAssignment {
 
 // ─── Admissions: enquiries and follow-ups ────────────────────────────────────
 
-enum TestResult {
-  pending
-  passed
-  failed
-  not_needed
-}
-
 /// A family asking about admission; followed up until admitted (converted to a student) or lost.
 model Enquiry {
-  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String       @map("tenant_id") @db.Uuid
-  enquiryNo           String       @map("enquiry_no")
-  enquiryDate         DateTime     @map("enquiry_date") @db.Date
-  academicYearId      String       @map("academic_year_id") @db.Uuid
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  enquiryNo           String    @map("enquiry_no")
+  enquiryDate         DateTime  @map("enquiry_date") @db.Date
+  academicYearId      String    @map("academic_year_id") @db.Uuid
   /// The class applied for.
-  classId             String       @map("class_id") @db.Uuid
-  studentFirstName    String       @map("student_first_name")
-  studentLastName     String?      @map("student_last_name")
-  dateOfBirth         DateTime?    @map("date_of_birth") @db.Date
-  genderId            String?      @map("gender_id") @db.Uuid
-  parentName          String       @map("parent_name")
-  relationId          String?      @map("relation_id") @db.Uuid
+  classId             String    @map("class_id") @db.Uuid
+  studentFirstName    String    @map("student_first_name")
+  studentLastName     String?   @map("student_last_name")
+  dateOfBirth         DateTime? @map("date_of_birth") @db.Date
+  genderId            String?   @map("gender_id") @db.Uuid
+  parentName          String    @map("parent_name")
+  relationId          String?   @map("relation_id") @db.Uuid
   mobile              String
   email               String?
   area                String?
-  currentSchool       String?      @map("current_school")
+  currentSchool       String?   @map("current_school")
   /// Master "enquiry_source" (walk-in, phone, website…).
-  sourceId            String?      @map("source_id") @db.Uuid
+  sourceId            String?   @map("source_id") @db.Uuid
   /// Master "enquiry_stage" (Enquiry, Registered, … Admitted, Lost).
-  stageId             String       @map("stage_id") @db.Uuid
+  stageId             String    @map("stage_id") @db.Uuid
   /// The staff member following it up.
-  assignedToId        String?      @map("assigned_to_id") @db.Uuid
-  nextFollowUp        DateTime?    @map("next_follow_up") @db.Date
-  lostReasonId        String?      @map("lost_reason_id") @db.Uuid
-  registrationNo      String?      @map("registration_no")
-  registrationDate    DateTime?    @map("registration_date") @db.Date
+  assignedToId        String?   @map("assigned_to_id") @db.Uuid
+  nextFollowUp        DateTime? @map("next_follow_up") @db.Date
+  lostReasonId        String?   @map("lost_reason_id") @db.Uuid
+  registrationNo      String?   @map("registration_no")
+  registrationDate    DateTime? @map("registration_date") @db.Date
   /// Registration fee received (rupees), how and its reference.
-  registrationFee     Int?         @map("registration_fee")
-  registrationFeeMode PaymentMode? @map("registration_fee_mode")
-  registrationFeeRef  String?      @map("registration_fee_ref")
-  testDate            DateTime?    @map("test_date") @db.Date
-  testScore           String?      @map("test_score")
-  testResult          TestResult   @default(not_needed) @map("test_result")
+  registrationFee     Int?      @map("registration_fee")
+  registrationFeeMode String?   @map("registration_fee_mode")
+  registrationFeeRef  String?   @map("registration_fee_ref")
+  testDate            DateTime? @map("test_date") @db.Date
+  testScore           String?   @map("test_score")
+  testResult          String    @default("not_needed") @map("test_result")
   remarks             String?
   /// Came in through the public enquiry form.
-  online              Boolean      @default(false)
+  online              Boolean   @default(false)
   /// The student it became (Convert to admission).
-  studentId           String?      @map("student_id") @db.Uuid
-  convertedAt         DateTime?    @map("converted_at") @db.Timestamptz(6)
-  isDemo              Boolean      @default(false) @map("is_demo")
-  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy           String?      @map("created_by") @db.Uuid
-  updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy           String?      @map("updated_by") @db.Uuid
+  studentId           String?   @map("student_id") @db.Uuid
+  convertedAt         DateTime? @map("converted_at") @db.Timestamptz(6)
+  isDemo              Boolean   @default(false) @map("is_demo")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy           String?   @map("created_by") @db.Uuid
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy           String?   @map("updated_by") @db.Uuid
 
   tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   academicYear   AcademicYear      @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
@@ -1274,16 +1267,6 @@ model EnquiryFollowUp {
 }
 
 // ─── Fees: instalments, structure, concessions, receipts, online payments ────
-
-enum PaymentMode {
-  cash
-  upi
-  cheque
-  dd
-  bank_transfer
-  card
-  online
-}
 
 enum ConcessionKind {
   percent
@@ -1454,7 +1437,7 @@ model FeeReceipt {
   studentId       String           @map("student_id") @db.Uuid
   academicYearId  String           @map("academic_year_id") @db.Uuid
   date            DateTime         @db.Date
-  mode            PaymentMode
+  mode            String
   /// Cheque / DD / UPI / transaction number.
   reference       String?
   bankName        String?          @map("bank_name")

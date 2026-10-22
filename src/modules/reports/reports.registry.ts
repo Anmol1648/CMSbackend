@@ -5,7 +5,7 @@
  * the built-in table layout.
  */
 
-export type ReportFilterType = 'date' | 'year' | 'class' | 'section' | 'select' | 'text';
+export type ReportFilterType = 'date' | 'year' | 'class' | 'section' | 'select' | 'text' | 'master';
 
 export interface ReportFilter {
     key: string;
@@ -16,6 +16,8 @@ export interface ReportFilter {
     default?: string;
     /** select: the choices (value '' = all). */
     options?: { value: string; label: string }[];
+    /** master: the list whose options are offered (their codes are the values; empty = all). */
+    master?: string;
     help?: string;
 }
 

@@ -1,4 +1,7 @@
-import { Prisma, type TestResult } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { requireCode } from '../masters/coded-lists';
+import { counterMode } from '../fees/payment-modes';
+import { testResults } from './test-results';
 import { z } from 'zod';
 import { db, withTransaction, Tx } from '../../core/db';
 import { getTenantId } from '../../core/context';
@@ -513,13 +516,14 @@ export const registerSchema = z.strictObject({
     fee: z
         .strictObject({
             amount: z.number().int('whole rupees').min(0).max(100_000),
-            mode: z.enum(['cash', 'upi', 'cheque', 'dd', 'bank_transfer', 'card']),
+            /** A payment mode's code (Masters → Payment modes). */
+            mode: z.string().trim().min(1).max(20),
             reference: text(60),
         })
         .optional(),
 });
 
-type FeePaid = { amount: number; mode: 'cash' | 'upi' | 'cheque' | 'dd' | 'bank_transfer' | 'card' | 'online'; reference?: string | null };
+type FeePaid = { amount: number; mode: string; reference?: string | null };
 
 /** Gives a registration number (once) and records the registration fee. */
 const applyRegistration = async (id: string, date: string, fee: FeePaid | undefined, stageId?: string) => {
@@ -546,7 +550,11 @@ export const registerEnquiry = async (id: string, input: z.infer<typeof register
     if (current.registrationNo) throw conflict(`Already registered as ${current.registrationNo}`);
     const date = input.registrationDate ?? today();
     if (date > today()) throw badRequest('The registration date is in the future', [{ field: 'registrationDate', message: 'is in the future' }]);
-    if (input.fee && input.fee.mode !== 'cash' && !input.fee.reference) throw badRequest('Enter the cheque / transaction number', [{ field: 'fee.reference', message: 'is required for this mode' }]);
+    if (input.fee && input.fee.amount > 0) {
+        const chosen = await counterMode(input.fee.mode, input.fee.reference, 'fee.mode');
+        if (chosen.needsReference) throw badRequest(`Enter the ${chosen.mode.name} reference (cheque / transaction number)`, [{ field: 'fee.reference', message: 'is required for this mode' }]);
+        input = { ...input, fee: { ...input.fee, mode: chosen.mode.code } };
+    }
     const change = input.stageId ? await stageChange(current, input.stageId, null, await listStages()) : null;
     await applyRegistration(id, date, input.fee && input.fee.amount > 0 ? input.fee : undefined, change?.stageId);
     return getEnquiry(id, viewer);
@@ -560,7 +568,8 @@ export const registrationPaidOnline = async (id: string, amount: number, payment
 export const testSchema = z.strictObject({
     testDate: day.nullable().optional(),
     testScore: text(40),
-    testResult: z.enum(['pending', 'passed', 'failed', 'not_needed']),
+    /** A test result's code (Masters → Admission test results). */
+    testResult: z.string().trim().min(1).max(20),
     stageId: z.uuid().optional(),
 });
 
@@ -572,7 +581,7 @@ export const setTest = async (id: string, input: z.infer<typeof testSchema>, vie
     await db.enquiry.update({
         where: { id },
         data: {
-            testResult: input.testResult as TestResult,
+            testResult: requireCode(await testResults(), input.testResult, 'test result', 'testResult').code,
             ...(input.testDate !== undefined ? { testDate: input.testDate ? toDate(input.testDate) : null } : {}),
             ...(input.testScore !== undefined ? { testScore: input.testScore } : {}),
             ...(change ? { stageId: change.stageId } : {}),

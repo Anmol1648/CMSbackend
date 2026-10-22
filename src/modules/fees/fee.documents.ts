@@ -12,7 +12,7 @@ import { inWords } from '../documents/documents.service';
 import { FEES } from './fees.settings';
 import { computeDues, dueStudents } from './dues.service';
 import { getReceipt, Viewer } from './receipts.service';
-import { PAYMENT_MODE_LABELS } from './fees.labels';
+import { modeNames } from './payment-modes';
 
 /** The fee documents: the receipt and the due slip (a reminder of what is to be paid). */
 
@@ -34,7 +34,7 @@ const receiptData = async (r: Awaited<ReturnType<typeof getReceipt>>) => {
     return {
         receipt: {
             ...r,
-            modeLabel: PAYMENT_MODE_LABELS[r.mode] ?? r.mode,
+            modeLabel: (await modeNames())(r.mode),
             amountInWords: inWords(r.amount),
             cancelled: r.status === 'cancelled',
             qr,

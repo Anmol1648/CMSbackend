@@ -85,7 +85,7 @@ const resolveFilters = async (def: ReportDef, raw: Record<string, unknown>) => {
         if (f.type === 'date' && !ISO_DATE.test(v)) throw badRequest(`${f.label}: not a date`, [{ field: f.key, message: 'must be a date' }]);
         if ((f.type === 'year' || f.type === 'class' || f.type === 'section') && !UUID.safeParse(v).success) throw badRequest(`${f.label}: not valid`, [{ field: f.key, message: 'is not valid' }]);
         if (f.type === 'select' && f.options && !f.options.some((o) => o.value === v)) throw badRequest(`${f.label}: choose from the list`, [{ field: f.key, message: 'is not one of the choices' }]);
-        if (f.type === 'text' && v.length > 100) throw badRequest(`${f.label}: too long`, [{ field: f.key, message: 'is too long' }]);
+        if ((f.type === 'text' || f.type === 'master') && v.length > 100) throw badRequest(`${f.label}: too long`, [{ field: f.key, message: 'is too long' }]);
         out[f.key] = v;
     }
     return out;

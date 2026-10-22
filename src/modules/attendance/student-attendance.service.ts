@@ -8,7 +8,8 @@ import { recordAudit } from '../../core/audit';
 import { getUserAccess } from '../rbac/access.service';
 import { currentYear } from '../academic/years.service';
 import { scopeWhere as studentScope, fullName } from '../students/students.service';
-import { ATTENDANCE, dayDate, isoOf, todayIST } from './attendance.settings';
+import { ATTENDANCE, dayDate, isoOf, STUDENT_LEAVE_TYPE_SEED, todayIST } from './attendance.settings';
+import { codedLabel, codedList, CodedOption } from '../masters/coded-lists';
 import { dayOff, daysOff } from './calendar.service';
 import { lessonsOf, Period, periodsOf, sectionsTaughtBy } from './periods.service';
 
@@ -226,14 +227,19 @@ export const getRegister = async (q: z.infer<typeof registerQuery>, userId: stri
 
 /** Students on approved leave on a date, with the status their leave gives (Leave / Medical leave). */
 export const leaveOn = async (studentIds: string[], date: string, list: Status[]) => {
-    if (!studentIds.length) return new Map<string, { statusId: string | null; kind: string; reason: string }>();
+    if (!studentIds.length) return new Map<string, { statusId: string | null; kind: string; kindName: string; reason: string }>();
     const rows = await db.studentLeave.findMany({ where: { studentId: { in: studentIds }, status: 'approved', fromDate: { lte: dayDate(date) }, toDate: { gte: dayDate(date) } }, select: { studentId: true, kind: true, reason: true } });
-    return new Map(rows.map((r) => [r.studentId, { statusId: leaveStatus(list, r.kind)?.id ?? null, kind: r.kind, reason: r.reason }]));
+    const types = rows.length ? await leaveTypes() : [];
+    return new Map(rows.map((r) => [r.studentId, { statusId: leaveStatus(list, r.kind, types)?.id ?? null, kind: r.kind, kindName: codedLabel(types, r.kind) ?? r.kind, reason: r.reason }]));
 };
 
-/** The status a kind of leave gives: ML for medical, LV for leave, else any status left out of the %. */
-export const leaveStatus = (list: Status[], kind: string) =>
-    list.find((s) => s.isActive && s.code === (kind === 'medical' ? 'ML' : 'LV')) ?? list.find((s) => s.isActive && s.code === 'LV') ?? list.find((s) => s.isActive && s.excused);
+export const leaveTypes = () => codedList('student_leave_type', STUDENT_LEAVE_TYPE_SEED);
+
+/** The status a kind of leave gives (its master's "attendance status" code), else Leave, else any status left out of the %. */
+export const leaveStatus = (list: Status[], kind: string, types: CodedOption[]) => {
+    const wanted = String(types.find((t) => t.code === kind.toLowerCase())?.extra.attendance_status ?? '').toUpperCase();
+    return (wanted && list.find((s) => s.isActive && s.code.toUpperCase() === wanted)) || list.find((s) => s.isActive && s.code === 'LV') || list.find((s) => s.isActive && s.excused);
+};
 
 export const saveSchema = z.strictObject({
     section: z.uuid(),
@@ -450,6 +456,7 @@ const monthOfStudent = async (child: { id: string; firstName: string; middleName
     ]);
     // Leave asked for (waiting) or approved in the month: shown on its days even before they are marked.
     const leaves = await db.studentLeave.findMany({ where: { studentId: child.id, status: { in: ['pending', 'approved'] }, fromDate: { lte: dayDate(last) }, toDate: { gte: dayDate(first) } }, select: { fromDate: true, toDate: true, status: true, kind: true, reason: true } });
+    const types = leaves.length ? await leaveTypes() : [];
     const byId = new Map(list.map((s) => [s.id, s]));
     const days = [];
     for (let t = dayDate(first).getTime(); t <= dayDate(last).getTime(); t += 86_400_000) {
@@ -463,7 +470,7 @@ const monthOfStudent = async (child: { id: string; firstName: string; middleName
             date: iso,
             off: off.get(iso) ?? null,
             future: iso > today,
-            leave: lv && !off.has(iso) ? { status: lv.status, kind: lv.kind, reason: lv.reason } : null,
+            leave: lv && !off.has(iso) ? { status: lv.status, kind: lv.kind, kindName: codedLabel(types, lv.kind) ?? lv.kind, reason: lv.reason } : null,
             // Every period: one mark for the day ("present in 6 of 8 periods").
             marks: many
                 ? [{ slot: 'periods', code: dayCode(each), name: presentIn === each.length ? 'Present in every period' : `Present in ${presentIn} of ${each.length} periods`, present: presentIn / each.length, excused: each.every((m) => m.excused), note: each.map((m) => m.note).filter(Boolean).join('; ') || null }]

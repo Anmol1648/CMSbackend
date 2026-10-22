@@ -1,4 +1,5 @@
 import { defineMaster, defineMasterGroup, MasterSeed } from '../masters/masters.registry';
+import { TEST_RESULT_SEED } from './test-results';
 
 /** Admission lists in the master engine (Configuration → Masters → Admissions). */
 
@@ -73,4 +74,16 @@ defineMaster({
     code: 'none',
     ordering: 'manual',
     seed: names('Fees too high', 'Distance / transport', 'Chose another school', 'No seat available', 'Not eligible (age / marks)', 'Parent transferred', 'No response', 'Other'),
+});
+
+defineMaster({
+    key: 'admission_test_result',
+    label: 'Admission test result',
+    plural: 'Admission test results',
+    description: 'The result of the admission test / interaction (e.g. Passed, Waitlisted, Re-test). Enquiries keep the code: rename freely, but don’t change a code once used. “not_needed” is the starting value of every enquiry.',
+    group: 'admissions',
+    order: 60,
+    code: 'required',
+    ordering: 'manual',
+    seed: TEST_RESULT_SEED,
 });

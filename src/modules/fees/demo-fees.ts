@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
-import { Prisma, type PaymentMode } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+
+type PaymentMode = string;
 import { db, tenantSql } from '../../core/db';
 import { getTenantId } from '../../core/context';
 import { getSettings } from '../../core/settings';

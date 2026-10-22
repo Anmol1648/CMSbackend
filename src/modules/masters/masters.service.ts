@@ -118,7 +118,7 @@ export const listValues = async (key: string, q: ListQuery<typeof masterValueFil
  * Dropdown options for forms: active options (of one parent, if given), plus any `include`d ones
  * so a record keeps showing an option that was made inactive after it was chosen.
  */
-export const listOptions = async (key: string, opts: { parentId?: string; include?: string[] } = {}) => {
+export const listOptions = async (key: string, opts: { parentId?: string; include?: string[] } = {}): Promise<{ id: string; name: string; code: string | null; parentId: string | null; isActive: boolean; extra: Prisma.JsonValue }[]> => {
     const def = masterDef(key);
     const rows = await db.masterValue.findMany({
         where: {
@@ -126,9 +126,16 @@ export const listOptions = async (key: string, opts: { parentId?: string; includ
             ...(opts.parentId ? { parentId: opts.parentId } : {}),
             OR: [{ isActive: true }, ...(opts.include?.length ? [{ id: { in: opts.include } }] : [])],
         },
-        select: { id: true, name: true, code: true, parentId: true, isActive: true },
+        select: { id: true, name: true, code: true, parentId: true, isActive: true, extra: true },
         orderBy: orderFor(def),
     });
+    if (!rows.length && !def.parent && !opts.parentId && seedsOf(def).length && !(await db.masterValue.count({ where: { master: key } }))) {
+        await db.masterValue.createMany({
+            data: seedsOf(def).map((d, i) => ({ tenantId: getTenantId()!, master: key, name: d.name, code: d.code ?? null, sortOrder: i + 1, extra: (d.extra ?? {}) as object })),
+            skipDuplicates: true,
+        });
+        return listOptions(key, opts);
+    }
     return rows;
 };
 

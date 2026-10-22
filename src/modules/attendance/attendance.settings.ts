@@ -306,6 +306,27 @@ defineMaster({
     ],
 });
 
+/**
+ * Kinds of student leave a parent can ask for. Each fills the register with an attendance status
+ * (by its code: LV, ML…). Leave requests keep the CODE: rename freely, don't change a code once used.
+ */
+export const STUDENT_LEAVE_TYPE_SEED = [
+    { name: 'Leave', code: 'leave', extra: { attendance_status: 'LV' } },
+    { name: 'Medical (illness)', code: 'medical', extra: { attendance_status: 'ML' } },
+];
+defineMaster({
+    key: 'student_leave_type',
+    label: 'Student leave type',
+    plural: 'Student leave types',
+    description: 'What parents can ask leave for (e.g. Leave, Medical, Sports event, Family function). Each fills the register with an attendance status, by its code (Masters → Attendance statuses: LV, ML…).',
+    group: 'attendance',
+    order: 20,
+    code: 'required',
+    ordering: 'manual',
+    fields: [{ key: 'attendance_status', label: 'Attendance status it gives (code, e.g. LV)', type: 'text', required: true, upperCase: true, max: 10, example: 'LV' }],
+    seed: STUDENT_LEAVE_TYPE_SEED,
+});
+
 /** India time: the school's day. */
 const IST_MS = 5.5 * 3600_000;
 export const todayIST = () => new Date(Date.now() + IST_MS).toISOString().slice(0, 10);

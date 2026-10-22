@@ -1,4 +1,5 @@
 import { defineMaster, defineMasterGroup } from '../masters/masters.registry';
+import { PAYMENT_MODE_SEED } from './fees.labels';
 
 /** Fee lists in the master engine (Configuration → Masters → Fees). */
 
@@ -26,4 +27,24 @@ defineMaster({
         { name: 'Examination fee', code: 'EXM', extra: { one_time: false, refundable: false } },
         { name: 'Transport fee', code: 'TRN', extra: { one_time: false, refundable: false } },
     ],
+});
+
+/**
+ * How fees are paid. Receipts keep the CODE ("cash", "upi"…): don't change a code once receipts use it
+ * (rename the option instead). "online" is the payment gateway and "upi" the UPI QR; keep those codes.
+ */
+defineMaster({
+    key: 'payment_mode',
+    label: 'Payment mode',
+    plural: 'Payment modes',
+    description: 'How fees and the registration fee are paid. Receipts keep the code: rename an option freely, but don’t change its code once used. “online” (gateway) and “upi” (QR) are used by online payments.',
+    group: 'fees',
+    order: 20,
+    code: 'required',
+    ordering: 'manual',
+    fields: [
+        { key: 'needs_reference', label: 'Ask for a reference number (cheque / DD / transaction no.)', type: 'boolean' },
+        { key: 'at_counter', label: 'Can be chosen at the fee counter', type: 'boolean', help: 'Off for modes only the online gateway uses.' },
+    ],
+    seed: PAYMENT_MODE_SEED,
 });

@@ -2,8 +2,9 @@ import type { Prisma } from '@prisma/client';
 import { db } from '../../core/db';
 import { badRequest } from '../../core/errors';
 import { getUserAccess } from '../rbac/access.service';
-import { defineDataSource, isoDay, personName, titleCase, yearsSince } from '../reports/datasources.registry';
-import { PAYMENT_MODE_LABELS } from '../fees/fees.labels';
+import { defineDataSource, isoDay, personName, yearsSince } from '../reports/datasources.registry';
+import { modeNames } from '../fees/payment-modes';
+import { testResultNames } from './test-results';
 
 /** Admission enquiries for the Report Builder: one row per enquiry. */
 
@@ -68,6 +69,8 @@ defineDataSource({
                 _count: { select: { followUps: true } },
             },
         });
+        const modeName = await modeNames();
+        const testName = await testResultNames();
         return list.map((e) => ({
             enquiryNo: e.enquiryNo,
             date: isoDay(e.enquiryDate),
@@ -94,10 +97,10 @@ defineDataSource({
             registrationNo: e.registrationNo,
             registrationDate: isoDay(e.registrationDate),
             registrationFee: e.registrationFee,
-            registrationFeeMode: e.registrationFeeMode ? (PAYMENT_MODE_LABELS[e.registrationFeeMode] ?? e.registrationFeeMode) : null,
+            registrationFeeMode: e.registrationFeeMode ? modeName(e.registrationFeeMode) : null,
             testDate: isoDay(e.testDate),
             testScore: e.testScore,
-            testResult: titleCase(e.testResult),
+            testResult: testName(e.testResult),
             admitted: !!e.studentId,
             admittedOn: isoDay(e.convertedAt),
         }));

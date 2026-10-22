@@ -1,4 +1,5 @@
-import { Prisma, type DataScope, type PaymentMode } from '@prisma/client';
+import { Prisma, type DataScope } from '@prisma/client';
+import { counterMode } from './payment-modes';
 import { z } from 'zod';
 import { db, lockInTransaction, withTransaction, Tx } from '../../core/db';
 import { getTenantId } from '../../core/context';
@@ -68,7 +69,8 @@ export const collectSchema = z.strictObject({
     studentId: z.uuid(),
     academicYearId: z.uuid().optional(),
     date: z.iso.date().optional(),
-    mode: z.enum(['cash', 'upi', 'cheque', 'dd', 'bank_transfer', 'card']),
+    /** A payment mode's code (Masters → Payment modes). */
+    mode: z.string().trim().min(1, 'choose a payment mode').max(20),
     reference: z.union([z.literal('').transform(() => null), z.string().trim().max(60), z.null()]).optional(),
     bankName: z.union([z.literal('').transform(() => null), z.string().trim().max(80), z.null()]).optional(),
     amount: z.number().int('whole rupees').min(1, 'must be at least ₹1').max(10_000_000),
@@ -81,7 +83,7 @@ interface ReceiptInput {
     studentId: string;
     yearId: string;
     date: string;
-    mode: PaymentMode;
+    mode: string;
     reference?: string | null;
     bankName?: string | null;
     amount: number;
@@ -140,9 +142,9 @@ export const collectFee = async (input: z.infer<typeof collectSchema>, viewer: V
     const yearId = await resolveYear(input.academicYearId);
     const date = input.date ?? today();
     if (date > today()) throw badRequest('A receipt can’t be dated in the future', [{ field: 'date', message: 'is in the future' }]);
-    if (['cheque', 'dd', 'upi', 'bank_transfer', 'card'].includes(input.mode) && !input.reference) {
-        throw badRequest('Enter the cheque / DD / transaction number', [{ field: 'reference', message: 'is required for this mode' }]);
-    }
+    const chosen = await counterMode(input.mode, input.reference);
+    if (chosen.needsReference) throw badRequest(`Enter the ${chosen.mode.name} reference (cheque / DD / transaction number)`, [{ field: 'reference', message: 'is required for this mode' }]);
+    input = { ...input, mode: chosen.mode.code };
     const { receipt: made } = await withTransaction((tx) => recordReceipt(tx, { ...input, yearId, date }), { timeout: 30_000 });
     const receipt = made!;
     await recordAudit({ action: 'fee_collected', entity: 'fee_receipt', entityId: receipt.id, changes: { receiptNo: receipt.receiptNo, amount: receipt.amount, mode: receipt.mode } });

@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import type { TestResult } from '@prisma/client';
 import { db } from '../../core/db';
 import { getTenantId } from '../../core/context';
 import { getSettings } from '../../core/settings';
@@ -137,7 +136,7 @@ export const createDemoEnquiries = async (year: { id: string; startDate: Date },
                 registrationDate: registered ? upTo(plus(date, rand.between(2, 12)), today) : null,
                 testDate: tested ? upTo(plus(date, rand.between(10, 20)), today) : null,
                 testScore: tested ? `${rand.between(22, 48)}/50` : null,
-                testResult: (tested ? (stage.lost && rand.chance(0.5) ? 'failed' : 'passed') : registered ? 'pending' : 'not_needed') as TestResult,
+                testResult: (tested ? (stage.lost && rand.chance(0.5) ? 'failed' : 'passed') : registered ? 'pending' : 'not_needed'),
                 remarks: rand.chance(0.3) ? rand.pick(NOTES) : null,
                 online: (source?.extra as { online?: boolean } | undefined)?.online ?? false,
                 studentId: student?.id ?? null,

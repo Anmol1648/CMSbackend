@@ -5,7 +5,7 @@ import { getUserAccess } from '../rbac/access.service';
 import { scopeWhere as studentScope, fullName } from '../students/students.service';
 import { defineReport } from '../reports/reports.registry';
 import { classSummary, collectionReport, duesReport } from './fee-reports.service';
-import { PAYMENT_MODE_LABELS } from './fees.labels';
+import { modeNames } from './payment-modes';
 import type { Viewer } from './receipts.service';
 
 /** Fee reports in the Report Center. */
@@ -31,7 +31,6 @@ const sectionName = async (id?: string) => {
 const yearName = async (id?: string) => (id ? ((await db.academicYear.findUnique({ where: { id }, select: { name: true } }))?.name ?? null) : null);
 const words = (parts: (string | null | undefined | false)[]) => parts.filter(Boolean).join(' · ');
 
-const MODE_OPTIONS = [{ value: '', label: 'All modes' }, ...Object.entries(PAYMENT_MODE_LABELS).map(([value, label]) => ({ value, label }))];
 
 // ─── Collection register ─────────────────────────────────────────────────────
 
@@ -59,7 +58,7 @@ defineReport({
                 { value: 'none', label: 'No subtotals' },
             ],
         },
-        { key: 'mode', label: 'Payment mode', type: 'select', default: '', options: MODE_OPTIONS },
+        { key: 'mode', label: 'Payment mode', type: 'master', master: 'payment_mode' },
         { key: 'class', label: 'Class', type: 'class' },
     ],
     columns: [
@@ -78,7 +77,7 @@ defineReport({
         const viewer = await feeViewer(ctx.userId);
         const scope = await studentScope({ userId: viewer.userId, scope: viewer.scope, sensitive: false });
         const receipts = await db.feeReceipt.findMany({
-            where: { status: 'active', date: { gte: new Date(`${f.from}T00:00:00Z`), lte: new Date(`${f.to}T00:00:00Z`) }, student: scope, ...(f.mode ? { mode: f.mode as never } : {}) },
+            where: { status: 'active', date: { gte: new Date(`${f.from}T00:00:00Z`), lte: new Date(`${f.to}T00:00:00Z`) }, student: scope, ...(f.mode ? { mode: f.mode.toLowerCase() } : {}) },
             select: {
                 receiptNo: true,
                 date: true,
@@ -100,12 +99,13 @@ defineReport({
             : [];
         const enrolOf = new Map(enrolments.map((e) => [`${e.studentId}|${e.academicYearId}`, e.section]));
         const users = new Map((await db.user.findMany({ where: { id: { in: [...new Set(receipts.map((r) => r.createdBy).filter((x): x is string => !!x))] } }, select: { id: true, displayName: true } })).map((u) => [u.id, u.displayName]));
+        const modeName = await modeNames();
         const rows = receipts
             .map((r) => {
                 const sec = enrolOf.get(`${r.student.id}|${r.academicYearId}`);
                 const collectedBy = r.onlinePaymentId ? 'Online payment' : ((r.createdBy && users.get(r.createdBy)) ?? '—');
                 const date = r.date.toISOString().slice(0, 10);
-                const mode = PAYMENT_MODE_LABELS[r.mode] ?? r.mode;
+                const mode = modeName(r.mode);
                 const cls = sec ? `${sec.schoolClass.shortName ?? sec.schoolClass.name}-${sec.name}` : '—';
                 const group =
                     f.groupBy === 'date' ? { groupKey: date, groupLabel: day(date) }
@@ -119,7 +119,7 @@ defineReport({
             .sort((a, b) => a.groupKey.localeCompare(b.groupKey) || a.date.localeCompare(b.date) || a.receiptNo.localeCompare(b.receiptNo))
             .map(({ classId: _c, ...r }) => r);
         const grouped = { date: 'Day', class: 'Class', mode: 'Payment mode', collector: 'Collected by' }[f.groupBy as 'date'] ?? null;
-        return { rows, subtitle: words([subtitle, f.mode && PAYMENT_MODE_LABELS[f.mode], await className(f.class)]), groupedBy: grouped };
+        return { rows, subtitle: words([subtitle, f.mode && modeName(f.mode), await className(f.class)]), groupedBy: grouped };
     },
 });
 
