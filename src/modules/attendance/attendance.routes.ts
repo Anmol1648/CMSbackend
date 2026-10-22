@@ -41,6 +41,8 @@ attendanceRoutes.get('/sections', authenticated, needAny(['attendance.mark', 'at
 attendanceRoutes.get('/register', authenticated, needAny(REGISTER), asyncHandler(async (req: Request, res: Response) => successResponse(res, await students.getRegister(parse(students.registerQuery, req.query), uid(req)), 'Register')));
 attendanceRoutes.put('/register', authenticated, needAny(['attendance.mark', 'attendance.mark_any']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await students.saveRegister(parse(students.saveSchema, req.body), uid(req)), 'Attendance saved')));
 attendanceRoutes.get('/overview', authenticated, needAny(['attendance.view', 'attendance.mark_any']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await students.overview(parse(students.overviewQuery, req.query), uid(req)), 'Attendance')));
+attendanceRoutes.get('/students', authenticated, needAny(['attendance.view', 'attendance.mark', 'attendance.mark_any']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await students.studentList(parse(students.studentListQuery, req.query), uid(req)), 'Students')));
+attendanceRoutes.get('/student', authenticated, needAny(['attendance.view', 'attendance.mark', 'attendance.mark_any']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await students.studentAttendance(parse(students.studentQuery, req.query), uid(req)), 'Student attendance')));
 attendanceRoutes.get('/me', can('attendance.mine'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await students.myAttendance(parse(students.myQuery, req.query), uid(req)), 'My attendance')));
 
 // Staff: themselves, and the office.

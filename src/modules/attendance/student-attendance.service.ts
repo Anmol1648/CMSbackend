@@ -119,7 +119,8 @@ export const viewableSections = async (userId: string): Promise<'all' | string[]
     if (a.permissions['attendance.view'] === 'assigned') {
         const staff = await staffOf(userId);
         if (staff) {
-            const rows = await db.section.findMany({ where: { OR: [{ classTeacherId: staff.id }, { teachingAssignments: { some: { staffId: staff.id } } }] }, select: { id: true } });
+            const { see } = await getSettings({ see: ATTENDANCE.subjectTeachersSee });
+            const rows = await db.section.findMany({ where: { OR: [{ classTeacherId: staff.id }, ...(see ? [{ teachingAssignments: { some: { staffId: staff.id } } }] : [])] }, select: { id: true } });
             return [...new Set([...marks, ...rows.map((r) => r.id)])];
         }
     }
@@ -341,6 +342,7 @@ export const overview = async (q: z.infer<typeof overviewQuery>, userId: string)
         return { present: count((st) => st.present > 0), absent: count((st) => st.present === 0 && !st.excused), leave: count((st) => st.excused), markedBy: sheet.markedBy ? (users.get(sheet.markedBy) ?? null) : null, markedAt: sheet.markedAt };
     };
     const periodOrder = (slot: string) => Number(slot.slice(1)) || 0;
+    const markable = await markableSections(userId);
     const rows = sections.map((s) => {
         const mine = sheets.filter((x) => x.sectionId === s.id);
         const cells = columns.map((col) => {
@@ -353,7 +355,7 @@ export const overview = async (q: z.infer<typeof overviewQuery>, userId: string)
             const sheet = mine.find((x) => x.slot === col);
             return sheet ? { slot: col, marked: true as const, ...counts(sheet) } : { slot: col, marked: false as const };
         });
-        return { id: s.id, label: sectionLabel(s), classTeacher: s.classTeacher ? fullName(s.classTeacher) : null, students: s._count.enrolments, slots: cells };
+        return { id: s.id, label: sectionLabel(s), classTeacher: s.classTeacher ? fullName(s.classTeacher) : null, students: s._count.enrolments, canMark: inScope(markable, s.id), slots: cells };
     });
     const doneRows = rows.filter((r) => r.slots.every((x) => x.marked)).length;
     return {
@@ -429,10 +431,15 @@ export const myAttendance = async (q: z.infer<typeof myQuery>, userId: string) =
     const children = await db.student.findMany({ where: { ...where, ...(scope === 'all' && q.student ? { id: q.student } : {}) }, select: { id: true, firstName: true, middleName: true, lastName: true, admissionNo: true }, orderBy: { firstName: 'asc' }, take: scope === 'all' ? 1 : 20 });
     if (!children.length) return { children: [], student: null };
     const child = children.find((c) => c.id === q.student) ?? children[0];
+    return { children: children.map((c) => ({ id: c.id, name: fullName(c), admissionNo: c.admissionNo })), ...(await monthOfStudent(child, q.month)) };
+};
+
+/** One student's month (calendar) and session so far. */
+const monthOfStudent = async (child: { id: string; firstName: string; middleName: string | null; lastName: string | null; admissionNo: string }, monthQ?: string) => {
     const year = await currentYear();
     if (!year) throw badRequest('No current academic year is set');
     const today = todayIST();
-    const month = q.month ?? today.slice(0, 7);
+    const month = monthQ ?? today.slice(0, 7);
     const first = `${month}-01`;
     const last = isoOf(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)));
     const [list, off, marks, enrol] = await Promise.all([
@@ -467,7 +474,6 @@ export const myAttendance = async (q: z.infer<typeof myQuery>, userId: string) =
     const [monthSum, yearSum] = await Promise.all([summaries([child.id], first, last < today ? last : today), summaries([child.id], yearFrom, today)]);
     const { minPercent } = await getSettings({ minPercent: ATTENDANCE.minPercent });
     return {
-        children: children.map((c) => ({ id: c.id, name: fullName(c), admissionNo: c.admissionNo })),
         student: { id: child.id, name: fullName(child), admissionNo: child.admissionNo, section: enrol ? sectionLabel(enrol.section) : null, roll: enrol?.rollNumber ?? null },
         month,
         days,
@@ -499,4 +505,60 @@ export const myLessons = async (userId: string, date?: string) => {
         date: day,
         lessons: lessons.map((l) => ({ ...l, section: sectionLabel(sections.find((s) => s.id === l.sectionId)!), marked: done.has(`${l.sectionId}|${l.slot}`) })),
     };
+};
+
+// ─── Students' attendance (class teacher / office) ──────────────────────────
+
+export const studentListQuery = z.object({ section: z.uuid().optional(), search: z.string().trim().max(100).optional() });
+
+/** The students of the sections the person may see, with their attendance this month and this session. */
+export const studentList = async (q: z.infer<typeof studentListQuery>, userId: string) => {
+    const scope = await viewableSections(userId);
+    const year = await currentYear();
+    if (!year) throw badRequest('No current academic year is set');
+    const sections = await db.section.findMany({
+        where: { academicYearId: year.id, isActive: true, ...(scope === 'all' ? {} : { id: { in: scope } }) },
+        select: { id: true, name: true, schoolClass: { select: { name: true, shortName: true } } },
+        orderBy: [{ schoolClass: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
+    });
+    const section = q.section && sections.some((s) => s.id === q.section) ? q.section : null;
+    const search = q.search?.trim();
+    // A search looks through every section the person may see; otherwise one section (theirs first).
+    const ids = search ? sections.map((s) => s.id) : [section ?? sections[0]?.id].filter((x): x is string => !!x);
+    const enrolled = ids.length
+        ? await db.enrolment.findMany({
+              where: {
+                  academicYearId: year.id,
+                  sectionId: { in: ids },
+                  student: { status: 'active', ...(search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { admissionNo: { contains: search, mode: 'insensitive' } }] } : {}) },
+              },
+              select: { sectionId: true, rollNumber: true, student: { select: { id: true, admissionNo: true, firstName: true, middleName: true, lastName: true } } },
+              take: 300,
+          })
+        : [];
+    const today = todayIST();
+    const [session, month] = await Promise.all([summaries(enrolled.map((e) => e.student.id), isoOf(year.startDate), today), summaries(enrolled.map((e) => e.student.id), `${today.slice(0, 7)}-01`, today)]);
+    const { minPercent } = await getSettings({ minPercent: ATTENDANCE.minPercent });
+    const label = new Map(sections.map((s) => [s.id, sectionLabel(s)]));
+    return {
+        sections: sections.map((s) => ({ id: s.id, label: sectionLabel(s) })),
+        section: search ? null : (ids[0] ?? null),
+        minPercent,
+        students: enrolled
+            .map((e) => ({ id: e.student.id, name: fullName(e.student), admissionNo: e.student.admissionNo, roll: e.rollNumber, section: label.get(e.sectionId) ?? '', month: month.get(e.student.id)!, session: session.get(e.student.id)! }))
+            .sort((a, b) => a.section.localeCompare(b.section, 'en', { numeric: true }) || (a.roll ?? 9999) - (b.roll ?? 9999) || a.name.localeCompare(b.name)),
+    };
+};
+
+export const studentQuery = z.object({ student: z.uuid(), month: z.string().regex(/^\d{4}-\d{2}$/).optional() });
+
+/** One student's month and session, for a class teacher (their class) or the office. */
+export const studentAttendance = async (q: z.infer<typeof studentQuery>, userId: string) => {
+    const scope = await viewableSections(userId);
+    const year = await currentYear();
+    if (!year) throw badRequest('No current academic year is set');
+    const e = await db.enrolment.findFirst({ where: { studentId: q.student, academicYearId: year.id }, select: { sectionId: true, student: { select: { id: true, firstName: true, middleName: true, lastName: true, admissionNo: true } } } });
+    if (!e) throw notFound('Student not found in this session');
+    if (!inScope(scope, e.sectionId)) throw forbidden('This student is not in your class');
+    return { children: [], ...(await monthOfStudent(e.student, q.month)) };
 };

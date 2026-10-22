@@ -49,6 +49,15 @@ export const ATTENDANCE = {
         default: false,
         schema: z.boolean(),
     }),
+    subjectTeachersSee: defineSetting<boolean>({
+        key: 'attendance.subject_teachers_see',
+        group: G,
+        label: 'Teachers also see the attendance of the sections they teach a subject in',
+        help: 'Off: a teacher sees only their own class (the section they are class teacher of).',
+        type: 'boolean',
+        default: false,
+        schema: z.boolean(),
+    }),
     backDays: defineSetting<number>({
         key: 'attendance.back_days',
         group: G,
