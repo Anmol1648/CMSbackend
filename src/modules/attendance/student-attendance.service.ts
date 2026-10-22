@@ -441,6 +441,8 @@ export const myAttendance = async (q: z.infer<typeof myQuery>, userId: string) =
         db.attendanceMark.findMany({ where: { studentId: child.id, sheet: { date: { gte: dayDate(first), lte: dayDate(last) } } }, select: { statusId: true, note: true, sheet: { select: { date: true, slot: true } } } }),
         db.enrolment.findFirst({ where: { studentId: child.id, academicYearId: year.id }, select: { rollNumber: true, section: { select: { name: true, schoolClass: { select: { name: true, shortName: true } } } } } }),
     ]);
+    // Leave asked for (waiting) or approved in the month: shown on its days even before they are marked.
+    const leaves = await db.studentLeave.findMany({ where: { studentId: child.id, status: { in: ['pending', 'approved'] }, fromDate: { lte: dayDate(last) }, toDate: { gte: dayDate(first) } }, select: { fromDate: true, toDate: true, status: true, kind: true, reason: true } });
     const byId = new Map(list.map((s) => [s.id, s]));
     const days = [];
     for (let t = dayDate(first).getTime(); t <= dayDate(last).getTime(); t += 86_400_000) {
@@ -449,10 +451,12 @@ export const myAttendance = async (q: z.infer<typeof myQuery>, userId: string) =
         const each = mine.map((m) => ({ slot: m.sheet.slot, code: byId.get(m.statusId)?.code ?? '?', name: byId.get(m.statusId)?.name ?? '', present: byId.get(m.statusId)?.present ?? 0, excused: byId.get(m.statusId)?.excused ?? false, note: m.note }));
         const many = each.length > 2;
         const presentIn = each.filter((m) => m.present > 0).length;
+        const lv = leaves.find((l) => isoOf(l.fromDate) <= iso && isoOf(l.toDate) >= iso);
         days.push({
             date: iso,
             off: off.get(iso) ?? null,
             future: iso > today,
+            leave: lv && !off.has(iso) ? { status: lv.status, kind: lv.kind, reason: lv.reason } : null,
             // Every period: one mark for the day ("present in 6 of 8 periods").
             marks: many
                 ? [{ slot: 'periods', code: dayCode(each), name: presentIn === each.length ? 'Present in every period' : `Present in ${presentIn} of ${each.length} periods`, present: presentIn / each.length, excused: each.every((m) => m.excused), note: each.map((m) => m.note).filter(Boolean).join('; ') || null }]
