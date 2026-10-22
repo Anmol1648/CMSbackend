@@ -323,7 +323,7 @@ tr { break-inside: avoid; }
 
 const builtInExcel = async (def: ReportDef, result: ReportResult, p: Awaited<ReturnType<typeof parametersFor>>) => {
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'School ERP';
+    wb.creator = 'Klytos Labs School ERP';
     const ws = wb.addWorksheet(def.label.slice(0, 31).replace(/[\\/?*[\]:]/g, ' '));
     const cols = def.columns;
     const money = '[>=10000000]"₹"##\\,##\\,##\\,##0;[>=100000]"₹"##\\,##\\,##0;"₹"##,##0';

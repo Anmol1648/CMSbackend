@@ -64,7 +64,7 @@ const cellTip = (c: ImportColumn) =>
 
 export const buildTemplate = async (columns: ImportColumn[], title: string, maxRows: number): Promise<Buffer> => {
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'School ERP';
+    wb.creator = 'Klytos Labs School ERP';
     const data = wb.addWorksheet(DATA_SHEET, { views: [{ state: 'frozen', ySplit: 1 }] });
     data.columns = columns.map((c) => ({ header: headerLabel(c), key: c.key, width: Math.max(16, headerLabel(c).length + 4) }));
     const head = data.getRow(1);
@@ -279,7 +279,7 @@ export const safeSheetName = (name: string) =>
 
 export const buildWorkbook = async <T>(sheetName: string, columns: ExportColumn<T>[], rows: T[]): Promise<Buffer> => {
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'School ERP';
+    wb.creator = 'Klytos Labs School ERP';
     const ws = wb.addWorksheet(safeSheetName(sheetName), { views: [{ state: 'frozen', ySplit: 1 }] });
     ws.columns = columns.map((c) => ({ header: c.header, width: c.width ?? Math.max(14, c.header.length + 4) }));
     ws.getRow(1).font = { bold: true };
