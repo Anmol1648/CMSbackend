@@ -13,11 +13,12 @@ import { runAsSystem, runAsTenant } from '../core/context';
 import { clearDemoData, createDemoData, DEMO_PASSWORD } from '../modules/students/demo-data';
 import { createDemoAttendance } from '../modules/attendance/demo-attendance';
 import { createDemoLeave } from '../modules/leave/demo-leave';
+import { createDemoNotices } from '../modules/notices/demo-notices';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -50,12 +51,19 @@ const main = async () => {
         out(`${tenant.name}: ${r.leaves} staff leaves (${r.attendance} days in the staff register), ${r.compOffs} comp-offs.`);
         return;
     }
+    if (values.notices) {
+        // Only notices and events, for a school that already has its demo people.
+        const r = await runAsTenant(tenant.id, createDemoNotices);
+        out(`${tenant.name}: ${r.notices} notices (${r.reads} reads), ${r.events} events.`);
+        return;
+    }
     out(`${tenant.name}: creating demo data (this takes a minute)…`);
     const r = await runAsTenant(tenant.id, () => createDemoData());
     out(`${tenant.name}: ${r.students} students in ${r.sections} sections of ${r.year}, ${r.families} families, ${r.staff.staff} staff (${r.staff.logins} with logins, ${r.staff.assignments} subject-teacher assignments), ${r.studentLogins} student logins.`);
     out(`${tenant.name}: ${r.enquiries.enquiries} admission enquiries, ${r.fees.receipts} fee receipts, ${r.fees.parentLogins} parent logins (username = the parent's mobile).`);
     out(`${tenant.name}: attendance for the last ${r.attendance.days} school days (${r.attendance.registers} registers), ${r.attendance.staffDays} staff check-ins, ${r.attendance.holidays} holidays.`);
     out(`${tenant.name}: ${r.leave.leaves} staff leaves, ${r.leave.compOffs} comp-offs.`);
+    out(`${tenant.name}: ${r.notices.notices} notices, ${r.notices.events} events.`);
     if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
     out(`Every demo login uses the password ${DEMO_PASSWORD}`);

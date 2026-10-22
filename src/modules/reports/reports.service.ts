@@ -74,7 +74,7 @@ const resolveFilters = async (def: ReportDef, raw: Record<string, unknown>) => {
         if (!v && f.default) {
             if (f.type === 'date') {
                 const t = today();
-                v = f.default === 'today' ? t : f.default === 'monthStart' ? `${t.slice(0, 8)}01` : f.default === 'yearStart' ? `${t.slice(0, 5)}01-01` : f.default === 'sessionStart' ? ((await theYear())?.startDate.toISOString().slice(0, 10) ?? `${t.slice(0, 8)}01`) : f.default;
+                v = f.default === 'today' ? t : f.default === 'monthStart' ? `${t.slice(0, 8)}01` : f.default === 'yearStart' ? `${t.slice(0, 5)}01-01` : f.default === 'sessionStart' ? ((await theYear())?.startDate.toISOString().slice(0, 10) ?? `${t.slice(0, 8)}01`) : f.default === 'sessionEnd' ? ((await theYear())?.endDate.toISOString().slice(0, 10) ?? t) : f.default;
             } else if (f.type === 'year' && f.default === 'current') v = (await theYear())?.id ?? '';
             else v = f.default;
         }

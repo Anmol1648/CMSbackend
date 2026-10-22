@@ -12,7 +12,7 @@ export interface ReportFilter {
     label: string;
     type: ReportFilterType;
     required?: boolean;
-    /** date: 'today' | 'monthStart' | 'yearStart' | 'sessionStart'; select: one of the options; year: 'current'. */
+    /** date: 'today' | 'monthStart' | 'yearStart' | 'sessionStart' | 'sessionEnd'; select: one of the options; year: 'current'. */
     default?: string;
     /** select: the choices (value '' = all). */
     options?: { value: string; label: string }[];
