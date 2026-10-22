@@ -12,6 +12,7 @@ import { statuses } from './student-attendance.service';
 import { CheckInInput, REASON_TEXT, Reason, runChecks } from './checkin-checks.service';
 import { deleteFile } from '../../core/files';
 import { approvedLeaveOn } from '../leave/staff-leave.service';
+import { currentYear } from '../academic/years.service';
 
 /**
  * Staff attendance: people check in and out themselves (later a biometric device does it), the
@@ -185,6 +186,89 @@ export const checkOut = async (userId: string, ip?: string, input: CheckInInput 
         },
     });
     return myDay(userId, ip);
+};
+
+export const myMonthQuery = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'must be a month like 2026-10').optional() });
+
+type DaySummary = { days: number; present: number; absent: number; excused: number; percent: number | null };
+
+/**
+ * A staff member's own month (calendar / table, like the students' My Attendance): each day's status,
+ * times in and out, leave asked or approved; with the month's and the session's totals. A working
+ * day gone by with nothing recorded counts as absent.
+ */
+export const myMonth = async (userId: string, monthQ?: string) => {
+    const staff = await myStaff(userId);
+    const today = todayIST();
+    const month = monthQ ?? today.slice(0, 7);
+    const first = `${month}-01`;
+    const last = isoOf(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)));
+    const year = await currentYear();
+    const yearFrom = year ? isoOf(year.startDate) : `${today.slice(0, 4)}-01-01`;
+    const from = first < yearFrom ? first : yearFrom;
+    const [list, rows, off, leaves, joined] = await Promise.all([
+        statuses(),
+        db.staffAttendance.findMany({ where: { staffId: staff.id, date: { gte: dayDate(from), lte: dayDate(last) } } }),
+        daysOff(from, last, 'staff'),
+        db.staffLeave.findMany({
+            where: { staffId: staff.id, status: { in: ['pending', 'approved'] }, fromDate: { lte: dayDate(last) }, toDate: { gte: dayDate(first) } },
+            select: { fromDate: true, toDate: true, status: true, half: true, reason: true, leaveType: { select: { code: true, name: true } } },
+        }),
+        db.staff.findUnique({ where: { id: staff.id }, select: { joiningDate: true } }),
+    ]);
+    const byId = new Map(list.map((x) => [x.id, x]));
+    const byDay = new Map(rows.map((r) => [isoOf(r.date), r]));
+    const joining = joined ? isoOf(joined.joiningDate) : from;
+    const markOf = (iso: string) => {
+        const r = byDay.get(iso);
+        const st = r?.statusId ? byId.get(r.statusId) : undefined;
+        if (!r || !st) return null;
+        const times = [timeIST(r.checkIn) && `In ${timeIST(r.checkIn)}`, timeIST(r.checkOut) && `out ${timeIST(r.checkOut)}`, r.approval === 'pending' ? 'waiting for approval' : null, r.source === 'leave' ? null : r.note].filter(Boolean).join(' · ');
+        return { slot: 'day', code: st.code, name: st.name, present: st.present, excused: st.excused, note: times || null };
+    };
+    const summary = (a: string, b: string): DaySummary => {
+        const s: DaySummary = { days: 0, present: 0, absent: 0, excused: 0, percent: null };
+        for (let t = dayDate(a).getTime(); t <= dayDate(b).getTime(); t += 86_400_000) {
+            const iso = isoOf(new Date(t));
+            if (iso > today || iso < joining || off.has(iso)) continue;
+            const m = markOf(iso);
+            // Today with nothing yet is not counted (the day isn't over).
+            if (!m && iso === today) continue;
+            s.days++;
+            if (!m) s.absent++;
+            else if (m.excused) s.excused++;
+            else {
+                s.present += m.present;
+                if (m.present === 0) s.absent++;
+            }
+        }
+        const counted = s.days - s.excused;
+        s.percent = counted > 0 ? Math.round((s.present / counted) * 1000) / 10 : null;
+        return s;
+    };
+    const days = [];
+    for (let t = dayDate(first).getTime(); t <= dayDate(last).getTime(); t += 86_400_000) {
+        const iso = isoOf(new Date(t));
+        const lv = leaves.find((l) => isoOf(l.fromDate) <= iso && isoOf(l.toDate) >= iso);
+        const m = markOf(iso);
+        days.push({
+            date: iso,
+            off: off.get(iso) ?? null,
+            future: iso > today,
+            leave: lv && !off.has(iso) ? { status: lv.status as 'pending' | 'approved', kind: lv.leaveType.code, kindName: `${lv.leaveType.name}${lv.half ? ` (${lv.half} half)` : ''}`, reason: lv.reason } : null,
+            marks: m ? [m] : [],
+        });
+    }
+    const { minPercent } = await getSettings({ minPercent: ATTENDANCE.minPercent });
+    return {
+        staff: { name: fullName(staff), employeeCode: staff.employeeCode },
+        month,
+        days,
+        statuses: list.filter((x) => x.isActive).map(({ code, name, present, excused }) => ({ code, name, present, excused })),
+        monthSummary: summary(first, last),
+        yearSummary: { ...summary(yearFrom, today), from: yearFrom, year: year?.name ?? today.slice(0, 4) },
+        minPercent,
+    };
 };
 
 // ─── The office ──────────────────────────────────────────────────────────────

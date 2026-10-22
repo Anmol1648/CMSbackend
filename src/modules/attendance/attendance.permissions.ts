@@ -47,6 +47,7 @@ registerMenuItems([
     { key: 'attendance-holidays', label: 'Holidays', icon: 'event_busy', href: '/attendance/holidays', group: 'attendance', order: 40, permission: 'attendance.holidays' },
     { key: 'my-attendance', label: 'My Attendance', icon: 'calendar_month', href: '/my-attendance', group: 'main', order: 25, permission: 'attendance.mine' },
     { key: 'my-check-in', label: 'Check In', icon: 'login', href: '/my-check-in', group: 'main', order: 5, permission: 'attendance.checkin' },
+    { key: 'my-staff-attendance', label: 'My Attendance', icon: 'calendar_month', href: '/my-staff-attendance', group: 'main', order: 6, permission: 'attendance.checkin' },
 ]);
 
 registerMasterUsage('attendance_status', {

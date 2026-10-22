@@ -49,6 +49,7 @@ attendanceRoutes.get('/student', authenticated, needAny(['attendance.view', 'att
 attendanceRoutes.get('/me', can('attendance.mine'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await students.myAttendance(parse(students.myQuery, req.query), uid(req)), 'My attendance')));
 
 // Staff: themselves, and the office.
+attendanceRoutes.get('/staff/me/month', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.myMonth(uid(req), parse(staff.myMonthQuery, req.query).month), 'My attendance')));
 attendanceRoutes.get('/staff/me', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.myDay(uid(req), req.ip), 'Today')));
 attendanceRoutes.post('/staff/check-in', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.checkIn(uid(req), req.ip, parse(checkInInput, req.body)), 'Checked in')));
 attendanceRoutes.post('/staff/check-out', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.checkOut(uid(req), req.ip, parse(checkInInput, req.body)), 'Checked out')));
