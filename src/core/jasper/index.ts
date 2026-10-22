@@ -26,14 +26,16 @@ export class JasperUnavailableError extends AppError {
     }
 }
 
-const base = () => (env.JASPER_URL ?? 'http://127.0.0.1:8090').replace(/\/+$/, '');
+const base = () => (env.JASPER_URL?.trim() || 'http://127.0.0.1:8090').replace(/\/+$/, '');
+/** Trimmed: a space or line break pasted into the host's settings would make every request fail. */
+const token = () => env.JASPER_TOKEN?.trim();
 
 const call = async (path: string, body: unknown, timeoutMs: number) => {
     let res: Response;
     try {
         res = await fetch(`${base()}${path}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...(env.JASPER_TOKEN ? { Authorization: `Bearer ${env.JASPER_TOKEN}` } : {}) },
+            headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
             body: JSON.stringify(body),
             signal: AbortSignal.timeout(timeoutMs),
         });
