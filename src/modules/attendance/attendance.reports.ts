@@ -297,6 +297,7 @@ defineReport({
         { key: 'late', label: 'Late', type: 'number', width: 0.6, total: true },
         { key: 'halfDay', label: 'Half days', type: 'number', width: 0.6, total: true },
         { key: 'leave', label: 'Leave', type: 'number', width: 0.6, total: true },
+        { key: 'pending', label: 'Waiting approval', type: 'number', width: 0.7, total: true },
         { key: 'absent', label: 'Absent', type: 'number', width: 0.6, total: true },
     ],
     async run(f) {
@@ -305,7 +306,7 @@ defineReport({
         const days = await schoolDays(m.first, to, 'staff');
         const [staff, rows, list] = await Promise.all([
             db.staff.findMany({ where: { joiningDate: { lte: dayDate(to) }, OR: [{ status: 'working' }, { statusDate: { gte: dayDate(m.first) } }] }, select: { id: true, employeeCode: true, firstName: true, middleName: true, lastName: true, joiningDate: true, designation: { select: { name: true } } }, orderBy: { firstName: 'asc' } }),
-            db.staffAttendance.findMany({ where: { date: { gte: dayDate(m.first), lte: dayDate(to) } }, select: { staffId: true, date: true, statusId: true, late: true, checkIn: true } }),
+            db.staffAttendance.findMany({ where: { date: { gte: dayDate(m.first), lte: dayDate(to) } }, select: { staffId: true, date: true, statusId: true, late: true, checkIn: true, approval: true } }),
             statuses(),
         ]);
         const byId = new Map(list.map((s) => [s.id, s]));
@@ -314,7 +315,8 @@ defineReport({
             const working = days.filter((d) => d >= isoOf(s.joiningDate)).length;
             const st = (r: (typeof mine)[number]) => (r.statusId ? byId.get(r.statusId) : undefined);
             const leave = mine.filter((r) => st(r)?.excused).length;
-            const presentRows = mine.filter((r) => (st(r) ? st(r)!.present > 0 : !!r.checkIn));
+            const counted = mine.filter((r) => r.approval !== 'pending' && r.approval !== 'rejected');
+            const presentRows = counted.filter((r) => (st(r) ? st(r)!.present > 0 : !!r.checkIn));
             return {
                 employeeCode: s.employeeCode,
                 name: fullName(s),
@@ -324,7 +326,8 @@ defineReport({
                 late: mine.filter((r) => r.late).length,
                 halfDay: mine.filter((r) => st(r)?.code === 'HD').length,
                 leave,
-                absent: Math.max(0, working - presentRows.length - leave),
+                pending: mine.filter((r) => r.approval === 'pending').length,
+                absent: Math.max(0, working - presentRows.length - leave - mine.filter((r) => r.approval === 'pending').length),
             };
         });
         return { rows: out, subtitle: `${m.name} · ${days.length} working days${to < m.last ? ' so far' : ''}` };

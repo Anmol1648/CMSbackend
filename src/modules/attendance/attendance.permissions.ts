@@ -27,6 +27,8 @@ registerMenuItems([
     { key: 'attendance-students', label: 'Student Attendance', icon: 'person_search', href: '/attendance/students', group: 'attendance', order: 22, permission: 'attendance.mark' },
     { key: 'attendance-leave', label: 'Leave Requests', icon: 'event_available', href: '/attendance/leave', group: 'attendance', order: 25, permission: 'attendance.mark' },
     { key: 'attendance-staff', label: 'Staff Attendance', icon: 'badge', href: '/attendance/staff', group: 'attendance', order: 30, permission: 'attendance.staff' },
+    { key: 'attendance-faces', label: 'Staff Faces', icon: 'face', href: '/attendance/faces', group: 'attendance', order: 32, permission: 'attendance.staff' },
+    { key: 'attendance-locations', label: 'Check-in Locations', icon: 'location_on', href: '/attendance/locations', group: 'attendance', order: 34, permission: 'attendance.staff' },
     { key: 'attendance-holidays', label: 'Holidays', icon: 'event_busy', href: '/attendance/holidays', group: 'attendance', order: 40, permission: 'attendance.holidays' },
     { key: 'my-attendance', label: 'My Attendance', icon: 'calendar_month', href: '/my-attendance', group: 'main', order: 25, permission: 'attendance.mine' },
     { key: 'my-check-in', label: 'Check In', icon: 'login', href: '/my-check-in', group: 'main', order: 5, permission: 'attendance.checkin' },

@@ -6,6 +6,9 @@ import { logger } from './core/logger';
 import { db } from './core/db';
 import { syncPermissions } from './core/registry/permissions';
 import { purgeOldAuditRecords } from './modules/audit/audit.service';
+import { purgeOldPhotos } from './modules/attendance/staff-attendance.service';
+import { warmUpFaces } from './core/face';
+import { runAsSystem, runAsTenant } from './core/context';
 
 let server: Server | undefined;
 
@@ -18,9 +21,19 @@ const start = async () => {
     startDailyJobs();
 };
 
+/** Check-in selfies older than each school keeps them. */
+const purgeCheckInPhotos = async () => {
+    const tenants = await runAsSystem(() => db.tenant.findMany({ select: { id: true } }));
+    for (const t of tenants) await runAsTenant(t.id, purgeOldPhotos);
+};
+
 /** Housekeeping once shortly after start, then every 24 hours. */
 const startDailyJobs = () => {
-    const run = () => purgeOldAuditRecords().catch((err) => logger.error('Audit retention job failed', { error: err }));
+    const run = () => {
+        purgeOldAuditRecords().catch((err) => logger.error('Audit retention job failed', { error: err }));
+        purgeCheckInPhotos().catch((err) => logger.error('Check-in photo clean-up failed', { error: err }));
+    };
+    warmUpFaces();
     setTimeout(run, 60_000).unref();
     setInterval(run, 24 * 60 * 60 * 1000).unref();
 };

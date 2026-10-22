@@ -93,6 +93,9 @@ model Tenant {
   studentLeaves           StudentLeave[]
   staffAttendanceRequests StaffAttendanceRequest[]
 
+  attendanceLocations AttendanceLocation[]
+  staffFaces          StaffFace[]
+
   @@map("tenants")
 }
 
@@ -1072,6 +1075,8 @@ model Staff {
 
   attendanceRequests StaffAttendanceRequest[]
 
+  face StaffFace?
+
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
   @@index([tenantId, status])
@@ -1903,25 +1908,46 @@ model AttendanceMark {
 
 /// A staff member's day: check-in / check-out (button, admin, later a biometric device) and the status.
 model StaffAttendance {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String    @map("tenant_id") @db.Uuid
-  staffId    String    @map("staff_id") @db.Uuid
-  date       DateTime  @db.Date
-  checkIn    DateTime? @map("check_in") @db.Timestamptz(6)
-  checkOut   DateTime? @map("check_out") @db.Timestamptz(6)
-  statusId   String?   @map("status_id") @db.Uuid
-  late       Boolean   @default(false)
-  earlyOut   Boolean   @default(false) @map("early_out")
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  staffId          String    @map("staff_id") @db.Uuid
+  date             DateTime  @db.Date
+  checkIn          DateTime? @map("check_in") @db.Timestamptz(6)
+  checkOut         DateTime? @map("check_out") @db.Timestamptz(6)
+  statusId         String?   @map("status_id") @db.Uuid
+  late             Boolean   @default(false)
+  earlyOut         Boolean   @default(false) @map("early_out")
   /// button (the person), admin (a correction), device, import.
-  source     String    @default("button")
-  checkInIp  String?   @map("check_in_ip")
-  checkOutIp String?   @map("check_out_ip")
-  note       String?
-  isDemo     Boolean   @default(false) @map("is_demo")
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy  String?   @map("created_by") @db.Uuid
-  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy  String?   @map("updated_by") @db.Uuid
+  source           String    @default("button")
+  checkInIp        String?   @map("check_in_ip")
+  checkOutIp       String?   @map("check_out_ip")
+  /// The selfies taken at check-in / check-out (files).
+  checkInPhotoId   String?   @map("check_in_photo_id") @db.Uuid
+  checkOutPhotoId  String?   @map("check_out_photo_id") @db.Uuid
+  /// Where the phone was (GPS), how accurate (m) and how far from the nearest school location (m).
+  checkInLat       Float?    @map("check_in_lat")
+  checkInLng       Float?    @map("check_in_lng")
+  checkInAccuracy  Int?      @map("check_in_accuracy")
+  checkInDistance  Int?      @map("check_in_distance")
+  checkOutLat      Float?    @map("check_out_lat")
+  checkOutLng      Float?    @map("check_out_lng")
+  checkOutAccuracy Int?      @map("check_out_accuracy")
+  checkOutDistance Int?      @map("check_out_distance")
+  /// Distance between the selfie and the enrolled face (smaller = more alike); null = not checked.
+  faceDistance     Float?    @map("face_distance")
+  /// null = fine; pending = waits for the office (outside the school, face not matching…); approved / rejected.
+  approval         String?
+  /// Why it waits: outside, no_location, inaccurate, face_mismatch, no_face, no_enrolled_face.
+  approvalReasons  String[]  @default([]) @map("approval_reasons")
+  decidedBy        String?   @map("decided_by") @db.Uuid
+  decidedAt        DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote     String?   @map("decision_note")
+  note             String?
+  isDemo           Boolean   @default(false) @map("is_demo")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String?   @map("created_by") @db.Uuid
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy        String?   @map("updated_by") @db.Uuid
 
   tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   staff  Staff        @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
@@ -1988,4 +2014,50 @@ model StaffAttendanceRequest {
 
   @@index([tenantId, status])
   @@map("staff_attendance_requests")
+}
+
+/// A place staff may check in at (the school, a second campus): a point and a radius.
+model AttendanceLocation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  latitude  Float
+  longitude Float
+  /// Metres around the point that count as "at school".
+  radius    Int      @default(150)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("attendance_locations")
+}
+
+/// A staff member's enrolled face (for face check at check-in): descriptors from a few photos.
+model StaffFace {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  staffId     String    @map("staff_id") @db.Uuid
+  /// [[128 numbers], …]: one per enrolment photo.
+  descriptors Json
+  /// The enrolment photos (files), for the office to see.
+  photoIds    String[]  @default([]) @map("photo_ids") @db.Uuid
+  /// pending (the person enrolled themselves) | approved
+  status      String    @default("approved")
+  approvedBy  String?   @map("approved_by") @db.Uuid
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?   @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  Staff  @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([staffId, tenantId])
+  @@map("staff_faces")
 }

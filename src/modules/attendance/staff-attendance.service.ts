@@ -9,6 +9,8 @@ import { fullName } from '../students/students.service';
 import { ATTENDANCE, atIST, dayDate, isoOf, minutesIST, todayIST, toMinutes } from './attendance.settings';
 import { dayOff, daysOff } from './calendar.service';
 import { statuses } from './student-attendance.service';
+import { CheckInInput, REASON_TEXT, Reason, runChecks } from './checkin-checks.service';
+import { deleteFile } from '../../core/files';
 
 /**
  * Staff attendance: people check in and out themselves (later a biometric device does it), the
@@ -46,9 +48,40 @@ const myStaff = async (userId: string) => {
     return staff;
 };
 
-const present = (r: { checkIn: Date | null; checkOut: Date | null; late: boolean; earlyOut: boolean; source: string; note: string | null; statusId: string | null } | null, names: Map<string, { name: string; code: string }>) =>
+type Row = {
+    id?: string;
+    checkIn: Date | null;
+    checkOut: Date | null;
+    late: boolean;
+    earlyOut: boolean;
+    source: string;
+    note: string | null;
+    statusId: string | null;
+    approval?: string | null;
+    approvalReasons?: string[];
+    checkInPhotoId?: string | null;
+    checkOutPhotoId?: string | null;
+    checkInDistance?: number | null;
+    faceDistance?: number | null;
+};
+const present = (r: Row | null, names: Map<string, { name: string; code: string }>) =>
     r
-        ? { checkIn: timeIST(r.checkIn), checkOut: timeIST(r.checkOut), late: r.late, earlyOut: r.earlyOut, source: r.source, note: r.note, status: r.statusId ? (names.get(r.statusId) ?? null) : null }
+        ? {
+              id: r.id ?? null,
+              checkIn: timeIST(r.checkIn),
+              checkOut: timeIST(r.checkOut),
+              late: r.late,
+              earlyOut: r.earlyOut,
+              source: r.source,
+              note: r.note,
+              status: r.statusId ? (names.get(r.statusId) ?? null) : null,
+              approval: r.approval ?? null,
+              reasons: (r.approvalReasons ?? []).map((x) => REASON_TEXT[x as Reason] ?? x),
+              photoIn: r.checkInPhotoId ?? null,
+              photoOut: r.checkOutPhotoId ?? null,
+              distance: r.checkInDistance ?? null,
+              faceDistance: r.faceDistance ?? null,
+          }
         : null;
 
 const statusNames = async () => new Map((await statuses()).map((s) => [s.id, { name: s.name, code: s.code }]));
@@ -70,8 +103,11 @@ export const myDay = async (userId: string, ip?: string) => {
         const r = rows.find((x) => isoOf(x.date) === iso) ?? null;
         month.push({ date: iso, off: offs.get(iso) ?? null, ...(present(r, names) ?? { checkIn: null, checkOut: null, late: false, earlyOut: false, source: null, note: null, status: null }) });
     }
+    const c = await getSettings({ photo: ATTENDANCE.staffPhoto, face: ATTENDANCE.staffFace, location: ATTENDANCE.staffLocation, selfEnrol: ATTENDANCE.staffSelfEnrol });
+    const face = await db.staffFace.findFirst({ where: { staffId: staff.id }, select: { status: true } });
     return {
         staff: { name: fullName(staff), employeeCode: staff.employeeCode },
+        checks: { photo: c.photo || c.face, face: c.face, location: c.location, enrolled: face?.status ?? null, canEnrol: c.selfEnrol },
         today,
         shift: { start: s.start, end: s.end, grace: s.grace },
         day: present(row, names),
@@ -82,7 +118,7 @@ export const myDay = async (userId: string, ip?: string) => {
     };
 };
 
-export const checkIn = async (userId: string, ip?: string) => {
+export const checkIn = async (userId: string, ip?: string, input: CheckInInput = {}) => {
     const staff = await myStaff(userId);
     const s = await shift();
     const today = todayIST();
@@ -93,14 +129,33 @@ export const checkIn = async (userId: string, ip?: string) => {
     const existing = await db.staffAttendance.findFirst({ where: { staffId: staff.id, date: dayDate(today) } });
     if (existing?.checkIn) throw conflict('You have already checked in today');
     const now = new Date();
+    const checks = await runChecks(staff.id, input);
+    if (checks.blocked) {
+        if (checks.photoId) await deleteFile(checks.photoId);
+        throw forbidden(`You are about ${checks.distance} m from the school. Check in when you reach school.`);
+    }
     const { statusId, late } = await statusForCheckIn(now);
-    const data = { checkIn: now, statusId, late, source: 'button', checkInIp: ip ?? null };
+    const data = {
+        checkIn: now,
+        statusId,
+        late,
+        source: 'button',
+        checkInIp: ip ?? null,
+        checkInPhotoId: checks.photoId,
+        checkInLat: checks.lat,
+        checkInLng: checks.lng,
+        checkInAccuracy: checks.accuracy,
+        checkInDistance: checks.distance,
+        faceDistance: checks.faceDistance,
+        approval: checks.reasons.length ? 'pending' : null,
+        approvalReasons: checks.reasons,
+    };
     if (existing) await db.staffAttendance.update({ where: { id: existing.id }, data });
     else await db.staffAttendance.create({ data: { tenantId: getTenantId()!, staffId: staff.id, date: dayDate(today), ...data } });
     return myDay(userId, ip);
 };
 
-export const checkOut = async (userId: string, ip?: string) => {
+export const checkOut = async (userId: string, ip?: string, input: CheckInInput = {}) => {
     const staff = await myStaff(userId);
     const s = await shift();
     if (!s.enabled) throw forbidden('Check-in by staff is switched off');
@@ -109,7 +164,27 @@ export const checkOut = async (userId: string, ip?: string) => {
     if (!row?.checkIn) throw badRequest('Check in first');
     if (row.checkOut) throw conflict('You have already checked out today');
     const now = new Date();
-    await db.staffAttendance.update({ where: { id: row.id }, data: { checkOut: now, earlyOut: minutesIST(now) < toMinutes(s.end), checkOutIp: ip ?? null } });
+    const checks = await runChecks(staff.id, input);
+    if (checks.blocked) {
+        if (checks.photoId) await deleteFile(checks.photoId);
+        throw forbidden(`You are about ${checks.distance} m from the school. Check out at school.`);
+    }
+    // Something wrong at check-out sends the day for approval too (unless the office already decided).
+    const more = checks.reasons.filter((r) => !row.approvalReasons.includes(r)).map((r) => `${r}_out`);
+    await db.staffAttendance.update({
+        where: { id: row.id },
+        data: {
+            checkOut: now,
+            earlyOut: minutesIST(now) < toMinutes(s.end),
+            checkOutIp: ip ?? null,
+            checkOutPhotoId: checks.photoId,
+            checkOutLat: checks.lat,
+            checkOutLng: checks.lng,
+            checkOutAccuracy: checks.accuracy,
+            checkOutDistance: checks.distance,
+            ...(checks.reasons.length && row.approval !== 'rejected' ? { approval: 'pending', approvalReasons: [...row.approvalReasons, ...more] } : {}),
+        },
+    });
     return myDay(userId, ip);
 };
 
@@ -253,4 +328,76 @@ export const decideCorrection = async (id: string, input: { approve: boolean; no
     await db.staffAttendanceRequest.update({ where: { id }, data: { status: input.approve ? 'approved' : 'rejected', decidedBy: userId, decidedAt: new Date(), decisionNote: input.note || null } });
     await recordAudit({ action: input.approve ? 'staff_attendance_request_approved' : 'staff_attendance_request_rejected', entity: 'staff_attendance_request', entityId: id });
     return correctionRequests({ status: 'pending' });
+};
+
+// ─── Check-ins waiting for approval ─────────────────────────────────────────
+
+const REASON_OUT: Record<string, string> = Object.fromEntries(Object.entries(REASON_TEXT).map(([k, v]) => [`${k}_out`, `${v} (at check-out)`]));
+const reasonText = (r: string) => REASON_TEXT[r as Reason] ?? REASON_OUT[r] ?? r;
+
+/** Check-ins that wait for the office: photo, enrolled face, distance, face match and why. */
+export const pendingCheckIns = async () => {
+    const rows = await db.staffAttendance.findMany({
+        where: { approval: 'pending' },
+        orderBy: [{ date: 'desc' }, { checkIn: 'asc' }],
+        take: 200,
+        include: { staff: { select: { id: true, employeeCode: true, firstName: true, middleName: true, lastName: true, face: { select: { photoIds: true, status: true } } } } },
+    });
+    return rows.map((r) => ({
+        id: r.id,
+        staff: { id: r.staff.id, name: fullName(r.staff), employeeCode: r.staff.employeeCode, facePhotoId: r.staff.face?.status === 'approved' ? (r.staff.face.photoIds[0] ?? null) : null },
+        date: isoOf(r.date),
+        checkIn: timeIST(r.checkIn),
+        checkOut: timeIST(r.checkOut),
+        late: r.late,
+        photoIn: r.checkInPhotoId,
+        photoOut: r.checkOutPhotoId,
+        distance: r.checkInDistance,
+        accuracy: r.checkInAccuracy,
+        location: r.checkInLat !== null && r.checkInLng !== null ? { lat: r.checkInLat, lng: r.checkInLng } : null,
+        faceDistance: r.faceDistance,
+        reasons: r.approvalReasons.map(reasonText),
+    }));
+};
+
+export const approvalSchema = z.strictObject({ approve: z.boolean(), note: z.string().trim().max(300).optional() });
+
+/** Approves a check-in (it counts as worked) or rejects it (the day becomes Absent). */
+export const decideCheckIn = async (id: string, input: z.infer<typeof approvalSchema>, userId: string) => {
+    if (!z.uuid().safeParse(id).success) throw notFound('Check-in not found');
+    const r = await db.staffAttendance.findFirst({ where: { id }, include: { staff: { select: { firstName: true, middleName: true, lastName: true } } } });
+    if (!r) throw notFound('Check-in not found');
+    if (r.approval !== 'pending') throw badRequest('This check-in is not waiting for approval');
+    const absent = (await statuses()).find((x) => x.isActive && x.code === 'A');
+    await db.staffAttendance.update({
+        where: { id },
+        data: { approval: input.approve ? 'approved' : 'rejected', decidedBy: userId, decidedAt: new Date(), decisionNote: input.note || null, ...(input.approve ? {} : { statusId: absent?.id ?? null }) },
+    });
+    await recordAudit({ action: input.approve ? 'staff_check_in_approved' : 'staff_check_in_rejected', entity: 'staff_attendance', entityId: id, changes: { staff: fullName(r.staff), date: isoOf(r.date), reasons: r.approvalReasons.join(', ') } });
+    return pendingCheckIns();
+};
+
+/** A check-in / face photo, for the office or the person themself. */
+export const photoFor = async (fileId: string, userId: string, mayManage: boolean) => {
+    if (!z.uuid().safeParse(fileId).success) throw notFound('Photo not found');
+    const [att, face] = await Promise.all([
+        db.staffAttendance.findFirst({ where: { OR: [{ checkInPhotoId: fileId }, { checkOutPhotoId: fileId }] }, select: { staff: { select: { userId: true } } } }),
+        db.staffFace.findFirst({ where: { photoIds: { has: fileId } }, select: { staff: { select: { userId: true } } } }),
+    ]);
+    const owner = att?.staff.userId ?? face?.staff.userId;
+    if (!att && !face) throw notFound('Photo not found');
+    if (!mayManage && owner !== userId) throw forbidden();
+    return fileId;
+};
+
+/** Deletes check-in selfies older than the school keeps them (daily job, per school). */
+export const purgeOldPhotos = async () => {
+    const { days } = await getSettings({ days: ATTENDANCE.staffPhotoDays });
+    const before = dayDate(isoOf(new Date(Date.now() - days * 86_400_000)));
+    const rows = await db.staffAttendance.findMany({ where: { date: { lt: before }, OR: [{ checkInPhotoId: { not: null } }, { checkOutPhotoId: { not: null } }] }, select: { id: true, checkInPhotoId: true, checkOutPhotoId: true }, take: 2000 });
+    for (const r of rows) {
+        for (const f of [r.checkInPhotoId, r.checkOutPhotoId]) if (f) await deleteFile(f);
+        await db.staffAttendance.update({ where: { id: r.id }, data: { checkInPhotoId: null, checkOutPhotoId: null } });
+    }
+    return rows.length;
 };

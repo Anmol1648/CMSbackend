@@ -8,6 +8,9 @@ import * as calendar from './calendar.service';
 import * as students from './student-attendance.service';
 import * as staff from './staff-attendance.service';
 import * as leave from './leave.service';
+import * as faces from './faces.service';
+import { checkInInput } from './checkin-checks.service';
+import { readFile } from '../../core/files';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -47,8 +50,8 @@ attendanceRoutes.get('/me', can('attendance.mine'), asyncHandler(async (req: Req
 
 // Staff: themselves, and the office.
 attendanceRoutes.get('/staff/me', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.myDay(uid(req), req.ip), 'Today')));
-attendanceRoutes.post('/staff/check-in', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.checkIn(uid(req), req.ip), 'Checked in')));
-attendanceRoutes.post('/staff/check-out', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.checkOut(uid(req), req.ip), 'Checked out')));
+attendanceRoutes.post('/staff/check-in', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.checkIn(uid(req), req.ip, parse(checkInInput, req.body)), 'Checked in')));
+attendanceRoutes.post('/staff/check-out', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.checkOut(uid(req), req.ip, parse(checkInInput, req.body)), 'Checked out')));
 attendanceRoutes.get('/staff/day', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.staffDay(parse(staff.dayQuery, req.query)), 'Staff attendance')));
 attendanceRoutes.put('/staff/:staffId', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.correct(req.params.staffId, parse(staff.correctionSchema, req.body)), 'Saved')));
 
@@ -71,3 +74,25 @@ attendanceRoutes.post('/staff/requests', can('attendance.checkin'), asyncHandler
 attendanceRoutes.get('/staff/requests/mine', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.myRequests(uid(req)), 'My requests')));
 attendanceRoutes.get('/staff/requests', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.correctionRequests(parse(staff.requestsQuery, req.query)), 'Requests')));
 attendanceRoutes.post('/staff/requests/:id/decide', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.decideCorrection(req.params.id, parse(leave.decideSchema, req.body), uid(req)), 'Saved')));
+
+// Check-ins waiting for approval, photos, faces, locations.
+attendanceRoutes.get('/staff/pending', can('attendance.staff'), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await staff.pendingCheckIns(), 'Waiting')));
+attendanceRoutes.post('/staff/pending/:id/decide', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.decideCheckIn(req.params.id, parse(staff.approvalSchema, req.body), uid(req)), 'Saved')));
+attendanceRoutes.get('/staff/photo/:fileId', authenticated, needAny(['attendance.staff', 'attendance.checkin']), asyncHandler(async (req: Request, res: Response) => {
+    const a = await getUserAccess(uid(req));
+    const id = await staff.photoFor(req.params.fileId, uid(req), !!a.permissions['attendance.staff']);
+    const { file, data } = await readFile(id);
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.end(data);
+}));
+attendanceRoutes.get('/faces', can('attendance.staff'), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await faces.listFaces(), 'Faces')));
+attendanceRoutes.post('/faces/:staffId', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.enrolByOffice(req.params.staffId, parse(faces.enrolSchema, req.body), uid(req)), 'Face enrolled')));
+attendanceRoutes.post('/faces/:staffId/approve', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.approveFace(req.params.staffId, uid(req)), 'Approved')));
+attendanceRoutes.delete('/faces/:staffId', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.removeFace(req.params.staffId), 'Removed')));
+attendanceRoutes.get('/my-face', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.myFace(uid(req)), 'My face')));
+attendanceRoutes.post('/my-face', can('attendance.checkin'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.enrolSelf(uid(req), parse(faces.enrolSchema, req.body)), 'Sent for approval')));
+attendanceRoutes.get('/locations', can('attendance.staff'), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await faces.listLocations(), 'Locations')));
+attendanceRoutes.post('/locations', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.saveLocation(null, parse(faces.locationSchema, req.body)), 'Location added', 201)));
+attendanceRoutes.put('/locations/:id', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.saveLocation(req.params.id, parse(faces.locationSchema, req.body)), 'Saved')));
+attendanceRoutes.delete('/locations/:id', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.deleteLocation(req.params.id), 'Removed')));

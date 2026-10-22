@@ -69,7 +69,7 @@ export const mimeOf = (kind: FileKind) => KINDS[kind].mime;
 export interface SaveUploadInput {
     data: Buffer;
     originalName: string;
-    purpose: 'logo' | 'background' | 'avatar' | 'import' | 'document';
+    purpose: 'logo' | 'background' | 'avatar' | 'import' | 'document' | 'attendance' | 'face';
     allowed: FileKind[];
 }
 
