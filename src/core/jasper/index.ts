@@ -54,7 +54,9 @@ const call = async (path: string, body: unknown, timeoutMs: number) => {
     } catch (err) {
         if ((err as Error).name === 'TimeoutError') throw new AppError('The report took too long to make. Choose fewer records.', 504, ErrorCode.INTERNAL_SERVER_ERROR);
         const cause = (err as { cause?: { code?: string; message?: string } }).cause;
-        const reason = [(err as Error).message, cause?.code, cause?.message].filter(Boolean).join(' · ');
+        const raw = [(err as Error).message, cause?.code, cause?.message].filter(Boolean).join(' · ');
+        // Never repeat the token (a header error quotes the whole value) in the log or on screen.
+        const reason = /header/i.test(raw) ? 'JASPER_TOKEN is not a valid token (it must be one line of letters and numbers)' : token() ? raw.split(token()!).join('***') : raw;
         logger.warn('Report service unreachable', { url: base(), reason });
         throw new JasperUnavailableError(reason);
     }
