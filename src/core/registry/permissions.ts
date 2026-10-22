@@ -49,12 +49,18 @@ export const listPermissionDefs = () => [...permissions.values()];
 export const findPermissionDef = (key: string) => permissions.get(key);
 export const listModules = () => [...modules.values()].sort((a, b) => a.order - b.order);
 
-/** Writes the registry into the permissions table; removes keys no longer in code (their grants go too). */
+/**
+ * Writes the registry into the permissions table. Keys no longer in code are kept (and logged): an
+ * older server on the same database (a deploy still rolling out, a PC running last week's code)
+ * would otherwise delete newer permissions and every role's grant of them. PRUNE_PERMISSIONS=true
+ * removes them, once every server runs the same code.
+ */
 export const syncPermissions = () =>
     runAsSystem(async () => {
         const defs = listPermissionDefs();
         const existing = await db.permission.findMany({ select: { key: true } });
         const stale = existing.map((p) => p.key).filter((k) => !permissions.has(k));
+        const prune = process.env.PRUNE_PERMISSIONS === 'true';
         await db.$transaction([
             ...defs.map((d) =>
                 db.permission.upsert({
@@ -63,10 +69,10 @@ export const syncPermissions = () =>
                     update: { module: d.module, resource: d.resource, action: d.action, label: d.label, description: d.description ?? null, isSensitive: d.sensitive ?? false, scopes: d.scopes },
                 })
             ),
-            ...(stale.length ? [db.permission.deleteMany({ where: { key: { in: stale } } })] : []),
+            ...(stale.length && prune ? [db.permission.deleteMany({ where: { key: { in: stale } } })] : []),
         ] as Prisma.PrismaPromise<unknown>[]);
-        if (stale.length) logger.warn(`Removed permissions no longer in code: ${stale.join(', ')}`);
-        return { total: defs.length, removed: stale.length };
+        if (stale.length) logger.warn(prune ? `Removed permissions no longer in code: ${stale.join(', ')}` : `Permissions not in this server's code (kept; set PRUNE_PERMISSIONS=true to remove): ${stale.join(', ')}`);
+        return { total: defs.length, removed: prune ? stale.length : 0 };
     });
 
 /** Broadest first: all > assigned > own. */
