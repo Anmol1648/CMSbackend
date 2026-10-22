@@ -6,7 +6,7 @@ import { defineReport, ReportColumn } from '../reports/reports.registry';
 import { defineDataSource } from '../reports/datasources.registry';
 import { ATTENDANCE, dayDate, isoOf, todayIST } from './attendance.settings';
 import { daysOff, schoolDays } from './calendar.service';
-import { statuses, summaries, viewableSections } from './student-attendance.service';
+import { dayCode, statuses, summaries, viewableSections } from './student-attendance.service';
 
 /** Attendance reports (Report Center) and data sources (Report Builder). */
 
@@ -99,7 +99,7 @@ defineReport({
                     roll: e?.rollNumber ?? null,
                     student: e ? fullName(e.student) : '—',
                     admissionNo: e?.student.admissionNo ?? '',
-                    status: m.sheet.slot === 'day' ? st.name : `${st.name} (${m.sheet.slot === 'am' ? 'morning' : 'afternoon'})`,
+                    status: m.sheet.slot === 'day' ? st.name : `${st.name} (${m.sheet.slot === 'am' ? 'morning' : m.sheet.slot === 'pm' ? 'afternoon' : `period ${m.sheet.slot.slice(1)}`})`,
                     note: m.note ?? '',
                     parent: e?.student.family?.guardians[0]?.name ?? '',
                     mobile: e?.student.family?.guardians[0]?.mobile ?? '',
@@ -155,7 +155,7 @@ defineReport({
                 if (d > lastDay) continue;
                 const iso = `${m.first.slice(0, 8)}${String(d).padStart(2, '0')}`;
                 const mine = marks.filter((x) => x.studentId === e.student.id && isoOf(x.sheet.date) === iso).sort((a, b) => a.sheet.slot.localeCompare(b.sheet.slot));
-                row[`d${d}`] = mine.length ? mine.map((x) => byId.get(x.statusId)?.code ?? '?').join('/') : off.has(iso) ? (off.get(iso)!.startsWith('Weekly off') || off.get(iso)!.endsWith('Saturday off') ? '–' : 'H') : '';
+                row[`d${d}`] = mine.length ? dayCode(mine.map((x) => ({ code: byId.get(x.statusId)?.code ?? '?', present: byId.get(x.statusId)?.present ?? 0, excused: byId.get(x.statusId)?.excused ?? false }))) : off.has(iso) ? (off.get(iso)!.startsWith('Weekly off') || off.get(iso)!.endsWith('Saturday off') ? '–' : 'H') : '';
             }
             const s = sums.get(e.student.id)!;
             row.present = s.present;
@@ -382,7 +382,7 @@ defineDataSource({
             const st = byId.get(m.statusId);
             return {
                 date: isoOf(m.sheet.date),
-                part: m.sheet.slot === 'day' ? 'Whole day' : m.sheet.slot === 'am' ? 'Morning' : 'Afternoon',
+                part: m.sheet.slot === 'day' ? 'Whole day' : m.sheet.slot === 'am' ? 'Morning' : m.sheet.slot === 'pm' ? 'Afternoon' : `Period ${m.sheet.slot.slice(1)}`,
                 section: label(m.sheet.section),
                 className: m.sheet.section.schoolClass.name,
                 roll: rolls.get(`${m.student.id}|${m.sheet.section.id}`) ?? null,

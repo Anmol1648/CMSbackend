@@ -24,6 +24,7 @@ registerMenuGroup({ key: 'attendance', label: 'Attendance', order: 12 });
 registerMenuItems([
     { key: 'attendance-mark', label: 'Mark Attendance', icon: 'how_to_reg', href: '/attendance/mark', group: 'attendance', order: 10, permission: 'attendance.mark' },
     { key: 'attendance-today', label: 'Attendance Today', icon: 'fact_check', href: '/attendance', group: 'attendance', order: 20, permission: 'attendance.view' },
+    { key: 'attendance-leave', label: 'Leave Requests', icon: 'event_available', href: '/attendance/leave', group: 'attendance', order: 25, permission: 'attendance.mark' },
     { key: 'attendance-staff', label: 'Staff Attendance', icon: 'badge', href: '/attendance/staff', group: 'attendance', order: 30, permission: 'attendance.staff' },
     { key: 'attendance-holidays', label: 'Holidays', icon: 'event_busy', href: '/attendance/holidays', group: 'attendance', order: 40, permission: 'attendance.holidays' },
     { key: 'my-attendance', label: 'My Attendance', icon: 'calendar_month', href: '/my-attendance', group: 'main', order: 25, permission: 'attendance.mine' },

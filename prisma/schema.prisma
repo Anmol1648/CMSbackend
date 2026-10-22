@@ -90,6 +90,9 @@ model Tenant {
   attendanceMarks  AttendanceMark[]
   staffAttendance  StaffAttendance[]
 
+  studentLeaves           StudentLeave[]
+  staffAttendanceRequests StaffAttendanceRequest[]
+
   @@map("tenants")
 }
 
@@ -912,6 +915,8 @@ model Student {
 
   attendanceMarks AttendanceMark[]
 
+  leaves StudentLeave[]
+
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
   @@index([tenantId, status])
@@ -1064,6 +1069,8 @@ model Staff {
   ttSubstitutions TtSubstitution[]     @relation("TtSubSubstitute")
 
   attendance StaffAttendance[]
+
+  attendanceRequests StaffAttendanceRequest[]
 
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
@@ -1923,4 +1930,62 @@ model StaffAttendance {
   @@unique([tenantId, staffId, date])
   @@index([tenantId, date])
   @@map("staff_attendance")
+}
+
+/// A student's leave, asked by the parent or the student; approved leave fills the registers of those days.
+model StudentLeave {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  studentId    String    @map("student_id") @db.Uuid
+  fromDate     DateTime  @map("from_date") @db.Date
+  toDate       DateTime  @map("to_date") @db.Date
+  /// leave | medical (which attendance status the days get: LV / ML).
+  kind         String    @default("leave")
+  reason       String
+  /// pending | approved | rejected | cancelled
+  status       String    @default("pending")
+  /// The user who asked (parent or student).
+  appliedBy    String?   @map("applied_by") @db.Uuid
+  decidedBy    String?   @map("decided_by") @db.Uuid
+  decidedAt    DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote String?   @map("decision_note")
+  isDemo       Boolean   @default(false) @map("is_demo")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy    String?   @map("updated_by") @db.Uuid
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, status])
+  @@map("student_leaves")
+}
+
+/// A staff member asks the office to put a day right (forgot to check in, on duty elsewhere).
+model StaffAttendanceRequest {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  staffId      String    @map("staff_id") @db.Uuid
+  date         DateTime  @db.Date
+  /// "08:05" (India time); empty = not asked to change.
+  checkIn      String?   @map("check_in")
+  checkOut     String?   @map("check_out")
+  reason       String
+  /// pending | approved | rejected | cancelled
+  status       String    @default("pending")
+  decidedBy    String?   @map("decided_by") @db.Uuid
+  decidedAt    DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote String?   @map("decision_note")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy    String?   @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  Staff  @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("staff_attendance_requests")
 }

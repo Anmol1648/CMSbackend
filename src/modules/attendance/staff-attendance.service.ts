@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { db } from '../../core/db';
 import { getTenantId } from '../../core/context';
@@ -185,4 +186,71 @@ export const correct = async (staffId: string, input: z.infer<typeof correctionS
     else await db.staffAttendance.create({ data: { tenantId: getTenantId()!, staffId, date: dayDate(input.date), ...data } });
     await recordAudit({ action: 'staff_attendance_corrected', entity: 'staff_attendance', entityId: staffId, changes: { staff: fullName(staff), date: input.date, checkIn: input.checkIn, checkOut: input.checkOut, status: list.find((x) => x.id === statusId)?.code ?? null } });
     return staffDay({ date: input.date });
+};
+
+// ─── Correction requests ─────────────────────────────────────────────────────
+
+export const requestSchema = z
+    .strictObject({ date: ISO, checkIn: HHMM.optional(), checkOut: HHMM.optional(), reason: z.string().trim().min(3, 'is too short').max(300) })
+    .refine((x) => x.checkIn || x.checkOut, { message: 'give the time you came in or left', path: ['checkIn'] })
+    .refine((x) => !x.checkIn || !x.checkOut || x.checkOut > x.checkIn, { message: 'check-out is before check-in', path: ['checkOut'] });
+
+/** A staff member asks the office to put a day right. */
+export const askCorrection = async (userId: string, input: z.infer<typeof requestSchema>) => {
+    const staff = await myStaff(userId);
+    const { days } = await getSettings({ days: ATTENDANCE.staffRequestDays });
+    const today = todayIST();
+    const earliest = isoOf(new Date(dayDate(today).getTime() - days * 86_400_000));
+    if (input.date > today) throw badRequest('That day hasn’t come yet', [{ field: 'date', message: 'is in the future' }]);
+    if (input.date < earliest) throw badRequest(`Corrections can be asked for up to ${days} days back. Speak to the office for older days.`, [{ field: 'date', message: 'is too far back' }]);
+    if (await dayOff(input.date, 'staff')) throw badRequest('That was not a working day', [{ field: 'date', message: 'is not a working day' }]);
+    if (await db.staffAttendanceRequest.findFirst({ where: { staffId: staff.id, date: dayDate(input.date), status: 'pending' } })) throw conflict('You already have a request waiting for that day');
+    const row = await db.staffAttendanceRequest.create({ data: { tenantId: getTenantId()!, staffId: staff.id, date: dayDate(input.date), checkIn: input.checkIn ?? null, checkOut: input.checkOut ?? null, reason: input.reason } });
+    await recordAudit({ action: 'staff_attendance_request', entity: 'staff_attendance_request', entityId: row.id, changes: { staff: fullName(staff), date: input.date } });
+    return myRequests(userId);
+};
+
+const presentRequests = async (rows: Prisma.StaffAttendanceRequestGetPayload<{ include: { staff: { select: { id: true; firstName: true; middleName: true; lastName: true; employeeCode: true } } } }>[]) => {
+    const users = new Map((await db.user.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.decidedBy).filter((x): x is string => !!x))] } }, select: { id: true, displayName: true } })).map((u) => [u.id, u.displayName]));
+    const recorded = rows.length ? await db.staffAttendance.findMany({ where: { OR: rows.map((r) => ({ staffId: r.staffId, date: r.date })) }, select: { staffId: true, date: true, checkIn: true, checkOut: true } }) : [];
+    return rows.map((r) => {
+        const now = recorded.find((x) => x.staffId === r.staffId && isoOf(x.date) === isoOf(r.date));
+        return {
+            id: r.id,
+            staff: { id: r.staff.id, name: fullName(r.staff), employeeCode: r.staff.employeeCode },
+            date: isoOf(r.date),
+            checkIn: r.checkIn,
+            checkOut: r.checkOut,
+            recorded: { checkIn: timeIST(now?.checkIn ?? null), checkOut: timeIST(now?.checkOut ?? null) },
+            reason: r.reason,
+            status: r.status,
+            askedAt: r.createdAt,
+            decidedBy: r.decidedBy ? (users.get(r.decidedBy) ?? null) : null,
+            decidedAt: r.decidedAt,
+            decisionNote: r.decisionNote,
+        };
+    });
+};
+const staffSelect = { select: { id: true, firstName: true, middleName: true, lastName: true, employeeCode: true } } as const;
+
+export const myRequests = async (userId: string) => {
+    const staff = await myStaff(userId);
+    return presentRequests(await db.staffAttendanceRequest.findMany({ where: { staffId: staff.id }, include: { staff: staffSelect }, orderBy: { createdAt: 'desc' }, take: 30 }));
+};
+
+export const requestsQuery = z.object({ status: z.enum(['pending', 'approved', 'rejected', 'all']).default('pending') });
+
+export const correctionRequests = async (q: z.infer<typeof requestsQuery>) =>
+    presentRequests(await db.staffAttendanceRequest.findMany({ where: q.status === 'all' ? {} : { status: q.status }, include: { staff: staffSelect }, orderBy: q.status === 'pending' ? { date: 'asc' } : { updatedAt: 'desc' }, take: 200 }));
+
+/** The office approves (the day is corrected with the asked times) or turns down a request. */
+export const decideCorrection = async (id: string, input: { approve: boolean; note?: string }, userId: string) => {
+    if (!z.uuid().safeParse(id).success) throw notFound('Request not found');
+    const r = await db.staffAttendanceRequest.findFirst({ where: { id } });
+    if (!r) throw notFound('Request not found');
+    if (r.status !== 'pending') throw badRequest('This request has already been decided');
+    if (input.approve) await correct(r.staffId, { date: isoOf(r.date), ...(r.checkIn ? { checkIn: r.checkIn } : {}), ...(r.checkOut ? { checkOut: r.checkOut } : {}), note: r.reason });
+    await db.staffAttendanceRequest.update({ where: { id }, data: { status: input.approve ? 'approved' : 'rejected', decidedBy: userId, decidedAt: new Date(), decisionNote: input.note || null } });
+    await recordAudit({ action: input.approve ? 'staff_attendance_request_approved' : 'staff_attendance_request_rejected', entity: 'staff_attendance_request', entityId: id });
+    return correctionRequests({ status: 'pending' });
 };
