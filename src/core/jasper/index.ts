@@ -39,7 +39,7 @@ const call = async (path: string, body: unknown, timeoutMs: number) => {
         });
     } catch (err) {
         if ((err as Error).name === 'TimeoutError') throw new AppError('The report took too long to make. Choose fewer records.', 504, ErrorCode.INTERNAL_SERVER_ERROR);
-        logger.warn('Report service unreachable', { url: base(), error: (err as Error).message });
+        logger.warn('Report service unreachable', { url: base(), error: (err as Error).message, cause: String((err as { cause?: unknown }).cause ?? '') });
         throw new JasperUnavailableError();
     }
     if (res.ok) return res;
@@ -69,7 +69,8 @@ export const jasperInspect = async (design: string): Promise<JasperDesignInfo> =
 /** Is the renderer running (and which version). */
 export const jasperHealth = async (): Promise<{ running: boolean; version?: string }> => {
     try {
-        const res = await fetch(`${base()}/health`, { signal: AbortSignal.timeout(3000) });
+        // A sleeping host (e.g. Render free plan) takes ~15 s to wake: wait for it.
+        const res = await fetch(`${base()}/health`, { signal: AbortSignal.timeout(25_000) });
         const body = (await res.json()) as { jasperreports?: string };
         return { running: res.ok, version: body.jasperreports };
     } catch {
