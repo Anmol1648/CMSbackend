@@ -5,7 +5,7 @@ import { getContext, getTenantId } from '../context';
 import { AppError, badRequest, notFound } from '../errors';
 import { ErrorCode } from '../auth.types';
 import { defineSetting, getSetting } from '../settings';
-import { storage } from './storage';
+import { storage, storageFor } from './storage';
 
 /**
  * Uploaded files. Every upload is checked by its content (not its name or the browser's claim),
@@ -105,12 +105,17 @@ export const readFile = async (id: string) => {
     if (!z.string().uuid().safeParse(id).success) throw notFound('File not found');
     const file = await db.file.findUnique({ where: { id } });
     if (!file) throw notFound('File not found');
-    return { file, data: await storage().get(file.storageKey) };
+    try {
+        return { file, data: await storageFor(file.provider).get(file.storageKey) };
+    } catch {
+        // The row is here but the bytes aren't (saved on another server's disk, or that disk was wiped).
+        throw notFound('The file is missing from storage. Upload it again.');
+    }
 };
 
 export const deleteFile = async (id: string) => {
     const file = await db.file.findUnique({ where: { id } });
     if (!file) return;
     await db.file.update({ where: { id }, data: { deletedAt: new Date() } });
-    await storage().remove(file.storageKey).catch(() => undefined);
+    await storageFor(file.provider).remove(file.storageKey).catch(() => undefined);
 };

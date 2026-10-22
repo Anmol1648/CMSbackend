@@ -26,7 +26,8 @@
     "masters:seed": "tsx src/scripts/seed-starter-data.ts",
     "demo:seed": "tsx src/scripts/demo-data.ts",
     "demo:clear": "tsx src/scripts/demo-data.ts --clear",
-    "jasper": "node scripts/jasper.js"
+    "jasper": "node scripts/jasper.js",
+    "files:to-cloudinary": "tsx src/scripts/files-to-cloudinary.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

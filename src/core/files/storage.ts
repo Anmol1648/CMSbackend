@@ -81,6 +81,20 @@ export const storage = (): StorageProvider =>
             ? new CloudinaryStorage()
             : new LocalStorage(process.env.STORAGE_DIR || path.join(process.cwd(), 'storage')));
 
+let local: StorageProvider | undefined;
+let cloud: StorageProvider | undefined;
+
+/**
+ * The store a file was saved in (its row says which), whatever new uploads use now: files saved on
+ * this machine's disk and in Cloudinary both keep working after a school switches.
+ */
+export const storageFor = (name: string): StorageProvider => {
+    const current = storage();
+    if (current.name === name) return current;
+    if (name === 'cloudinary') return (cloud ??= new CloudinaryStorage());
+    return (local ??= new LocalStorage(process.env.STORAGE_DIR || path.join(process.cwd(), 'storage')));
+};
+
 /** Tests point storage at a temporary folder. */
 export const useStorageForTests = (p: StorageProvider) => {
     provider = p;
