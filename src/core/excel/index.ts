@@ -1,4 +1,8 @@
 import ExcelJS from 'exceljs';
+import { buildStyledWorkbook, SheetColumn } from './styled';
+
+export { buildStyledWorkbook } from './styled';
+export type { SheetColumn, SheetColumnType, StyledSheet } from './styled';
 
 /**
  * Excel engine shared by every module.
@@ -259,11 +263,7 @@ export const parseRows = async (columns: ImportColumn[], data: Buffer, maxRows: 
     return { rows, problems };
 };
 
-export interface ExportColumn<T> {
-    header: string;
-    width?: number;
-    value: (row: T) => string | number | Date | null | undefined;
-}
+export type ExportColumn<T> = SheetColumn<T>;
 
 /**
  * A name Excel accepts for a sheet: none of * ? : \ / [ ], no leading or trailing apostrophe,
@@ -277,7 +277,12 @@ export const safeSheetName = (name: string) =>
         .slice(0, 31)
         .trim() || 'Sheet1';
 
-export const buildWorkbook = async <T>(sheetName: string, columns: ExportColumn<T>[], rows: T[]): Promise<Buffer> => {
+/**
+ * An export: the school's report look (title, navy heading, totals, printed by…), or a plain sheet
+ * (`plain`) for files people fill in and upload again (heading in row 1, nothing else).
+ */
+export const buildWorkbook = async <T>(sheetName: string, columns: ExportColumn<T>[], rows: T[], options: { plain?: boolean; title?: string; subtitle?: string } = {}): Promise<Buffer> => {
+    if (!options.plain) return buildStyledWorkbook({ title: options.title ?? sheetName, subtitle: options.subtitle, sheetName, columns, rows });
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Klytos Labs School ERP';
     const ws = wb.addWorksheet(safeSheetName(sheetName), { views: [{ state: 'frozen', ySplit: 1 }] });

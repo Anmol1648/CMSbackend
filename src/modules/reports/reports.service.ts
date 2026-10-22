@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import ExcelJS from 'exceljs';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { db, withTransaction } from '../../core/db';
@@ -8,6 +7,7 @@ import { getTenantId } from '../../core/context';
 import { badRequest, forbidden, notFound } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
 import { htmlToPdf, pageHtml } from '../../core/pdf';
+import { buildStyledWorkbook } from '../../core/excel';
 import { jasperHealth, jasperInspect, jasperRender, JasperUnavailableError } from '../../core/jasper';
 import { logger } from '../../core/logger';
 import { currentYear } from '../academic/years.service';
@@ -321,59 +321,11 @@ tr { break-inside: avoid; }
     return htmlToPdf(pageHtml(html, css, paper), paper, `Printed by ${p.PRINTED_BY} on ${p.PRINTED_AT} | Page {page} of {pages}`);
 };
 
+/** The report as Excel, in the same look as every export (core/excel/styled). */
 const builtInExcel = async (def: ReportDef, result: ReportResult, p: Awaited<ReturnType<typeof parametersFor>>) => {
-    const wb = new ExcelJS.Workbook();
-    wb.creator = 'Klytos Labs School ERP';
-    const ws = wb.addWorksheet(def.label.slice(0, 31).replace(/[\\/?*[\]:]/g, ' '));
-    const cols = def.columns;
-    const money = '[>=10000000]"₹"##\\,##\\,##\\,##0;[>=100000]"₹"##\\,##\\,##0;"₹"##,##0';
-    const number = '[>=10000000]##\\,##\\,##\\,##0;[>=100000]##\\,##\\,##0;##,##0';
-    ws.columns = cols.map((c) => ({ width: Math.max(10, Math.round((c.width ?? 1) * 12)) }));
-    const addTitle = (text: string, size: number, bold = true) => {
-        const r = ws.addRow([text]);
-        r.font = { bold, size };
-        ws.mergeCells(r.number, 1, r.number, cols.length);
-    };
-    addTitle(p.SCHOOL_NAME, 14);
-    addTitle(def.label, 12);
-    if (p.REPORT_SUBTITLE) addTitle(p.REPORT_SUBTITLE, 10, false);
-    ws.addRow([]);
-    const head = ws.addRow(cols.map((c) => c.label));
-    head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    head.eachCell((c) => (c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A365D' } }));
-    ws.views = [{ state: 'frozen', ySplit: head.number }];
-    const put = (values: unknown[], style?: Partial<ExcelJS.Style>) => {
-        const r = ws.addRow(values);
-        cols.forEach((c, i) => {
-            const x = r.getCell(i + 1);
-            if (c.type === 'money') x.numFmt = money;
-            else if (c.type === 'number') x.numFmt = number;
-            else if (c.type === 'date') x.numFmt = 'dd-mmm-yyyy';
-        });
-        if (style?.font) r.font = style.font;
-        if (style?.fill) r.eachCell({ includeEmpty: true }, (x) => (x.fill = style.fill!));
-        return r;
-    };
-    const value = (c: ReportColumn, v: unknown) => (c.type === 'date' && typeof v === 'string' && ISO_DATE.test(v) ? new Date(`${v}T00:00:00Z`) : (v ?? null));
-    const totals = (label: string, rows: Record<string, unknown>[], bold: Partial<ExcelJS.Style>) => {
-        const t = totalsOf(cols, rows);
-        put(cols.map((c, i) => (i === 0 ? `${label} (${rows.length})` : c.total ? t[c.key] : null)), bold);
-    };
-    const groups = groupsOf(result);
-    for (const g of groups) {
-        if (g.label !== null) {
-            const r = ws.addRow([`${result.groupedBy}: ${g.label}`]);
-            r.font = { bold: true, color: { argb: 'FF1A365D' } };
-            r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF2F7' } };
-            ws.mergeCells(r.number, 1, r.number, cols.length);
-        }
-        for (const row of g.rows) put(cols.map((c) => value(c, row[c.key])));
-        if (g.label !== null && groups.length > 1) totals(`Total for ${g.label}`, g.rows, { font: { bold: true } });
-    }
-    if (result.rows.length) totals('Grand total', result.rows, { font: { bold: true, size: 11 }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } } });
-    ws.addRow([]);
-    ws.addRow([`Printed by ${p.PRINTED_BY} on ${p.PRINTED_AT}`]).font = { italic: true, size: 9, color: { argb: 'FF666666' } };
-    return Buffer.from(await wb.xlsx.writeBuffer());
+    const columns = def.columns.map((c) => ({ header: c.label, width: Math.max(10, Math.round((c.width ?? 1) * 12)), type: c.type, total: c.total, value: (r: Record<string, unknown>) => r[c.key] as string | number | null }));
+    const groups = result.groupedBy ? groupsOf(result).map((g) => ({ label: g.label ?? '—', rows: g.rows })) : undefined;
+    return buildStyledWorkbook({ title: def.label, subtitle: p.REPORT_SUBTITLE || undefined, columns, rows: result.rows, groups, groupedBy: result.groupedBy });
 };
 
 // ─── Designs (super admin: report.design) ────────────────────────────────────

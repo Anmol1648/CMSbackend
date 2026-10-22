@@ -115,13 +115,13 @@ feeRoutes.get('/receipts/export', view, asyncHandler(async (req: Request, res: R
     const rows = (await receipts.listReceipts(q, await viewer(req))).items;
     const data = await buildWorkbook('Receipts', [
         { header: 'Receipt no.', width: 18, value: (r) => r.receiptNo },
-        { header: 'Date', width: 12, value: (r) => r.date },
+        { header: 'Date', width: 13, type: 'date', value: (r) => r.date },
         { header: 'Student', width: 26, value: (r) => r.student.name },
         { header: 'Admission no.', width: 14, value: (r) => r.student.admissionNo },
         { header: 'Class', value: (r) => r.student.section },
         { header: 'Mode', value: (r) => r.mode },
         { header: 'Reference', width: 18, value: (r) => r.reference },
-        { header: 'Amount', value: (r) => r.amount },
+        { header: 'Amount', width: 14, type: 'money', total: true, value: (r) => r.amount },
         { header: 'Status', value: (r) => r.status },
         { header: 'Collected by', width: 20, value: (r) => r.collectedBy },
     ], rows);
@@ -141,12 +141,12 @@ feeRoutes.get('/reports/dues/export', view, asyncHandler(async (req: Request, re
         { header: 'Student', width: 26, value: (s) => s.name },
         { header: 'Parent', width: 24, value: (s) => s.parent?.name },
         { header: 'Mobile', width: 14, value: (s) => s.parent?.mobile },
-        { header: 'Fees this year', value: (s) => s.net },
-        { header: 'Paid', value: (s) => s.paid },
-        { header: 'Balance', value: (s) => s.balance },
-        { header: 'Overdue', value: (s) => s.overdue },
-        { header: 'Late fine', value: (s) => s.fine },
-        { header: 'Overdue since', width: 14, value: (s) => s.overdueSince },
+        { header: 'Fees this year', width: 14, type: 'money', total: true, value: (s) => s.net },
+        { header: 'Paid', width: 13, type: 'money', total: true, value: (s) => s.paid },
+        { header: 'Balance', width: 13, type: 'money', total: true, value: (s) => s.balance },
+        { header: 'Overdue', width: 13, type: 'money', total: true, value: (s) => s.overdue },
+        { header: 'Late fine', width: 12, type: 'money', total: true, value: (s) => s.fine },
+        { header: 'Overdue since', width: 14, type: 'date', value: (s) => s.overdueSince },
     ], r.students);
     sendFile(res, `fee-dues-${r.asOf}.xlsx`, XLSX_MIME, data);
 }));

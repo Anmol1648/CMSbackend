@@ -338,7 +338,7 @@ export const exportValues = async (key: string, q: Pick<ListQuery<typeof masterV
         ...(def.fields ?? []).map((f) => ({ header: f.label, width: 20, value: (r: (typeof rows)[number]) => (r.extra[f.key] === undefined ? null : String(r.extra[f.key])) })),
         ...(def.ordering === 'manual' ? [{ header: 'Order', value: (r: (typeof rows)[number]) => r.sortOrder }] : []),
         { header: 'Active', value: (r) => (r.isActive ? 'Yes' : 'No') },
-    ], rows);
+    ], rows, { plain: true });
 };
 
 // ─── Starter options ─────────────────────────────────────────────────────────

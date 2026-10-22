@@ -53,7 +53,7 @@ studentRoutes.get('/export', view, asyncHandler(async (req: Request, res: Respon
         { header: 'Class', width: 16, value: (s) => s.section.label },
         { header: 'Roll no', value: (s) => s.rollNumber },
         { header: 'Gender', value: (s) => s.gender?.name },
-        { header: 'Date of birth', width: 14, value: (s) => s.dateOfBirth },
+        { header: 'Date of birth', width: 14, type: 'date', value: (s) => s.dateOfBirth },
         { header: 'House', value: (s) => s.house?.name },
         { header: 'Parent / guardian', width: 24, value: (s) => s.contact?.name },
         { header: 'Mobile', width: 16, value: (s) => s.contact?.mobile },

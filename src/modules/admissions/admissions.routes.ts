@@ -41,7 +41,7 @@ admissionRoutes.get('/enquiries/export', view, asyncHandler(async (req: Request,
     const rows = (await enquiries.listEnquiries(q, await viewer(req))).items;
     const data = await buildWorkbook('Enquiries', [
         { header: 'Enquiry no.', width: 18, value: (e) => e.enquiryNo },
-        { header: 'Date', width: 12, value: (e) => e.enquiryDate },
+        { header: 'Date', width: 13, type: 'date', value: (e) => e.enquiryDate },
         { header: 'Student', width: 26, value: (e) => e.studentName },
         { header: 'Class', value: (e) => e.class.name },
         { header: 'Parent', width: 24, value: (e) => e.parentName },
@@ -49,7 +49,7 @@ admissionRoutes.get('/enquiries/export', view, asyncHandler(async (req: Request,
         { header: 'Source', width: 18, value: (e) => e.source?.name },
         { header: 'Stage', width: 18, value: (e) => e.stage.name },
         { header: 'Follows up', width: 22, value: (e) => e.assignedTo?.name },
-        { header: 'Next follow-up', width: 14, value: (e) => e.nextFollowUp },
+        { header: 'Next follow-up', width: 14, type: 'date', value: (e) => e.nextFollowUp },
         { header: 'Registration no.', width: 18, value: (e) => e.registrationNo },
     ], rows);
     sendFile(res, `enquiries-${new Date().toISOString().slice(0, 10)}.xlsx`, XLSX_MIME, data);

@@ -159,7 +159,8 @@ export const importErrorReport = async (jobId: string, userId: string) => {
             { header: 'Column', width: 24, value: (r) => r.field },
             { header: 'Problem', width: 70, value: (r) => r.message },
         ],
-        [...problems, ...issues]
+        [...problems, ...issues],
+        { plain: true }
     );
     return { fileName: `${job.kind}-import-problems.xlsx`, data };
 };
