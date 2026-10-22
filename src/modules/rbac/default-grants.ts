@@ -64,6 +64,7 @@ export const DEFAULT_GRANTS: Record<string, { key: string; scope?: DataScope }[]
         { key: 'notice.publish' },
         { key: 'notice.reports' },
         { key: 'event.manage' },
+        { key: 'dashboard.setup' },
     ],
     principal: [{ key: 'user.view' }, { key: 'role.view' }, { key: 'masters.view' }, { key: 'academic.view' }, { key: 'academic.manage' }, { key: 'student.view' }, { key: 'student.view_sensitive' }, { key: 'staff.view' }, { key: 'staff.view_sensitive' }, { key: 'teaching.assign' }, { key: 'enquiry.view' }, { key: 'enquiry.reports' }, { key: 'fee.view' }, { key: 'fee.reports' }, { key: 'fee.concession' }, { key: 'timetable.view' }, { key: 'timetable.manage' }, { key: 'timetable.substitute' }, { key: 'timetable.mine' }, { key: 'report.view' }, { key: 'attendance.view' }, { key: 'attendance.mark' }, { key: 'attendance.mark_any' }, { key: 'attendance.holidays' }, { key: 'attendance.staff' }, { key: 'attendance.checkin' }, { key: 'leave.apply' }, { key: 'leave.approve' }, { key: 'leave.approve_all' }, { key: 'leave.view' }, { key: 'notice.create' }, { key: 'notice.publish' }, { key: 'notice.reports' }, { key: 'event.manage' }],
     // Teachers see the students of the sections they teach, and their own staff record.

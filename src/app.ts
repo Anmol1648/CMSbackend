@@ -32,6 +32,7 @@ import { reportRoutes } from './modules/reports/reports.routes';
 import { attendanceRoutes } from './modules/attendance/attendance.routes';
 import { leaveRoutes } from './modules/leave/leave.routes';
 import { eventRoutes, noticeRoutes } from './modules/notices/notices.routes';
+import { dashboardRoutes } from './modules/dashboard/dashboard.routes';
 import { admsRoutes, deviceRoutes, deviceWebhookRoutes } from './modules/attendance/devices.routes';
 
 export const app = express();
@@ -104,6 +105,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

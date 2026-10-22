@@ -106,6 +106,8 @@ model Tenant {
   notices      Notice[]
   noticeReads  NoticeRead[]
   schoolEvents SchoolEvent[]
+
+  dashboardLayouts DashboardLayout[]
   attendancePunches AttendancePunch[]
 
   @@map("tenants")
@@ -2370,4 +2372,24 @@ model SchoolEvent {
 
   @@index([tenantId, startDate])
   @@map("school_events")
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+
+/// A role's dashboard: which widgets, in what order and size (no row = the built-in layout for the role).
+model DashboardLayout {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  /// [{ "key": "fee_today", "size": "sm" }, …]
+  widgets   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, roleId])
+  @@map("dashboard_layouts")
 }
