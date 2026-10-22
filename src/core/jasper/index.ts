@@ -31,15 +31,26 @@ const base = () => (env.JASPER_URL?.trim() || 'http://127.0.0.1:8090').replace(/
 /** Trimmed: a space or line break pasted into the host's settings would make every request fail. */
 const token = () => env.JASPER_TOKEN?.trim();
 
+const post = (path: string, body: string, timeoutMs: number) =>
+    fetch(`${base()}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+    });
+
 const call = async (path: string, body: unknown, timeoutMs: number) => {
     let res: Response;
+    const json = JSON.stringify(body);
     try {
-        res = await fetch(`${base()}${path}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(timeoutMs),
-        });
+        try {
+            res = await post(path, json, timeoutMs);
+        } catch (first) {
+            // A proxy in front of the service (Render, a load balancer) may have closed the reused
+            // connection; rendering changes nothing, so try once more on a fresh one.
+            if ((first as Error).name === 'TimeoutError') throw first;
+            res = await post(path, json, timeoutMs);
+        }
     } catch (err) {
         if ((err as Error).name === 'TimeoutError') throw new AppError('The report took too long to make. Choose fewer records.', 504, ErrorCode.INTERNAL_SERVER_ERROR);
         const cause = (err as { cause?: { code?: string; message?: string } }).cause;
