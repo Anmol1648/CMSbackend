@@ -11,6 +11,7 @@ import { dayOff, daysOff } from './calendar.service';
 import { statuses } from './student-attendance.service';
 import { CheckInInput, REASON_TEXT, Reason, runChecks } from './checkin-checks.service';
 import { deleteFile } from '../../core/files';
+import { approvedLeaveOn } from '../leave/staff-leave.service';
 
 /**
  * Staff attendance: people check in and out themselves (later a biometric device does it), the
@@ -94,7 +95,9 @@ export const myDay = async (userId: string, ip?: string) => {
     const s = await shift();
     const today = todayIST();
     const [row, off, names] = await Promise.all([db.staffAttendance.findFirst({ where: { staffId: staff.id, date: dayDate(today) } }), dayOff(today, 'staff'), statusNames()]);
-    const why = !s.enabled ? 'Check-in by staff is switched off (System Settings → Attendance).' : off ? `Not a working day: ${off}.` : !fromAllowedNetwork(s.networks, ip) ? 'You can check in only from the school’s network.' : null;
+    const leave = await approvedLeaveOn(staff.id, today);
+    const away = leave && !leave.leaveType.countsPresent ? `You are on ${leave.leaveType.name} today.` : null;
+    const why = !s.enabled ? 'Check-in by staff is switched off (System Settings → Attendance).' : off ? `Not a working day: ${off}.` : away ? away : !fromAllowedNetwork(s.networks, ip) ? 'You can check in only from the school’s network.' : null;
     const monthStart = `${today.slice(0, 7)}-01`;
     const [rows, offs] = await Promise.all([db.staffAttendance.findMany({ where: { staffId: staff.id, date: { gte: dayDate(monthStart), lte: dayDate(today) } }, orderBy: { date: 'asc' } }), daysOff(monthStart, today, 'staff')]);
     const month = [];
@@ -125,6 +128,8 @@ export const checkIn = async (userId: string, ip?: string, input: CheckInInput =
     if (!s.enabled) throw forbidden('Check-in by staff is switched off');
     const off = await dayOff(today, 'staff');
     if (off) throw badRequest(`Not a working day: ${off}`);
+    const leave = await approvedLeaveOn(staff.id, today);
+    if (leave && !leave.leaveType.countsPresent) throw badRequest(`You are on ${leave.leaveType.name} today. If you have come in, ask the office to cancel the leave.`);
     if (!fromAllowedNetwork(s.networks, ip)) throw forbidden('You can check in only from the school’s network');
     const existing = await db.staffAttendance.findFirst({ where: { staffId: staff.id, date: dayDate(today) } });
     if (existing?.checkIn) throw conflict('You have already checked in today');

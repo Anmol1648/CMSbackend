@@ -6,7 +6,7 @@ import { getUserAccess } from './access.service';
 export const myAccess = async (userId: string) => {
     const access = await getUserAccess(userId);
     const custom = new Map((await db.menuCustomization.findMany()).map((c) => [c.menuKey, c]));
-    const allowed = listMenuItems().filter((i) => !i.permission || access.permissions[i.permission]);
+    const allowed = listMenuItems().filter((i) => (i.anyPermission ? i.anyPermission.some((k) => access.permissions[k]) : !i.permission || access.permissions[i.permission]));
     const switchedOn = await Promise.all(allowed.map((i) => (i.visible ? i.visible().catch(() => true) : Promise.resolve(true))));
     const visible = allowed
         .filter((_, n) => switchedOn[n])

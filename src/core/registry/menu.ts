@@ -13,6 +13,8 @@ export interface MenuItemDef {
     order: number;
     /** Needed to see the item; omit for "every signed-in user". */
     permission?: string;
+    /** Or any one of these (e.g. approvers of their team and approvers of everyone). */
+    anyPermission?: string[];
     /** Shown only when this says so for the school (e.g. a feature switched on in System Settings). */
     visible?: () => Promise<boolean>;
 }

@@ -30,6 +30,7 @@ import { myTimetableRoutes, substitutionRoutes, timetableRoutes } from './module
 import { documentRoutes } from './modules/documents/documents.routes';
 import { reportRoutes } from './modules/reports/reports.routes';
 import { attendanceRoutes } from './modules/attendance/attendance.routes';
+import { leaveRoutes } from './modules/leave/leave.routes';
 import { admsRoutes, deviceRoutes, deviceWebhookRoutes } from './modules/attendance/devices.routes';
 
 export const app = express();
@@ -99,6 +100,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/attendance-devices', deviceRoutes);
 app.use('/api/public/attendance-devices', deviceWebhookRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/leave', leaveRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

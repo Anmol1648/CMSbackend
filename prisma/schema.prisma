@@ -98,6 +98,10 @@ model Tenant {
 
   staffPhones       StaffPhone[]
   attendanceDevices AttendanceDevice[]
+
+  leaveTypes   LeaveType[]
+  leaveEntries LeaveEntry[]
+  staffLeaves  StaffLeave[]
   attendancePunches AttendancePunch[]
 
   @@map("tenants")
@@ -1085,6 +1089,9 @@ model Staff {
 
   phone   StaffPhone?
   punches AttendancePunch[]
+
+  leaves       StaffLeave[]
+  leaveEntries LeaveEntry[]
 
   @@unique([tenantId, deviceUserId])
   @@unique([id, tenantId])
@@ -2120,4 +2127,136 @@ model AttendancePunch {
   @@unique([tenantId, deviceUserId, punchedAt])
   @@index([tenantId, punchedAt])
   @@map("attendance_punches")
+}
+
+// ─── Staff leave ─────────────────────────────────────────────────────────────
+
+/// A kind of staff leave and its rules (Leave → Leave Setup).
+model LeaveType {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  code              String
+  name              String
+  sortOrder         Int      @default(0) @map("sort_order")
+  isActive          Boolean  @default(true) @map("is_active")
+  /// Days a leave year; null = no limit (leave without pay, on duty).
+  quota             Float?
+  /// yearly = all at the start of the leave year; monthly = a twelfth each month; none = only what is granted (comp-off).
+  credit            String   @default("yearly")
+  /// Joining during the year gives a share of the quota.
+  prorate           Boolean  @default(true)
+  /// At the year end: none | all | upto (at most carryMax days).
+  carryForward      String   @default("none") @map("carry_forward")
+  carryMax          Float?   @map("carry_max")
+  halfDay           Boolean  @default(true) @map("half_day")
+  minDays           Float?   @map("min_days")
+  maxDays           Float?   @map("max_days")
+  /// Ask at least this many days before.
+  noticeDays        Int      @default(0) @map("notice_days")
+  /// Can be asked for up to this many days after (e.g. sick leave on return).
+  backDays          Int      @default(7) @map("back_days")
+  /// A certificate (attachment) is needed for more than this many days.
+  certificateAfter  Float?   @map("certificate_after")
+  /// More than the balance: block | lwp (the extra days are leave without pay) | allow (balance goes below zero).
+  overdraw          String   @default("block")
+  /// Holidays and weekly offs between leave days count as leave.
+  sandwich          Boolean  @default(false)
+  paid              Boolean  @default(true)
+  /// On duty: the day counts as present.
+  countsPresent     Boolean  @default(false) @map("counts_present")
+  /// The attendance status the days get, by code (Masters → Attendance statuses).
+  attendanceCode    String   @default("LV") @map("attendance_code")
+  /// Who may take it (master values); empty = everyone.
+  staffTypeIds      String[] @default([]) @map("staff_type_ids") @db.Uuid
+  employmentTypeIds String[] @default([]) @map("employment_type_ids") @db.Uuid
+  genderIds         String[] @default([]) @map("gender_ids") @db.Uuid
+  /// Who approves: default (System Settings → Leave) | reports_to | two_level | office.
+  approval          String   @default("default")
+  /// Comp-off: earned by working on a day off; each earning lapses after compOffDays.
+  isCompOff         Boolean  @default(false) @map("is_comp_off")
+  compOffDays       Int?     @map("comp_off_days")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy         String?  @map("created_by") @db.Uuid
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy         String?  @map("updated_by") @db.Uuid
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leaves  StaffLeave[]
+  entries LeaveEntry[]
+
+  @@unique([tenantId, code])
+  @@unique([id, tenantId])
+  @@map("leave_types")
+}
+
+/// Balance changes besides the policy's credit: carried forward, adjusted by HR, comp-off earned.
+model LeaveEntry {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  staffId     String    @map("staff_id") @db.Uuid
+  leaveTypeId String    @map("leave_type_id") @db.Uuid
+  /// The leave year it belongs to, by its first day.
+  yearStart   DateTime  @map("year_start") @db.Date
+  /// carry | adjust | compoff
+  kind        String
+  days        Float
+  /// Comp-off: the day worked and when the earning lapses.
+  workedOn    DateTime? @map("worked_on") @db.Date
+  expiresOn   DateTime? @map("expires_on") @db.Date
+  note        String?
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?   @map("created_by") @db.Uuid
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff     Staff     @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, staffId, yearStart])
+  @@map("leave_entries")
+}
+
+/// A staff member's leave: asked, approved (in one or two steps), turned down or cancelled.
+model StaffLeave {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  staffId      String    @map("staff_id") @db.Uuid
+  leaveTypeId  String    @map("leave_type_id") @db.Uuid
+  fromDate     DateTime  @map("from_date") @db.Date
+  toDate       DateTime  @map("to_date") @db.Date
+  /// A one-day leave for half the day: first | second.
+  half         String?
+  /// Days it takes (holidays left out unless the type's sandwich rule counts them).
+  days         Float
+  /// Days beyond the balance taken as leave without pay.
+  lwpDays      Float     @default(0) @map("lwp_days")
+  reason       String
+  /// A certificate or letter (file).
+  attachmentId String?   @map("attachment_id") @db.Uuid
+  /// pending | approved | rejected | cancelled
+  status       String    @default("pending")
+  /// 1 = waits for the first approver; 2 = for the final one (two-level approval).
+  stage        Int       @default(1)
+  appliedBy    String?   @map("applied_by") @db.Uuid
+  firstBy      String?   @map("first_by") @db.Uuid
+  firstAt      DateTime? @map("first_at") @db.Timestamptz(6)
+  firstNote    String?   @map("first_note")
+  decidedBy    String?   @map("decided_by") @db.Uuid
+  decidedAt    DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote String?   @map("decision_note")
+  cancelledBy  String?   @map("cancelled_by") @db.Uuid
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  isDemo       Boolean   @default(false) @map("is_demo")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy    String?   @map("updated_by") @db.Uuid
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff     Staff     @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, staffId, fromDate])
+  @@index([tenantId, status])
+  @@map("staff_leaves")
 }
