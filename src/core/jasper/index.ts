@@ -87,8 +87,8 @@ export const jasperInspect = async (design: string): Promise<JasperDesignInfo> =
 /** Is the renderer running (and which version). */
 export const jasperHealth = async (): Promise<{ running: boolean; version?: string }> => {
     try {
-        // A sleeping host (e.g. Render free plan) takes ~15 s to wake: wait for it.
-        const res = await fetch(`${base()}/health`, { signal: AbortSignal.timeout(25_000) });
+        // A sleeping host (e.g. Render free plan) can take up to a minute to wake: wait for it.
+        const res = await fetch(`${base()}/health`, { signal: AbortSignal.timeout(60_000) });
         const body = (await res.json()) as { jasperreports?: string };
         return { running: res.ok, version: body.jasperreports };
     } catch {
