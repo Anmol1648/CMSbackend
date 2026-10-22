@@ -45,7 +45,16 @@ const enrol = async (staffId: string, photos: string[], status: 'approved' | 'pe
 export const listFaces = async () => {
     const staff = await db.staff.findMany({
         where: { status: 'working' },
-        select: { id: true, employeeCode: true, firstName: true, middleName: true, lastName: true, designation: { select: { name: true } }, face: { select: { status: true, photoIds: true, updatedAt: true, approvedAt: true } } },
+        select: {
+            id: true,
+            employeeCode: true,
+            firstName: true,
+            middleName: true,
+            lastName: true,
+            designation: { select: { name: true } },
+            face: { select: { status: true, photoIds: true, updatedAt: true, approvedAt: true } },
+            phone: { select: { label: true, createdAt: true } },
+        },
         orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     });
     return staff.map((s) => ({
@@ -54,7 +63,16 @@ export const listFaces = async () => {
         employeeCode: s.employeeCode,
         designation: s.designation?.name ?? null,
         face: s.face ? { status: s.face.status, photoIds: s.face.photoIds, enrolledAt: s.face.updatedAt } : null,
+        phone: s.phone ? { label: s.phone.label, registeredAt: s.phone.createdAt } : null,
     }));
+};
+
+/** Forgets a person's registered phone: the next phone they check in from becomes theirs. */
+export const resetPhone = async (staffId: string) => {
+    await staffOrThrow(staffId);
+    await db.staffPhone.deleteMany({ where: { staffId } });
+    await recordAudit({ action: 'staff_phone_reset', entity: 'staff_phone', entityId: staffId });
+    return listFaces();
 };
 
 const staffOrThrow = async (staffId: string) => {

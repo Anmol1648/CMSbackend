@@ -21,6 +21,12 @@ const start = async () => {
     startDailyJobs();
 };
 
+/** Loads the face models at start only when a school checks faces (else the first face check loads them). */
+const warmUpFacesIfUsed = async () => {
+    const on = await runAsSystem(() => db.tenantSetting.count({ where: { key: { in: ['attendance.staff_face', 'attendance.staff_liveness'] }, value: { equals: true } } })).catch(() => 0);
+    if (on) warmUpFaces();
+};
+
 /** Check-in selfies older than each school keeps them. */
 const purgeCheckInPhotos = async () => {
     const tenants = await runAsSystem(() => db.tenant.findMany({ select: { id: true } }));
@@ -33,7 +39,7 @@ const startDailyJobs = () => {
         purgeOldAuditRecords().catch((err) => logger.error('Audit retention job failed', { error: err }));
         purgeCheckInPhotos().catch((err) => logger.error('Check-in photo clean-up failed', { error: err }));
     };
-    warmUpFaces();
+    void warmUpFacesIfUsed();
     setTimeout(run, 60_000).unref();
     setInterval(run, 24 * 60 * 60 * 1000).unref();
 };

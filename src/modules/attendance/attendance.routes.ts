@@ -96,3 +96,4 @@ attendanceRoutes.get('/locations', can('attendance.staff'), asyncHandler(async (
 attendanceRoutes.post('/locations', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.saveLocation(null, parse(faces.locationSchema, req.body)), 'Location added', 201)));
 attendanceRoutes.put('/locations/:id', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.saveLocation(req.params.id, parse(faces.locationSchema, req.body)), 'Saved')));
 attendanceRoutes.delete('/locations/:id', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.deleteLocation(req.params.id), 'Removed')));
+attendanceRoutes.delete('/phones/:staffId', can('attendance.staff'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await faces.resetPhone(req.params.staffId), 'Phone reset')));

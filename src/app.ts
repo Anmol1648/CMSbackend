@@ -30,6 +30,7 @@ import { myTimetableRoutes, substitutionRoutes, timetableRoutes } from './module
 import { documentRoutes } from './modules/documents/documents.routes';
 import { reportRoutes } from './modules/reports/reports.routes';
 import { attendanceRoutes } from './modules/attendance/attendance.routes';
+import { admsRoutes, deviceRoutes, deviceWebhookRoutes } from './modules/attendance/devices.routes';
 
 export const app = express();
 
@@ -64,6 +65,9 @@ app.get('/health', publicRoute, (_req: Request, res: Response) => {
     res.json({ service: 'cms-backend', status: 'UP', timestamp: new Date().toISOString() });
 });
 
+// Attendance machines (eSSL / ZKTeco "ADMS"): they call <server>/iclock/… and are known by serial number.
+app.use('/iclock', admsRoutes);
+
 // Which school the calling page belongs to (before sign-in); the token decides after sign-in.
 app.use('/api', tenantFromHost);
 
@@ -92,6 +96,8 @@ app.use('/api/my-timetable', myTimetableRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/attendance-devices', deviceRoutes);
+app.use('/api/public/attendance-devices', deviceWebhookRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
 app.use((req: Request, res: Response) => {

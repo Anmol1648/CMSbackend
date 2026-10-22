@@ -51,6 +51,8 @@ export interface FaceResult {
     descriptor: number[] | null;
     /** How sure the detector is that it is a face (0–1). */
     confidence: number | null;
+    /** Head turn: the nose's offset from the middle of the eyes, in eye widths (0 = straight, ±0.3 = clearly turned). */
+    yaw: number | null;
 }
 
 /** Finds the face in a JPEG photo and returns its descriptor. */
@@ -97,13 +99,19 @@ export const describeFace = async (photo: Buffer): Promise<FaceResult> => {
             const biggest = [...found].sort((x, y) => y.detection.box.area - x.detection.box.area)[0];
             // Only faces of a fair size count as "more than one face" (not a poster far behind).
             const others = found.filter((f) => f !== biggest && f.detection.box.area > biggest.detection.box.area * 0.25).length;
-            return { faces: 1 + others, descriptor: Array.from(biggest.descriptor), confidence: Math.round(biggest.detection.score * 100) / 100 };
+            const pts = biggest.landmarks.positions;
+            const eyeL = pts[36];
+            const eyeR = pts[45];
+            const nose = pts[30];
+            const width = Math.abs(eyeR.x - eyeL.x) || 1;
+            const yaw = Math.round(((nose.x - (eyeL.x + eyeR.x) / 2) / width) * 1000) / 1000;
+            return { faces: 1 + others, descriptor: Array.from(biggest.descriptor), confidence: Math.round(biggest.detection.score * 100) / 100, yaw };
         } finally {
             tf.dispose(tensor);
         }
     }
     logger.info('No face found in a photo', { width: decoded.width, height: decoded.height, brightness: Math.round(mean) });
-    return { faces: 0, descriptor: null, confidence: null };
+    return { faces: 0, descriptor: null, confidence: null, yaw: null };
 };
 
 /** Distance between two faces: about 0.3 for the same person, 0.6+ for different people. */

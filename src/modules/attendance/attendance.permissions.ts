@@ -2,7 +2,8 @@ import { registerPermissions } from '../../core/registry/permissions';
 import { registerMenuGroup, registerMenuItems } from '../../core/registry/menu';
 import { db } from '../../core/db';
 import { registerMasterUsage } from '../masters/masters.registry';
-import './attendance.settings';
+import { getSettings } from '../../core/settings';
+import { ATTENDANCE } from './attendance.settings';
 
 registerPermissions({ key: 'attendance', label: 'Attendance', order: 35 }, [
     {
@@ -27,7 +28,21 @@ registerMenuItems([
     { key: 'attendance-students', label: 'Student Attendance', icon: 'person_search', href: '/attendance/students', group: 'attendance', order: 22, permission: 'attendance.mark' },
     { key: 'attendance-leave', label: 'Leave Requests', icon: 'event_available', href: '/attendance/leave', group: 'attendance', order: 25, permission: 'attendance.mark' },
     { key: 'attendance-staff', label: 'Staff Attendance', icon: 'badge', href: '/attendance/staff', group: 'attendance', order: 30, permission: 'attendance.staff' },
-    { key: 'attendance-faces', label: 'Staff Faces', icon: 'face', href: '/attendance/faces', group: 'attendance', order: 32, permission: 'attendance.staff' },
+    {
+        key: 'attendance-faces',
+        label: 'Faces & Phones',
+        icon: 'face',
+        href: '/attendance/faces',
+        group: 'attendance',
+        order: 32,
+        permission: 'attendance.staff',
+        // Only for schools that check faces (or lock check-in to a phone).
+        visible: async () => {
+            const s = await getSettings({ face: ATTENDANCE.staffFace, liveness: ATTENDANCE.staffLiveness, phone: ATTENDANCE.staffPhoneLock });
+            return s.face || s.liveness || s.phone !== 'off';
+        },
+    },
+    { key: 'attendance-devices', label: 'Attendance Devices', icon: 'fingerprint', href: '/attendance/devices', group: 'attendance', order: 36, permission: 'attendance.staff' },
     { key: 'attendance-locations', label: 'Check-in Locations', icon: 'location_on', href: '/attendance/locations', group: 'attendance', order: 34, permission: 'attendance.staff' },
     { key: 'attendance-holidays', label: 'Holidays', icon: 'event_busy', href: '/attendance/holidays', group: 'attendance', order: 40, permission: 'attendance.holidays' },
     { key: 'my-attendance', label: 'My Attendance', icon: 'calendar_month', href: '/my-attendance', group: 'main', order: 25, permission: 'attendance.mine' },

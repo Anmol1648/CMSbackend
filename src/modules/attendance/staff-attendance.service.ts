@@ -103,11 +103,11 @@ export const myDay = async (userId: string, ip?: string) => {
         const r = rows.find((x) => isoOf(x.date) === iso) ?? null;
         month.push({ date: iso, off: offs.get(iso) ?? null, ...(present(r, names) ?? { checkIn: null, checkOut: null, late: false, earlyOut: false, source: null, note: null, status: null }) });
     }
-    const c = await getSettings({ photo: ATTENDANCE.staffPhoto, face: ATTENDANCE.staffFace, location: ATTENDANCE.staffLocation, selfEnrol: ATTENDANCE.staffSelfEnrol });
+    const c = await getSettings({ photo: ATTENDANCE.staffPhoto, face: ATTENDANCE.staffFace, liveness: ATTENDANCE.staffLiveness, location: ATTENDANCE.staffLocation, selfEnrol: ATTENDANCE.staffSelfEnrol, phoneLock: ATTENDANCE.staffPhoneLock });
     const face = await db.staffFace.findFirst({ where: { staffId: staff.id }, select: { status: true } });
     return {
         staff: { name: fullName(staff), employeeCode: staff.employeeCode },
-        checks: { photo: c.photo || c.face, face: c.face, location: c.location, enrolled: face?.status ?? null, canEnrol: c.selfEnrol },
+        checks: { photo: c.photo || c.face || c.liveness, face: c.face, liveness: c.liveness, location: c.location, phoneLock: c.phoneLock !== 'off', enrolled: face?.status ?? null, canEnrol: c.selfEnrol },
         today,
         shift: { start: s.start, end: s.end, grace: s.grace },
         day: present(row, names),
@@ -130,10 +130,7 @@ export const checkIn = async (userId: string, ip?: string, input: CheckInInput =
     if (existing?.checkIn) throw conflict('You have already checked in today');
     const now = new Date();
     const checks = await runChecks(staff.id, input);
-    if (checks.blocked) {
-        if (checks.photoId) await deleteFile(checks.photoId);
-        throw forbidden(`You are about ${checks.distance} m from the school. Check in when you reach school.`);
-    }
+    if (checks.blockMessage) throw forbidden(checks.blockMessage);
     const { statusId, late } = await statusForCheckIn(now);
     const data = {
         checkIn: now,
@@ -165,10 +162,7 @@ export const checkOut = async (userId: string, ip?: string, input: CheckInInput 
     if (row.checkOut) throw conflict('You have already checked out today');
     const now = new Date();
     const checks = await runChecks(staff.id, input);
-    if (checks.blocked) {
-        if (checks.photoId) await deleteFile(checks.photoId);
-        throw forbidden(`You are about ${checks.distance} m from the school. Check out at school.`);
-    }
+    if (checks.blockMessage) throw forbidden(checks.blockMessage.replace('Check in when you reach school', 'Check out at school'));
     // Something wrong at check-out sends the day for approval too (unless the office already decided).
     const more = checks.reasons.filter((r) => !row.approvalReasons.includes(r)).map((r) => `${r}_out`);
     await db.staffAttendance.update({

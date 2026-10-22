@@ -96,6 +96,10 @@ model Tenant {
   attendanceLocations AttendanceLocation[]
   staffFaces          StaffFace[]
 
+  staffPhones       StaffPhone[]
+  attendanceDevices AttendanceDevice[]
+  attendancePunches AttendancePunch[]
+
   @@map("tenants")
 }
 
@@ -1027,6 +1031,8 @@ model Staff {
   uan                 String?
   emergencyName       String?     @map("emergency_name")
   emergencyPhone      String?     @map("emergency_phone")
+  /// The person's number on the school's attendance machine (biometric / card), to match its punches.
+  deviceUserId        String?     @map("device_user_id")
   photoFileId         String?     @map("photo_file_id") @db.Uuid
   /// The staff member's login (optional: drivers or cooks may have none).
   userId              String?     @map("user_id") @db.Uuid
@@ -1077,6 +1083,10 @@ model Staff {
 
   face StaffFace?
 
+  phone   StaffPhone?
+  punches AttendancePunch[]
+
+  @@unique([tenantId, deviceUserId])
   @@unique([id, tenantId])
   @@unique([userId, tenantId])
   @@index([tenantId, status])
@@ -2060,4 +2070,71 @@ model StaffFace {
 
   @@unique([staffId, tenantId])
   @@map("staff_faces")
+}
+
+/// The phone a staff member checks in from (registered-phone lock): a fingerprint of the browser, not the phone number.
+model StaffPhone {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  staffId    String   @map("staff_id") @db.Uuid
+  /// SHA-256 of the random id the browser keeps.
+  deviceHash String   @map("device_hash")
+  /// What it is, as the browser says (e.g. "Chrome on Android").
+  label      String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy  String?  @map("created_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  Staff  @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([staffId, tenantId])
+  @@map("staff_phones")
+}
+
+/// An attendance machine or system that sends punches: an eSSL / ZKTeco machine (ADMS push), another
+/// system calling our web address (webhook), or files exported from a machine (import).
+model AttendanceDevice {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  name        String
+  /// essl_adms | webhook | import
+  kind        String
+  /// The machine's serial number (ADMS machines say it with every call).
+  serialNo    String?   @unique @map("serial_no")
+  /// The secret in the webhook address.
+  token       String    @unique
+  isActive    Boolean   @default(true) @map("is_active")
+  lastSeenAt  DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  lastPunchAt DateTime? @map("last_punch_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?   @map("updated_by") @db.Uuid
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  punches AttendancePunch[]
+
+  @@unique([id, tenantId])
+  @@map("attendance_devices")
+}
+
+/// One punch from a machine or system: who (their machine number) and when. Turned into the person's
+/// check-in (first punch of the day) and check-out (last).
+model AttendancePunch {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  deviceId     String?  @map("device_id") @db.Uuid
+  deviceUserId String   @map("device_user_id")
+  /// The staff member it belongs to (null while the number isn't matched to anyone).
+  staffId      String?  @map("staff_id") @db.Uuid
+  punchedAt    DateTime @map("punched_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device AttendanceDevice? @relation(fields: [deviceId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  staff  Staff?            @relation(fields: [staffId, tenantId], references: [id, tenantId], onDelete: SetNull)
+
+  @@unique([tenantId, deviceUserId, punchedAt])
+  @@index([tenantId, punchedAt])
+  @@map("attendance_punches")
 }
