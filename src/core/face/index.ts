@@ -30,6 +30,7 @@ const start = () => {
             const api = load();
             const models = path.join(path.dirname(require.resolve('@vladmandic/face-api/package.json')), 'model');
             await api.nets.ssdMobilenetv1.loadFromDisk(models);
+            await api.nets.tinyFaceDetector.loadFromDisk(models);
             await api.nets.faceLandmark68Net.loadFromDisk(models);
             await api.nets.faceRecognitionNet.loadFromDisk(models);
             logger.info('Face recognition ready');
@@ -66,22 +67,43 @@ export const describeFace = async (photo: Buffer): Promise<FaceResult> => {
         tensor3d: (v: Uint8Array | Int32Array, shape: [number, number, number], dtype: 'int32') => unknown;
         dispose: (t: unknown) => void;
     };
-    // RGBA → RGB tensor (height × width × 3).
-    const rgb = new Int32Array(decoded.width * decoded.height * 3);
+    // RGBA → RGB (height × width × 3), as taken and brightened (dark / backlit webcam photos).
+    const n = decoded.width * decoded.height;
+    const rgb = new Int32Array(n * 3);
+    let sum = 0;
     for (let i = 0, j = 0; i < decoded.data.length; i += 4, j += 3) {
         rgb[j] = decoded.data[i];
         rgb[j + 1] = decoded.data[i + 1];
         rgb[j + 2] = decoded.data[i + 2];
+        sum += 0.299 * rgb[j] + 0.587 * rgb[j + 1] + 0.114 * rgb[j + 2];
     }
-    const tensor = tf.tensor3d(rgb, [decoded.height, decoded.width, 3], 'int32');
-    try {
-        const found = await api.detectAllFaces(tensor as never, new api.SsdMobilenetv1Options({ minConfidence: 0.5, maxResults: 5 })).withFaceLandmarks().withFaceDescriptors();
-        if (!found.length) return { faces: 0, descriptor: null, confidence: null };
-        const biggest = [...found].sort((a, b) => b.detection.box.area - a.detection.box.area)[0];
-        return { faces: found.length, descriptor: Array.from(biggest.descriptor), confidence: Math.round(biggest.detection.score * 100) / 100 };
-    } finally {
-        tf.dispose(tensor);
+    const mean = sum / n;
+    // Lift a dark photo towards a middle brightness (never darken a normal one).
+    const gain = mean < 110 ? Math.min(2.2, 120 / Math.max(mean, 20)) : 1;
+    const bright = gain > 1 ? Int32Array.from(rgb, (v) => Math.min(255, Math.round(v * gain))) : rgb;
+
+    const shape: [number, number, number] = [decoded.height, decoded.width, 3];
+    // Try strict first, then gentler: the same model less strict, then the webcam model (on the brightened photo).
+    const attempts: { pixels: Int32Array; options: () => unknown }[] = [
+        { pixels: rgb, options: () => new api.SsdMobilenetv1Options({ minConfidence: 0.5, maxResults: 5 }) },
+        { pixels: bright, options: () => new api.SsdMobilenetv1Options({ minConfidence: 0.3, maxResults: 5 }) },
+        { pixels: bright, options: () => new api.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }) },
+    ];
+    for (const a of attempts) {
+        const tensor = tf.tensor3d(a.pixels, shape, 'int32');
+        try {
+            const found = await api.detectAllFaces(tensor as never, a.options() as never).withFaceLandmarks().withFaceDescriptors();
+            if (!found.length) continue;
+            const biggest = [...found].sort((x, y) => y.detection.box.area - x.detection.box.area)[0];
+            // Only faces of a fair size count as "more than one face" (not a poster far behind).
+            const others = found.filter((f) => f !== biggest && f.detection.box.area > biggest.detection.box.area * 0.25).length;
+            return { faces: 1 + others, descriptor: Array.from(biggest.descriptor), confidence: Math.round(biggest.detection.score * 100) / 100 };
+        } finally {
+            tf.dispose(tensor);
+        }
     }
+    logger.info('No face found in a photo', { width: decoded.width, height: decoded.height, brightness: Math.round(mean) });
+    return { faces: 0, descriptor: null, confidence: null };
 };
 
 /** Distance between two faces: about 0.3 for the same person, 0.6+ for different people. */
