@@ -221,17 +221,19 @@ export const exportReport = async (key: string, raw: Record<string, unknown>, fo
     const { result } = await gather(def, raw, userId);
     const design = override ?? (await designInUse(def));
     const params = await parametersFor(def, result, userId);
+    let unreachable = '';
     if (design) {
         try {
             const { file } = await jasperRender({ design: design.jrxml, format, rows: result.rows, params });
             return { file, contentType: MIME[format], filename: fileName(def, format), engine: design.label, note: null as string | null };
         } catch (err) {
             if (!(err instanceof JasperUnavailableError) || override) throw err;
+            unreachable = err.reason;
             if (format === 'docx') throw badRequest('Word files are made by the report service (Jasper), which is not running. Choose PDF or Excel, or start the report service.');
             logger.warn('Report service not running: built-in layout used', { report: def.key });
         }
     } else if (format === 'docx') throw badRequest('Word files need a Jasper design for this report. Choose PDF or Excel.');
-    const note = design ? 'The report service (Jasper) is not running, so the built-in layout was used.' : null;
+    const note = design ? `The report service (Jasper) is not running, so the built-in layout was used.${unreachable ? ` (${unreachable})` : ''}` : null;
     const file = format === 'pdf' ? await builtInPdf(def, result, params) : await builtInExcel(def, result, params);
     return { file, contentType: MIME[format], filename: fileName(def, format), engine: 'Built-in table layout', note };
 };

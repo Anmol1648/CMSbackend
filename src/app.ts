@@ -62,7 +62,7 @@ app.use(requestContext);
 
 // ─── Health Check (no database, no school) ───────────────────────────────────
 app.get('/health', publicRoute, (_req: Request, res: Response) => {
-    res.json({ service: 'cms-backend', status: 'UP', timestamp: new Date().toISOString() });
+    res.json({ service: 'cms-backend', status: 'UP', version: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null, timestamp: new Date().toISOString() });
 });
 
 // Attendance machines (eSSL / ZKTeco "ADMS"): they call <server>/iclock/… and are known by serial number.

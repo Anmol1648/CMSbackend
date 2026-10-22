@@ -21,7 +21,8 @@ export interface JasperDesignInfo {
 
 /** The renderer isn't running (or can't be reached): callers fall back or say so. */
 export class JasperUnavailableError extends AppError {
-    constructor() {
+    /** Why it couldn't be reached (connection refused, bad header…), for the person fixing the setup. */
+    constructor(public readonly reason = '') {
         super('The report service (Jasper) is not running', 503, ErrorCode.INTERNAL_SERVER_ERROR);
     }
 }
@@ -41,8 +42,10 @@ const call = async (path: string, body: unknown, timeoutMs: number) => {
         });
     } catch (err) {
         if ((err as Error).name === 'TimeoutError') throw new AppError('The report took too long to make. Choose fewer records.', 504, ErrorCode.INTERNAL_SERVER_ERROR);
-        logger.warn('Report service unreachable', { url: base(), error: (err as Error).message, cause: String((err as { cause?: unknown }).cause ?? '') });
-        throw new JasperUnavailableError();
+        const cause = (err as { cause?: { code?: string; message?: string } }).cause;
+        const reason = [(err as Error).message, cause?.code, cause?.message].filter(Boolean).join(' · ');
+        logger.warn('Report service unreachable', { url: base(), reason });
+        throw new JasperUnavailableError(reason);
     }
     if (res.ok) return res;
     const problem = (await res.json().catch(() => ({}))) as { kind?: string; error?: string; detail?: string };
