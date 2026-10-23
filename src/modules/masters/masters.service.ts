@@ -105,6 +105,8 @@ const valuesWhere = (key: string, q: Pick<ListQuery<typeof masterValueFilters>, 
 /** The Masters screen: one list's options, paged, with search and filters. */
 export const listValues = async (key: string, q: ListQuery<typeof masterValueFilters>) => {
     const def = masterDef(key);
+    // A list a newly built module brought starts with its starter options (as dropdowns do).
+    if (seedsOf(def).length && !(await db.masterValue.count({ where: { master: key } }))) await seedMasters();
     const where = valuesWhere(key, q);
     const orderBy = q.sort === 'default' ? orderFor(def) : [{ [q.sort]: q.order } as Prisma.MasterValueOrderByWithRelationInput, { name: 'asc' as const }];
     const [rows, total] = await Promise.all([
