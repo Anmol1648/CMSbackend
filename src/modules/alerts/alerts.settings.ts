@@ -70,7 +70,6 @@ export const ALERTS = {
     overdueEvery: num('alerts.overdue_every', 'Remind parents of overdue fees every this many days', 7, 1, 60),
     checkInBy: text('alerts.check_in_by', 'Remind staff who haven’t checked in by', '09:30', time),
     maxPerDay: num('alerts.max_per_day', 'At most this many copies of the same alert to one person in a day', 1, 1, 10),
-    digest: bool('alerts.digest', 'Staff get one daily summary email instead of separate alert emails', false),
     keepNotifications: num('alerts.keep_notifications', 'Keep in-app notifications for this many days', 90, 7, 730),
     keepLog: num('alerts.keep_log', 'Keep the alert log for this many days', 365, 30, 1825),
     retries: num('alerts.retries', 'Try a failed message again this many times', 3, 0, 10),
