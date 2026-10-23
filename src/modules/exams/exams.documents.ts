@@ -3,7 +3,10 @@ import { db } from '../../core/db';
 import { badRequest, forbidden } from '../../core/errors';
 import { getUserAccess } from '../rbac/access.service';
 import { defineDocument } from '../documents/documents.registry';
+import { getSettings } from '../../core/settings';
 import { assertMine, computeResults, resolveScope, ScopeKind, viewableSections } from './results.service';
+import { gradeOf } from './setup.service';
+import { EXAMS } from './exams.settings';
 
 /** The report card (Document Templates): one student, or a whole section in one PDF (a page each). */
 
@@ -11,16 +14,17 @@ const uuid = (v: string | undefined, what: string) => {
     if (!v || !z.uuid().safeParse(v).success) throw badRequest(`Choose the ${what}`);
     return v;
 };
+const gradesOnly = async () => (await getSettings({ shows: EXAMS.reportCardShows })).shows === 'grades_only';
 const num = (n: number | null) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 /** The cards of a result, shaped for the template (each cell already written out). */
-const cardsOf = (r: Awaited<ReturnType<typeof computeResults>>) =>
+const cardsOf = (r: Awaited<ReturnType<typeof computeResults>>, gradesOnly = false) =>
     r.students.map((s) => ({
         student: { ...s.student, section: r.section.label, className: r.section.className },
         year: r.year,
         title: r.scope.label,
         classTeacher: r.section.classTeacher ?? '',
-        descriptive: r.rule.descriptive,
+        descriptive: r.rule.descriptive || gradesOnly,
         examHeads: r.exams.map((e) => ({ name: e.shortName, weightage: e.weightage })),
         rows: s.subjects.map((sub) => ({
             subject: sub.subject,
@@ -28,6 +32,7 @@ const cardsOf = (r: Awaited<ReturnType<typeof computeResults>>) =>
                 const x = sub.exams.find((y) => y.examId === e.id);
                 if (!x) return { text: '—' };
                 if (r.rule.descriptive) return { text: x.grade ?? '—' };
+                if (gradesOnly && x.status === 'P') return { text: x.obtained != null && x.max ? (gradeOf(r.rule.bands, (x.obtained / x.max) * 100)?.grade ?? '—') : '—' };
                 if (x.status === 'AB') return { text: 'AB' };
                 if (x.status === 'ML') return { text: 'ML' };
                 if (x.status === 'NA') return { text: 'NA' };
@@ -38,8 +43,8 @@ const cardsOf = (r: Awaited<ReturnType<typeof computeResults>>) =>
             failed: sub.passed === false,
             grace: sub.grace ? `+${sub.grace}` : '',
         })),
-        total: s.totalMax ? `${num(s.totalObtained)} / ${s.totalMax}` : null,
-        percent: s.percent == null ? null : `${num(s.percent)}%`,
+        total: s.totalMax && !gradesOnly ? `${num(s.totalObtained)} / ${s.totalMax}` : null,
+        percent: s.percent == null || gradesOnly ? null : `${num(s.percent)}%`,
         grade: s.grade,
         rank: s.rank,
         result: s.result ?? 'Result not ready',
@@ -130,7 +135,7 @@ defineDocument({
         const e = await db.exam.findFirst({ where: { status: { in: ['published', 'locked', 'open'] } }, orderBy: { updatedAt: 'desc' } });
         const section = e ? await db.section.findFirst({ where: { academicYearId: e.academicYearId, classId: { in: e.classIds } }, select: { id: true } }) : null;
         if (!e || !section) throw badRequest('Set up an exam with marks first to preview the report card');
-        const cards = cardsOf(await computeResults('exam', e.id, section.id));
+        const cards = cardsOf(await computeResults('exam', e.id, section.id), await gradesOnly());
         if (!cards.length) throw badRequest('That section has no students');
         return { data: cards[0], filename: 'report-card-sample.pdf' };
     },
@@ -148,14 +153,14 @@ defineDocument({
                 if (!a.permissions['exam.mine']) throw forbidden();
                 await assertMine(userId, studentId, kind, id);
             }
-            const [card] = cardsOf(await computeResults(kind, id, e.sectionId, studentId));
+            const [card] = cardsOf(await computeResults(kind, id, e.sectionId, studentId), await gradesOnly());
             if (!card) throw badRequest('No result for this student');
             return { data: card, filename: `report-card-${card.student.admissionNo.replace(/[^A-Za-z0-9]+/g, '-')}.pdf` };
         }
         const sectionId = uuid(params.section, 'section');
         const allowed = await viewableSections(userId, scope.yearId);
         if (!a.permissions['exam.view'] || (allowed !== 'all' && !allowed.includes(sectionId))) throw forbidden();
-        const cards = cardsOf(await computeResults(kind, id, sectionId));
+        const cards = cardsOf(await computeResults(kind, id, sectionId), await gradesOnly());
         if (!cards.length) throw badRequest('That section has no students');
         return { data: cards[0], many: cards, filename: `report-cards-${cards[0].student.section}.pdf` };
     },

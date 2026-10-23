@@ -7,7 +7,9 @@ import { getUserAccess } from '../rbac/access.service';
 import { fullName } from '../students/students.service';
 import { sectionLabel } from '../timetable/tt-setup.service';
 import { isoOf, todayIST } from '../attendance/attendance.settings';
+import { getSettings } from '../../core/settings';
 import { Band, loadExam, Part, ruleFor } from './setup.service';
+import { EXAMS } from './exams.settings';
 
 /**
  * Entering marks: the subject teacher of a section (Subject Teachers), or the office for any; while
@@ -57,6 +59,9 @@ export const mySheets = async (examId: string, userId: string) => {
         p.staffId ? db.teachingAssignment.findMany({ where: { academicYearId: exam.academicYearId, staffId: p.staffId }, select: { sectionId: true, subjectId: true } }) : [],
     ]);
     const mine = new Set(teaches.map((t) => `${t.sectionId}|${t.subjectId}`));
+    // System Settings → Exams: a class teacher may enter every subject of their own section.
+    const { all } = await getSettings({ all: EXAMS.classTeacherAll });
+    if (all && p.staffId) for (const sec of sections.filter((s) => s.classTeacherId === p.staffId)) for (const sub of subjects.filter((x) => x.classId === sec.classId)) mine.add(`${sec.id}|${sub.subjectId}`);
     const names = new Map((await db.subject.findMany({ where: { id: { in: subjects.map((s) => s.subjectId) } }, select: { id: true, name: true } })).map((s) => [s.id, s.name]));
     const counts = await db.examMark.groupBy({ by: ['examSubjectId'], where: { examSubject: { examId } }, _count: { _all: true } });
     const done = new Map(counts.map((c) => [c.examSubjectId, c._count._all]));
@@ -92,7 +97,9 @@ const loadSheet = async (examSubjectId: string, sectionId: string, userId: strin
     if (!section) throw notFound('Section not found');
     const p = await powers(userId);
     const teaches = p.staffId ? await db.teachingAssignment.findFirst({ where: { sectionId, subjectId: es.subjectId, staffId: p.staffId }, select: { id: true } }) : null;
-    if (!p.any && !p.moderate && !teaches) throw forbidden('You don’t teach this subject in this section (Subject Teachers)');
+    const { all } = await getSettings({ all: EXAMS.classTeacherAll });
+    const ownClass = all && p.staffId ? !!(await db.section.findFirst({ where: { id: sectionId, classTeacherId: p.staffId }, select: { id: true } })) : false;
+    if (!p.any && !p.moderate && !teaches && !ownClass) throw forbidden('You don’t teach this subject in this section (Subject Teachers)');
     return { es, section, p };
 };
 
@@ -138,6 +145,7 @@ export const saveSheet = async (examSubjectId: string, sectionId: string, input:
     const allowed = new Set(students.map((s) => s.student.id));
     const parts = es.components as Part[];
     const grades = new Set(rule.scale.bands.map((b: Band) => b.grade));
+    const { halves } = await getSettings({ halves: EXAMS.halfMarks });
     const issues: { field: string; message: string }[] = [];
     const rows = input.rows.map((r, i) => {
         if (!allowed.has(r.studentId)) issues.push({ field: `rows.${i}`, message: 'is not a student of this subject' });
@@ -159,6 +167,7 @@ export const saveSheet = async (examSubjectId: string, sectionId: string, input:
                 continue;
             }
             if (Math.round(n * 2) !== n * 2) issues.push({ field: `rows.${i}.${part.key}`, message: 'whole or half marks only' });
+            else if (!halves && !Number.isInteger(n)) issues.push({ field: `rows.${i}.${part.key}`, message: 'whole marks only (System Settings → Exams)' });
             clean[part.key] = n;
             total += n;
             any = true;

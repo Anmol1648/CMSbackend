@@ -7,6 +7,8 @@ import { recordAudit } from '../../core/audit';
 import { assertYearOpen } from '../academic/years.service';
 import { classesOfYear } from '../academic/year-classes.service';
 import { dayDate, isoOf } from '../attendance/attendance.settings';
+import { getSettings } from '../../core/settings';
+import { EXAMS } from './exams.settings';
 
 /**
  * Exam set-up: grading scales and result rules (per class group), terms and exams of a session,
@@ -424,10 +426,12 @@ export const publishDatesheet = async (examId: string, userId: string) => {
         }),
     ].join('\n');
     const audience = { forEveryone: false, forAllStaff: true, roleIds: [], forStudents: true, forParents: true, classIds: e.classIds, sectionIds: [] };
+    const { withNotice } = await getSettings({ withNotice: EXAMS.datesheetNotice });
     await withTransaction(async (tx) => {
         if (e.datesheetNoticeId) await tx.notice.deleteMany({ where: { id: e.datesheetNoticeId } });
         await tx.schoolEvent.deleteMany({ where: { title: `${e.name} (exams)`, startDate: { gte: dayDate(dates[0]) } } });
         await tx.schoolEvent.create({ data: { tenantId, title: `${e.name} (exams)`, typeId: examType?.id ?? null, startDate: dayDate(dates[0]), endDate: dayDate(dates[dates.length - 1]), description: 'See the date sheet on the notice board.', ...audience, isDemo: e.isDemo } });
+        if (!withNotice) return;
         const n = await tx.notice.create({ data: { tenantId, title: `${e.name}: date sheet`, body, categoryId: category?.id ?? null, important: true, status: 'published', publishAt: new Date(), publishedAt: new Date(), publishedBy: userId, expiresOn: dayDate(dates[dates.length - 1]), ...audience, isDemo: e.isDemo } });
         await tx.exam.update({ where: { id: examId }, data: { datesheetNoticeId: n.id } });
     });
