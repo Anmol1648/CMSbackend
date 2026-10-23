@@ -18,13 +18,14 @@ import { createDemoExams } from '../modules/exams/demo-exams';
 import { createDemoAlerts } from '../modules/alerts/demo-alerts';
 import { createDemoHomework } from '../modules/homework/demo-homework';
 import { createDemoQuestions } from '../modules/questions/demo-questions';
+import { addDemoSyllabus } from '../modules/questions/demo-syllabus';
 import { createDemoTests } from '../modules/tests/demo-tests';
 import { createDemoLearn } from '../modules/learn/demo-learn';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -61,6 +62,12 @@ const main = async () => {
         // Only exams, for a school that already has its demo students.
         const r = await runAsTenant(tenant.id, createDemoExams);
         out(`${tenant.name}: ${r.exams} exams, ${r.marks} marks.`);
+        return;
+    }
+    if (values.syllabus) {
+        // Only the chapters still missing, for every class's subjects.
+        const n = await runAsTenant(tenant.id, addDemoSyllabus);
+        out(`${tenant.name}: ${n} chapters added.`);
         return;
     }
     if (values.learn) {

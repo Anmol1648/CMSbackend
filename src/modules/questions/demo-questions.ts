@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { db } from '../../core/db';
 import { getTenantId } from '../../core/context';
 import { listOptions } from '../masters/masters.service';
+import { addDemoSyllabus } from './demo-syllabus';
 
 /**
  * Demo syllabus and question bank: NCERT chapters of Classes VI–VIII Science and Mathematics (and a
@@ -240,6 +241,8 @@ export const createDemoQuestions = async () => {
         });
     }
     if (rows.length) await db.question.createMany({ data: rows });
+    // Every other class's chapters too.
+    chapters += await addDemoSyllabus();
     return { chapters, questions: rows.length };
 };
 
