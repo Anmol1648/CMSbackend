@@ -217,12 +217,42 @@ export const computeResults = async (kind: ScopeKind, id: string, sectionId: str
         subjects: subjects.map((s) => ({ id: s.id, name: s.name })),
         areas: areas.map((a) => a.name),
         students,
+        /** Subject teacher's view: only these subjects, no overall result (see limitResults). */
+        limitedTo: null as string[] | null,
+    };
+};
+
+type Computed = Awaited<ReturnType<typeof computeResults>>;
+
+/** A subject teacher's view of a section: their subjects' marks only, no totals, rank, result or card details. */
+export const limitResults = (r: Computed, subjectIds: string[] | null): Computed => {
+    if (!subjectIds) return r;
+    const keep = new Set(subjectIds);
+    const subjects = r.subjects.filter((s) => keep.has(s.id));
+    return {
+        ...r,
+        limitedTo: subjects.map((s) => s.name),
+        subjects,
+        areas: [],
+        students: r.students.map((st) => {
+            const subs = st.subjects.filter((x) => keep.has(x.subjectId));
+            return { ...st, subjects: subs, totalObtained: null, totalMax: null, percent: null, grade: null, result: null, failedSubjects: subs.filter((x) => x.passed === false).map((x) => x.subject), graced: [], rank: null, promotedTo: null, co: [], discipline: null, remark: null, attendance: null };
+        }),
     };
 };
 
 /** Class analysis: per subject average, highest, lowest, pass %, grades; overall pass %, toppers. */
-export const analyse = (r: Awaited<ReturnType<typeof computeResults>>) => {
-    const done = r.students.filter((s) => s.result);
+export const analyse = (r: Computed) => {
+    // A subject teacher's view has no overall result: the figures are of their subjects.
+    const limited = !!r.limitedTo;
+    const scoreOf = (s: Computed['students'][number]) => {
+        if (!limited) return s.percent;
+        const p = s.subjects.filter((x) => x.percent != null).map((x) => x.percent!);
+        return p.length ? round1(p.reduce((a, b) => a + b, 0) / p.length) : null;
+    };
+    const gradeOfStudent = (s: Computed['students'][number]) => (limited ? (s.subjects.length === 1 ? s.subjects[0].grade : null) : s.grade);
+    const passedOf = (s: Computed['students'][number]) => (limited ? s.subjects.every((x) => x.passed !== false) : s.result === 'Passed' || s.result === 'Completed');
+    const done = r.students.filter((s) => (limited ? scoreOf(s) != null : s.result));
     const subjects = r.subjects.map((s) => {
         const vals = r.students.map((st) => st.subjects.find((x) => x.subjectId === s.id)).filter((x): x is SubjectResult => !!x && x.percent != null);
         const pcts = vals.map((v) => v.percent!);
@@ -238,13 +268,15 @@ export const analyse = (r: Awaited<ReturnType<typeof computeResults>>) => {
             grades,
         };
     });
-    const toppers = [...done].filter((s) => s.percent != null).sort((a, b) => b.percent! - a.percent!).slice(0, 5).map((s) => ({ name: s.student.name, percent: s.percent, grade: s.grade }));
+    const scored = done.map((s) => ({ s, score: scoreOf(s) })).filter((x): x is { s: (typeof done)[number]; score: number } => x.score != null);
+    const toppers = [...scored].sort((a, b) => b.score - a.score).slice(0, 5).map(({ s, score }) => ({ name: s.student.name, percent: score, grade: gradeOfStudent(s) }));
+    const passed = done.filter(passedOf).length;
     return {
         students: r.students.length,
         withResult: done.length,
-        passed: done.filter((s) => s.result === 'Passed' || s.result === 'Completed').length,
-        passPercent: done.length ? round1((done.filter((s) => s.result === 'Passed' || s.result === 'Completed').length / done.length) * 100) : null,
-        average: done.length ? round1(done.filter((s) => s.percent != null).reduce((a, s) => a + s.percent!, 0) / Math.max(1, done.filter((s) => s.percent != null).length)) : null,
+        passed,
+        passPercent: done.length ? round1((passed / done.length) * 100) : null,
+        average: scored.length ? round1(scored.reduce((a, x) => a + x.score, 0) / scored.length) : null,
         subjects,
         toppers,
         needSupport: r.students.filter((s) => s.failedSubjects.length).map((s) => ({ name: s.student.name, subjects: s.failedSubjects })),
@@ -253,38 +285,56 @@ export const analyse = (r: Awaited<ReturnType<typeof computeResults>>) => {
 
 // ─── Who may see what ────────────────────────────────────────────────────────
 
-/** Sections whose results the person sees: all, or those they are class or subject teacher of. */
-export const viewableSections = async (userId: string, yearId: string): Promise<'all' | string[]> => {
+/**
+ * What the person sees of each section's results: 'all' (in full), or per section either null (in
+ * full: their own class) or the subjects they teach there (System Settings → Exams decides whether
+ * subject teachers see only those or the whole section).
+ */
+export type SectionLimits = 'all' | Map<string, string[] | null>;
+export const sectionLimits = async (userId: string, yearId: string): Promise<SectionLimits> => {
     const a = await getUserAccess(userId);
     if (a.permissions['exam.view'] === 'all' || a.permissions['exam.publish'] || a.permissions['exam.marks_any']) return 'all';
     const staff = await db.staff.findFirst({ where: { userId }, select: { id: true } });
-    if (!staff) return [];
-    const [own, teach] = await Promise.all([
+    if (!staff) return new Map();
+    const [own, teach, { sees }] = await Promise.all([
         db.section.findMany({ where: { academicYearId: yearId, classTeacherId: staff.id }, select: { id: true } }),
-        db.teachingAssignment.findMany({ where: { academicYearId: yearId, staffId: staff.id }, select: { sectionId: true } }),
+        db.teachingAssignment.findMany({ where: { academicYearId: yearId, staffId: staff.id }, select: { sectionId: true, subjectId: true } }),
+        getSettings({ sees: EXAMS.subjectTeacherSees }),
     ]);
-    return [...new Set([...own.map((s) => s.id), ...teach.map((t) => t.sectionId)])];
+    const m = new Map<string, string[] | null>();
+    for (const t of teach) m.set(t.sectionId, sees === 'whole_section' ? null : [...(m.get(t.sectionId) ?? []), t.subjectId]);
+    for (const s of own) m.set(s.id, null);
+    return m;
 };
+/** Sections whose results the person sees (in full or in part). */
+export const viewableSections = async (userId: string, yearId: string): Promise<'all' | string[]> => {
+    const l = await sectionLimits(userId, yearId);
+    return l === 'all' ? 'all' : [...l.keys()];
+};
+/** The subjects a person is limited to in a section (null = in full). Only for sections they see. */
+export const limitIn = (l: SectionLimits, sectionId: string) => (l === 'all' ? null : (l.get(sectionId) ?? null));
+/** Whether the person sees the section in full (needed for report cards and overall results). */
+export const seesInFull = (l: SectionLimits, sectionId: string) => l === 'all' || (l.has(sectionId) && l.get(sectionId) === null);
 
 export const sectionResults = async (q: z.infer<typeof scopeQuery>, userId: string) => {
     if (!q.section) throw badRequest('Choose a section');
     const scope = await resolveScope(q.scope, q.id);
-    const allowed = await viewableSections(userId, scope.yearId);
-    if (allowed !== 'all' && !allowed.includes(q.section)) throw forbidden('You can see the results of your own sections only');
-    const r = await computeResults(q.scope, q.id, q.section);
+    const limits = await sectionLimits(userId, scope.yearId);
+    if (limits !== 'all' && !limits.has(q.section)) throw forbidden('You can see the results of your own sections only');
+    const r = limitResults(await computeResults(q.scope, q.id, q.section), limitIn(limits, q.section));
     return { ...r, analysis: analyse(r) };
 };
 
 /** Scopes (exams, terms, final) and sections of a session for the results screen. */
 export const resultChoices = async (yearId: string, userId: string) => {
-    const [exams, terms, pubs, allowed] = await Promise.all([
+    const [exams, terms, pubs, limits] = await Promise.all([
         db.exam.findMany({ where: { academicYearId: yearId }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, status: true, classIds: true } }),
         db.examTerm.findMany({ where: { academicYearId: yearId }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true } }),
         db.resultPublication.findMany({ where: { academicYearId: yearId } }),
-        viewableSections(userId, yearId),
+        sectionLimits(userId, yearId),
     ]);
     const sections = await db.section.findMany({
-        where: { academicYearId: yearId, isActive: true, ...(allowed === 'all' ? {} : { id: { in: allowed } }) },
+        where: { academicYearId: yearId, isActive: true, ...(limits === 'all' ? {} : { id: { in: [...limits.keys()] } }) },
         select: { id: true, name: true, classId: true, schoolClass: { select: { name: true, shortName: true } } },
         orderBy: [{ schoolClass: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     });
@@ -292,7 +342,7 @@ export const resultChoices = async (yearId: string, userId: string) => {
         exams: exams.map((e) => ({ id: e.id, name: e.name, status: e.status, published: e.status === 'published', classIds: e.classIds })),
         terms: terms.map((t) => ({ ...t, published: pubs.some((p) => p.scope === 'term' && p.termId === t.id) })),
         finalPublished: pubs.some((p) => p.scope === 'final'),
-        sections: sections.map((s) => ({ id: s.id, label: sectionLabel(s), classId: s.classId })),
+        sections: sections.map((s) => ({ id: s.id, label: sectionLabel(s), classId: s.classId, inFull: seesInFull(limits, s.id) })),
     };
 };
 

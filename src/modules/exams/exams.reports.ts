@@ -5,7 +5,7 @@ import { defineReport, registerReportCategory } from '../reports/reports.registr
 import { defineDataSource } from '../reports/datasources.registry';
 import { defineWidget } from '../dashboard/dashboard.registry';
 import { currentYear } from '../academic/years.service';
-import { analyse, computeResults, viewableSections } from './results.service';
+import { analyse, computeResults, limitIn, limitResults, sectionLimits, seesInFull } from './results.service';
 import { progress } from './marks.service';
 import { myResults } from './results.service';
 
@@ -13,17 +13,21 @@ import { myResults } from './results.service';
 
 registerReportCategory('Exams', 35);
 
-/** The sections of an exam the person may see (one class, or all). */
-const sectionsOf = async (examId: string, userId: string, classId?: string) => {
+/**
+ * The sections of an exam the person may see (one class, or all). `inFull`: only those they see in
+ * full (overall results, toppers); otherwise subject teachers get their sections, `limit`ed to their subjects.
+ */
+const sectionsOf = async (examId: string, userId: string, classId?: string, inFull = false) => {
     const e = await db.exam.findFirst({ where: { id: examId } });
     if (!e) throw badRequest('Choose an exam');
-    const allowed = await viewableSections(userId, e.academicYearId);
+    const limits = await sectionLimits(userId, e.academicYearId);
+    const ids = limits === 'all' ? null : [...limits.keys()].filter((id) => !inFull || seesInFull(limits, id));
     const sections = await db.section.findMany({
-        where: { academicYearId: e.academicYearId, classId: classId ? classId : { in: e.classIds }, isActive: true, ...(allowed === 'all' ? {} : { id: { in: allowed } }) },
+        where: { academicYearId: e.academicYearId, classId: classId ? classId : { in: e.classIds }, isActive: true, ...(ids ? { id: { in: ids } } : {}) },
         select: { id: true, name: true, sortOrder: true, schoolClass: { select: { name: true, shortName: true, sortOrder: true } } },
         orderBy: [{ schoolClass: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     });
-    return { exam: e, sections };
+    return { exam: e, sections, limit: (sectionId: string) => limitIn(limits, sectionId) };
 };
 
 defineReport({
@@ -50,7 +54,7 @@ defineReport({
         { key: 'failed', label: 'Not passed in', type: 'text', width: 1.6 },
     ],
     async run(f, ctx) {
-        const { exam, sections } = await sectionsOf(f.exam, ctx.userId, f.class);
+        const { exam, sections } = await sectionsOf(f.exam, ctx.userId, f.class, true);
         const rows = [];
         for (const s of sections) {
             const r = await computeResults('exam', exam.id, s.id);
@@ -95,11 +99,11 @@ defineReport({
         { key: 'pass', label: 'Pass %', type: 'number', width: 0.7 },
     ],
     async run(f, ctx) {
-        const { exam, sections } = await sectionsOf(f.exam, ctx.userId, f.class);
+        const { exam, sections, limit } = await sectionsOf(f.exam, ctx.userId, f.class);
         const teachers = await db.teachingAssignment.findMany({ where: { sectionId: { in: sections.map((s) => s.id) } }, select: { sectionId: true, subject: { select: { name: true } }, staff: { select: { firstName: true, lastName: true } } } });
         const rows = [];
         for (const s of sections) {
-            const a = analyse(await computeResults('exam', exam.id, s.id));
+            const a = analyse(limitResults(await computeResults('exam', exam.id, s.id), limit(s.id)));
             for (const sub of a.subjects) {
                 const t = teachers.find((x) => x.sectionId === s.id && x.subject.name === sub.subject);
                 rows.push({ groupKey: `${String(s.schoolClass.sortOrder).padStart(4, '0')}${String(s.sortOrder).padStart(3, '0')}`, groupLabel: sectionLabel(s), subject: sub.subject, teacher: t ? [t.staff.firstName, t.staff.lastName].filter(Boolean).join(' ') : null, students: sub.students, average: sub.average, highest: sub.highest, lowest: sub.lowest, pass: sub.passPercent });
@@ -129,7 +133,7 @@ defineReport({
         { key: 'grade', label: 'Grade', type: 'text', width: 0.6 },
     ],
     async run(f, ctx) {
-        const { exam, sections } = await sectionsOf(f.exam, ctx.userId);
+        const { exam, sections } = await sectionsOf(f.exam, ctx.userId, undefined, true);
         const byClass = new Map<string, { label: string; order: number; list: { student: string; section: string; percent: number; grade: string | null }[] }>();
         for (const s of sections) {
             const r = await computeResults('exam', exam.id, s.id);
@@ -175,10 +179,10 @@ defineDataSource({
         { key: 'passed', label: 'Passed', type: 'boolean', group: 'Marks' },
     ],
     async load(p, ctx) {
-        const { exam, sections } = await sectionsOf(p.exam, ctx.userId);
+        const { exam, sections, limit } = await sectionsOf(p.exam, ctx.userId);
         const rows: Record<string, unknown>[] = [];
         for (const s of sections) {
-            const r = await computeResults('exam', exam.id, s.id);
+            const r = limitResults(await computeResults('exam', exam.id, s.id), limit(s.id));
             for (const st of r.students)
                 for (const sub of st.subjects) {
                     const x = sub.exams[0];
@@ -232,15 +236,15 @@ defineWidget({
         const year = await currentYear();
         const e = year ? await db.exam.findFirst({ where: { academicYearId: year.id, status: 'published' }, orderBy: { publishedAt: 'desc' } }) : null;
         if (!e) return { hidden: true, value: '' };
-        const allowed = await viewableSections(userId, e.academicYearId);
-        const sections = await db.section.findMany({ where: { academicYearId: e.academicYearId, classId: { in: e.classIds }, isActive: true, ...(allowed === 'all' ? {} : { id: { in: allowed } }) }, select: { id: true } });
+        const limits = await sectionLimits(userId, e.academicYearId);
+        const sections = await db.section.findMany({ where: { academicYearId: e.academicYearId, classId: { in: e.classIds }, isActive: true, ...(limits === 'all' ? {} : { id: { in: [...limits.keys()] } }) }, select: { id: true } });
         let passed = 0;
         let total = 0;
         let sum = 0;
         let n = 0;
         const subj = new Map<string, { pass: number; count: number }>();
         for (const s of sections) {
-            const a = analyse(await computeResults('exam', e.id, s.id));
+            const a = analyse(limitResults(await computeResults('exam', e.id, s.id), limitIn(limits, s.id)));
             passed += a.passed;
             total += a.withResult;
             if (a.average != null) {

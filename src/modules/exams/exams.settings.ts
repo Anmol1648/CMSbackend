@@ -52,6 +52,19 @@ export const EXAMS = {
         default: true,
         schema: z.boolean(),
     }),
+    subjectTeacherSees: defineSetting<string>({
+        key: 'exams.subject_teacher_sees',
+        group: G,
+        label: 'Subject teachers see results of the sections they teach',
+        help: 'Their own subject only: just their subject’s marks and analysis, no totals, ranks or report cards. Class teachers always see their own section in full.',
+        type: 'select',
+        default: 'own_subject',
+        schema: z.enum(['own_subject', 'whole_section']),
+        options: [
+            { value: 'own_subject', label: 'Their own subject only' },
+            { value: 'whole_section', label: 'The whole section' },
+        ],
+    }),
     lockBeforePublish: defineSetting<boolean>({
         key: 'exams.lock_before_publish',
         group: G,

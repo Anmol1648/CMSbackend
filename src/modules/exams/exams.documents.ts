@@ -4,7 +4,7 @@ import { badRequest, forbidden } from '../../core/errors';
 import { getUserAccess } from '../rbac/access.service';
 import { defineDocument } from '../documents/documents.registry';
 import { getSettings } from '../../core/settings';
-import { assertMine, computeResults, resolveScope, ScopeKind, viewableSections } from './results.service';
+import { assertMine, computeResults, resolveScope, ScopeKind, sectionLimits, seesInFull } from './results.service';
 import { gradeOf } from './setup.service';
 import { EXAMS } from './exams.settings';
 
@@ -147,8 +147,8 @@ defineDocument({
             const studentId = uuid(params.student, 'student');
             const e = await db.enrolment.findFirst({ where: { studentId, academicYearId: scope.yearId }, select: { sectionId: true } });
             if (!e) throw badRequest('The student was not in this session');
-            const allowed = a.permissions['exam.view'] ? await viewableSections(userId, scope.yearId) : [];
-            if (allowed !== 'all' && !allowed.includes(e.sectionId)) {
+            // Report cards are for those who see the section in full (class teacher, office…), or the student's own family.
+            if (!(a.permissions['exam.view'] && seesInFull(await sectionLimits(userId, scope.yearId), e.sectionId))) {
                 if (!a.permissions['exam.mine']) throw forbidden();
                 await assertMine(userId, studentId, kind, id);
             }
@@ -157,8 +157,7 @@ defineDocument({
             return { data: card, filename: `report-card-${card.student.admissionNo.replace(/[^A-Za-z0-9]+/g, '-')}.pdf` };
         }
         const sectionId = uuid(params.section, 'section');
-        const allowed = await viewableSections(userId, scope.yearId);
-        if (!a.permissions['exam.view'] || (allowed !== 'all' && !allowed.includes(sectionId))) throw forbidden();
+        if (!a.permissions['exam.view'] || !seesInFull(await sectionLimits(userId, scope.yearId), sectionId)) throw forbidden('Report cards are for the class teacher and the office');
         const cards = cardsOf(await computeResults(kind, id, sectionId), await gradesOnly());
         if (!cards.length) throw badRequest('That section has no students');
         return { data: cards[0], many: cards, filename: `report-cards-${cards[0].student.section}.pdf` };
