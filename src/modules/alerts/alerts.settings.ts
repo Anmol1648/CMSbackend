@@ -120,6 +120,7 @@ defineMaster({
         { name: 'Admissions', code: 'admissions', extra: { icon: 'person_add' } },
         { name: 'Homework', code: 'homework', extra: { icon: 'menu_book' } },
         { name: 'Transport', code: 'transport', extra: { icon: 'directions_bus' } },
+        { name: 'Library', code: 'library', extra: { icon: 'local_library' } },
         { name: 'Students', code: 'students', extra: { icon: 'school' } },
         { name: 'Staff', code: 'staff', extra: { icon: 'badge' } },
     ],

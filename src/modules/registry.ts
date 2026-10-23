@@ -60,6 +60,11 @@ import './transport/transport.alerts';
 import './transport/tracking.service';
 import './transport/gps.service';
 import './transport/transport.reports';
+import './library/library.permissions';
+import './library/circulation.service';
+import './library/library.alerts';
+import './library/library.imports';
+import './library/library.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

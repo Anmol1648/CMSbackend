@@ -26,6 +26,7 @@ defineMaster({
         { name: 'Computer fund', code: 'CF', extra: { one_time: false, refundable: false } },
         { name: 'Examination fee', code: 'EXM', extra: { one_time: false, refundable: false } },
         { name: 'Transport fee', code: 'TRN', extra: { one_time: false, refundable: false } },
+        { name: 'Library fine', code: 'LIB', extra: { one_time: false, refundable: false } },
     ],
 });
 

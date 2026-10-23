@@ -23,6 +23,7 @@ import { clearDemoQuestions, createDemoQuestions } from '../questions/demo-quest
 import { clearDemoTests, createDemoTests } from '../tests/demo-tests';
 import { clearDemoLearn, createDemoLearn } from '../learn/demo-learn';
 import { clearDemoTransport, createDemoTransport } from '../transport/demo-transport';
+import { clearDemoLibrary, createDemoLibrary } from '../library/demo-library';
 import { randomUUID } from 'crypto';
 
 /**
@@ -283,9 +284,10 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     const tests = await createDemoTests();
     const learn = await createDemoLearn();
     const transport = await createDemoTransport();
+    const library = await createDemoLibrary();
 
     await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries, receipts: fees.receipts } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, library, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -302,6 +304,7 @@ export const clearDemoData = async () => {
     await clearDemoHomework();
     await clearDemoLearn();
     await clearDemoTransport();
+    await clearDemoLibrary();
     await clearDemoTests();
     await clearDemoQuestions();
     await clearDemoExams();

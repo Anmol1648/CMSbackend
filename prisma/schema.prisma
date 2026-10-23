@@ -156,6 +156,14 @@ model Tenant {
   tripPoints       TripPoint[]
   tripEvents       TripEvent[]
 
+  books               Book[]
+  bookCopies          BookCopy[]
+  libraryLoans        LibraryLoan[]
+  libraryReservations LibraryReservation[]
+  libraryFines        LibraryFine[]
+  libraryStockChecks  LibraryStockCheck[]
+  libraryStockScans   LibraryStockScan[]
+
   @@map("tenants")
 }
 
@@ -3524,4 +3532,209 @@ model TripEvent {
   @@index([tenantId, tripId, at])
   @@index([tenantId, studentId, at])
   @@map("trip_events")
+}
+
+/// A title in the library (book, magazine, reference, e-book…); its physical copies are BookCopy.
+model Book {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  title       String
+  subtitle    String?
+  /// "R. K. Narayan, …"
+  authors     String?
+  publisher   String?
+  edition     String?
+  year        Int?
+  isbn        String?
+  /// book | reference | magazine | newspaper | cd | ebook
+  kind        String   @default("book")
+  /// Masters "library_category", "library_language", "library_location".
+  categoryId  String?  @map("category_id") @db.Uuid
+  languageId  String?  @map("language_id") @db.Uuid
+  locationId  String?  @map("location_id") @db.Uuid
+  /// Shelf mark / call number, e.g. 823 NAR.
+  callNumber  String?  @map("call_number")
+  /// For whom, e.g. "Class VI–VIII".
+  level       String?
+  price       Int?
+  pages       Int?
+  keywords    String?
+  coverFileId String?  @map("cover_file_id") @db.Uuid
+  /// An e-book: its file, or a link.
+  fileId      String?  @map("file_id") @db.Uuid
+  link        String?
+  notes       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  isDemo      Boolean  @default(false) @map("is_demo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  copies BookCopy[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, title])
+  @@index([tenantId, isbn])
+  @@map("books")
+}
+
+/// A physical copy, with its accession number (the barcode on it).
+model BookCopy {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  bookId      String    @map("book_id") @db.Uuid
+  accessionNo String    @map("accession_no")
+  /// available | issued | on_hold (kept for a reservation) | lost | damaged | withdrawn
+  status      String    @default("available")
+  /// Master "book_condition".
+  conditionId String?   @map("condition_id") @db.Uuid
+  locationId  String?   @map("location_id") @db.Uuid
+  acquiredOn  DateTime? @map("acquired_on") @db.Date
+  /// purchase | donation | other
+  source      String?
+  billNo      String?   @map("bill_no")
+  price       Int?
+  notes       String?
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  book   Book          @relation(fields: [bookId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  loans  LibraryLoan[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, accessionNo])
+  @@index([tenantId, bookId])
+  @@map("book_copies")
+}
+
+/// A copy lent to a student or a staff member.
+model LibraryLoan {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  copyId     String    @map("copy_id") @db.Uuid
+  bookId     String    @map("book_id") @db.Uuid
+  /// student | staff
+  memberKind String    @map("member_kind")
+  studentId  String?   @map("student_id") @db.Uuid
+  staffId    String?   @map("staff_id") @db.Uuid
+  issuedOn   DateTime  @map("issued_on") @db.Date
+  dueOn      DateTime  @map("due_on") @db.Date
+  returnedOn DateTime? @map("returned_on") @db.Date
+  renewals   Int       @default(0)
+  /// out | returned | lost
+  status     String    @default("out")
+  issuedBy   String?   @map("issued_by") @db.Uuid
+  returnedBy String?   @map("returned_by") @db.Uuid
+  /// When the overdue alert was last sent.
+  remindedOn DateTime? @map("reminded_on") @db.Date
+  note       String?
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  copy   BookCopy @relation(fields: [copyId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status, dueOn])
+  @@index([tenantId, studentId])
+  @@index([tenantId, staffId])
+  @@index([tenantId, bookId])
+  @@map("library_loans")
+}
+
+/// A member waiting for a title; when a copy comes back it is kept for them (ready) for some days.
+model LibraryReservation {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  bookId     String    @map("book_id") @db.Uuid
+  memberKind String    @map("member_kind")
+  studentId  String?   @map("student_id") @db.Uuid
+  staffId    String?   @map("staff_id") @db.Uuid
+  /// waiting | ready | issued | cancelled | expired
+  status     String    @default("waiting")
+  copyId     String?   @map("copy_id") @db.Uuid
+  readyAt    DateTime? @map("ready_at") @db.Timestamptz(6)
+  holdUntil  DateTime? @map("hold_until") @db.Date
+  createdBy  String?   @map("created_by") @db.Uuid
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, bookId, status])
+  @@index([tenantId, studentId])
+  @@index([tenantId, staffId])
+  @@map("library_reservations")
+}
+
+/// A fine: late return, lost or damaged book. Students' fines go into their fees (System Settings → Library).
+model LibraryFine {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  loanId         String?   @map("loan_id") @db.Uuid
+  memberKind     String    @map("member_kind")
+  studentId      String?   @map("student_id") @db.Uuid
+  staffId        String?   @map("staff_id") @db.Uuid
+  academicYearId String?   @map("academic_year_id") @db.Uuid
+  /// late | lost | damaged
+  kind           String
+  amount         Int
+  waived         Int       @default(0)
+  waiveReason    String?   @map("waive_reason")
+  waivedBy       String?   @map("waived_by") @db.Uuid
+  /// fees: added to the student's fees · counter: paid at the library
+  payAt          String    @default("fees") @map("pay_at")
+  /// due | paid | waived (counter fines; fee fines are paid with the fees)
+  status         String    @default("due")
+  paidOn         DateTime? @map("paid_on") @db.Date
+  receivedBy     String?   @map("received_by") @db.Uuid
+  receiptNo      String?   @map("receipt_no")
+  on             DateTime  @db.Date
+  note           String?
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, academicYearId, payAt])
+  @@map("library_fines")
+}
+
+/// A stock check: copies scanned on the shelves; the rest are missing.
+model LibraryStockCheck {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  name      String
+  /// open | closed
+  status    String    @default("open")
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  closedAt  DateTime? @map("closed_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  isDemo    Boolean   @default(false) @map("is_demo")
+
+  tenant Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  scans  LibraryStockScan[]
+
+  @@unique([id, tenantId])
+  @@map("library_stock_checks")
+}
+
+/// A copy found on the shelves during a stock check.
+model LibraryStockScan {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  checkId  String   @map("check_id") @db.Uuid
+  copyId   String   @map("copy_id") @db.Uuid
+  at       DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  check  LibraryStockCheck @relation(fields: [checkId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([checkId, copyId])
+  @@map("library_stock_scans")
 }

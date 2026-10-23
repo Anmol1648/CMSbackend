@@ -22,11 +22,12 @@ import { addDemoSyllabus } from '../modules/questions/demo-syllabus';
 import { createDemoTests } from '../modules/tests/demo-tests';
 import { createDemoLearn } from '../modules/learn/demo-learn';
 import { createDemoTransport } from '../modules/transport/demo-transport';
+import { createDemoLibrary } from '../modules/library/demo-library';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -89,6 +90,12 @@ const main = async () => {
         out(`${tenant.name}: ${r.chapters} chapters, ${r.questions} questions.`);
         return;
     }
+    if (values.library) {
+        // Only the library, for a school that already has its demo staff and students.
+        const r = await runAsTenant(tenant.id, createDemoLibrary);
+        out(`${tenant.name}: ${r.books} titles, ${r.copies} copies, ${r.loans} loans (${r.out} out now), ${r.fines} fines. Librarian login: ${r.librarian ?? 'none'} (password Demo@2026).`);
+        return;
+    }
     if (values.transport) {
         // Only transport, for a school that already has its demo staff and students.
         const r = await runAsTenant(tenant.id, createDemoTransport);
@@ -125,6 +132,7 @@ const main = async () => {
     out(`${tenant.name}: ${r.questions.chapters} chapters, ${r.questions.questions} questions.`);
     out(`${tenant.name}: ${r.tests.tests} online tests, ${r.tests.attempts} attempts.`);
     out(`${tenant.name}: ${r.transport.routes} bus routes, ${r.transport.students} students on the buses; driver logins: ${r.transport.drivers.join(', ')}.`);
+    out(`${tenant.name}: ${r.library.books} library titles, ${r.library.copies} copies, ${r.library.out} books out; librarian login: ${r.library.librarian}.`);
     out(`${tenant.name}: ${r.learn.chats} tutor conversations, ${r.learn.quizzes} practice quizzes.`);
     if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
