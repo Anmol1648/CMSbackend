@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { classesOfYear } from '../academic/year-classes.service';
 import { z } from 'zod';
 import { db, withTransaction, Tx } from '../../core/db';
 import { getTenantId } from '../../core/context';
@@ -208,7 +209,7 @@ export const saveLoads = async (yearId: string, classId: string, input: z.infer<
 export const loadOverview = async (yearId: string) => {
     await yearOf(yearId);
     const [classes, loads, week] = await Promise.all([
-        db.schoolClass.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } }),
+        classesOfYear(yearId).then((cs) => cs.map((c) => ({ id: c.id, name: c.name }))),
         db.ttLoad.findMany({ where: { academicYearId: yearId }, select: { classId: true, streamId: true, perWeek: true, parallelGroup: true, subjectId: true } }),
         weekOf(yearId),
     ]);

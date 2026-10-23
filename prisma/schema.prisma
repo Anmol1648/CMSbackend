@@ -108,6 +108,7 @@ model Tenant {
   schoolEvents SchoolEvent[]
 
   dashboardLayouts DashboardLayout[]
+  yearClasses      YearClass[]
   attendancePunches AttendancePunch[]
 
   @@map("tenants")
@@ -618,6 +619,7 @@ model AcademicYear {
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sections            Section[]
+  yearClasses         YearClass[]
   classSubjects       ClassSubject[]
   enrolments          Enrolment[]
   teachingAssignments TeachingAssignment[]
@@ -659,6 +661,7 @@ model SchoolClass {
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   group             MasterValue?       @relation("ClassGroup", fields: [groupId, tenantId], references: [id, tenantId], onDelete: Restrict)
   sections          Section[]
+  inYears           YearClass[]
   classSubjects     ClassSubject[]
   enquiries         Enquiry[]
   feeStructureLines FeeStructureLine[]
@@ -2392,4 +2395,29 @@ model DashboardLayout {
 
   @@unique([tenantId, roleId])
   @@map("dashboard_layouts")
+}
+
+/// The classes a session runs (Bal Vatika may stop one year): the class list is the school's
+/// catalogue; each session picks from it. Past sessions keep theirs.
+model YearClass {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  classId        String   @map("class_id") @db.Uuid
+  /// New admissions (enquiries, the online form) are taken for it.
+  admissionsOpen Boolean  @default(true) @map("admissions_open")
+  /// Seats for new admissions this session (empty = no limit set).
+  seats          Int?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  schoolClass  SchoolClass  @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([academicYearId, classId])
+  @@index([tenantId, academicYearId])
+  @@map("year_classes")
 }

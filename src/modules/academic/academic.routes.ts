@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import * as yearClasses from './year-classes.service';
 import { z } from 'zod';
 import { asyncHandler, successResponse } from '../../core/index';
 import { sendFile } from '../../core/http/files';
@@ -41,7 +42,13 @@ academicRoutes.get('/classes', view, asyncHandler(async (req: Request, res: Resp
     const q = parse(z.object({ year: z.uuid().optional() }), req.query);
     successResponse(res, await classes.listClasses(q.year), 'Classes');
 }));
-academicRoutes.get('/classes/options', authenticated, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await classes.classOptions(), 'Classes')));
+academicRoutes.get('/classes/options', authenticated, asyncHandler(async (req: Request, res: Response) => {
+    const q = parse(z.object({ year: z.uuid().optional(), all: z.enum(['1']).optional() }), req.query);
+    successResponse(res, await classes.classOptions(q.year, q.all === '1'), 'Classes');
+}));
+// The classes a session runs (with admissions open and seats).
+academicRoutes.get('/years/:id/classes', authenticated, asyncHandler(async (req: Request, res: Response) => successResponse(res, await yearClasses.yearClassesOverview(req.params.id), 'Classes of the session')));
+academicRoutes.put('/years/:id/classes', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await yearClasses.setYearClasses(req.params.id, parse(yearClasses.yearClassesSchema, req.body)), 'Classes of the session saved')));
 academicRoutes.post('/classes', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.createClass(parse(classes.classInputSchema, req.body)), 'Class added', 201)));
 academicRoutes.patch('/classes/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.updateClass(req.params.id, parse(classes.classUpdateSchema, req.body)), 'Class saved')));
 academicRoutes.delete('/classes/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.deleteClass(req.params.id), 'Class deleted')));

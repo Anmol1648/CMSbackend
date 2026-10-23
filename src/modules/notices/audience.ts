@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '../../core/db';
 import { getSettings } from '../../core/settings';
 import { currentYear } from '../academic/years.service';
+import { classesOfYear } from '../academic/year-classes.service';
 import { sectionLabel } from '../timetable/tt-setup.service';
 import { NOTICES } from './notices.settings';
 
@@ -151,7 +152,7 @@ export const audienceOptions = async () => {
     const year = await currentYear();
     const [roles, classes, sections] = await Promise.all([
         db.role.findMany({ where: { slug: { notIn: ['student', 'guardian'] } }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
-        db.schoolClass.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } }),
+        classesOfYear(year?.id).then((cs) => cs.map((c) => ({ id: c.id, name: c.name }))),
         year
             ? db.section.findMany({ where: { academicYearId: year.id, isActive: true }, select: { id: true, classId: true, name: true, schoolClass: { select: { name: true, shortName: true } } }, orderBy: [{ schoolClass: { sortOrder: 'asc' } }, { sortOrder: 'asc' }] })
             : [],

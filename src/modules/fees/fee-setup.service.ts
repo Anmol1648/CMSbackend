@@ -4,6 +4,7 @@ import { db, withTransaction } from '../../core/db';
 import { getTenantId } from '../../core/context';
 import { badRequest, conflict, notFound } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
+import { classesOfYear } from '../academic/year-classes.service';
 
 /** Fee set-up of a year: instalments, the structure (class × head × instalment), concessions. */
 
@@ -157,7 +158,7 @@ export const copyStructure = async (yearId: string, fromClassId: string, input: 
 /** Every class's yearly total, for the set-up overview. */
 export const structureOverview = async (yearId: string) => {
     await yearOf(yearId);
-    const classes = await db.schoolClass.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } });
+    const classes = (await classesOfYear(yearId)).map((c) => ({ id: c.id, name: c.name }));
     const sums = await db.feeStructureLine.groupBy({ by: ['classId'], where: { academicYearId: yearId }, _sum: { amount: true } });
     const total = new Map(sums.map((s) => [s.classId, s._sum.amount ?? 0]));
     return classes.map((c) => ({ ...c, total: total.get(c.id) ?? 0 }));

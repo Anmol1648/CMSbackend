@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { classesOfYear, runsIn } from '../academic/year-classes.service';
 import { requireCode } from '../masters/coded-lists';
 import { counterMode } from '../fees/payment-modes';
 import { testResults } from './test-results';
@@ -118,6 +119,7 @@ const checkFields = async (f: EnquiryFields) => {
         for (const i of ids) if (byId.get(i.id) !== i.master) issues.push({ field: i.field, message: 'is not an option of its list' });
     }
     if (f.classId && !(await db.schoolClass.findFirst({ where: { id: f.classId, isActive: true }, select: { id: true } }))) issues.push({ field: 'classId', message: 'was not found' });
+    else if (f.classId && f.academicYearId && !(await runsIn(f.academicYearId, f.classId))) issues.push({ field: 'classId', message: 'is not a class of that session' });
     if (f.academicYearId && !(await db.academicYear.findUnique({ where: { id: f.academicYearId }, select: { id: true } }))) issues.push({ field: 'academicYearId', message: 'was not found' });
     if (f.assignedToId && !(await db.staff.findFirst({ where: { id: f.assignedToId, status: 'working' }, select: { id: true } }))) issues.push({ field: 'assignedToId', message: 'is not a working staff member' });
     if (f.dateOfBirth && f.dateOfBirth > today()) issues.push({ field: 'dateOfBirth', message: 'is in the future' });
@@ -649,7 +651,8 @@ export const publicFormInfo = async () => {
     const s = await getSettings({ enabled: ADMISSIONS.publicForm });
     if (!s.enabled) return { enabled: false, classes: [], academicYear: null };
     const year = await currentYear();
-    const classes = await db.schoolClass.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } });
+    // Only the classes the session runs with admissions open.
+    const classes = (await classesOfYear(year?.id, { admissionsOpen: true })).map((c) => ({ id: c.id, name: c.name }));
     return { enabled: true, classes, academicYear: year ? { id: year.id, name: year.name } : null };
 };
 
@@ -699,7 +702,7 @@ export const enquiryReport = async (q: z.infer<typeof reportSchema>, viewer: Vie
     const masterName = new Map((await db.masterValue.findMany({ where: { id: { in: masterIds } }, select: { id: true, name: true } })).map((v) => [v.id, v.name]));
     const staffIds = [...new Set(rows.map((r) => r.assignedToId).filter((x): x is string => !!x))];
     const staff = new Map((await db.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, firstName: true, lastName: true } })).map((s) => [s.id, staffName(s)!]));
-    const classes = await db.schoolClass.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } });
+    const classes = yearId ? (await classesOfYear(yearId)).map((c) => ({ id: c.id, name: c.name })) : await db.schoolClass.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } });
 
     // Seats: section capacity vs students enrolled, per class (this year).
     const seats = new Map<string, { capacity: number | null; enrolled: number }>();

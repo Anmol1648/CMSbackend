@@ -21,8 +21,12 @@ export const yearInputSchema = z.strictObject({
     isCurrent: z.boolean().optional(),
     /** Copy sections and class subjects from this year (new years only). */
     copyFromYearId: z.uuid().optional(),
+    /** The classes the session runs; empty = those of the year copied from (else every active class). */
+    classIds: z.array(z.uuid()).max(100).optional(),
+    /** Also copy the fee set-up (instalments a year on, structure, concessions) of the year copied from. */
+    copyFees: z.boolean().optional(),
 });
-export const yearUpdateSchema = yearInputSchema.omit({ isCurrent: true, copyFromYearId: true }).partial();
+export const yearUpdateSchema = yearInputSchema.omit({ isCurrent: true, copyFromYearId: true, classIds: true, copyFees: true }).partial();
 
 export const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -109,7 +113,20 @@ export const createYear = async (input: z.infer<typeof yearInputSchema>) => {
         if (makeCurrent) await tx.academicYear.updateMany({ where: { isCurrent: true }, data: { isCurrent: false } });
         return tx.academicYear.create({ data: { tenantId, name: input.name, startDate: toDate(input.startDate), endDate: toDate(input.endDate), isCurrent: makeCurrent } });
     });
+    // The classes the session runs: chosen, else those of the year copied from, else every active class.
+    const classIds = input.classIds?.length
+        ? (await db.schoolClass.findMany({ where: { id: { in: input.classIds } }, select: { id: true } })).map((c) => c.id)
+        : input.copyFromYearId
+          ? (await db.yearClass.findMany({ where: { academicYearId: input.copyFromYearId, schoolClass: { isActive: true } }, select: { classId: true } })).map((c) => c.classId)
+          : (await db.schoolClass.findMany({ where: { isActive: true }, select: { id: true } })).map((c) => c.id);
+    if (classIds.length) await db.yearClass.createMany({ data: classIds.map((classId) => ({ tenantId, academicYearId: created.id, classId })), skipDuplicates: true });
     if (input.copyFromYearId) await copyStructure(created.id, input.copyFromYearId, { sections: true, subjects: true });
+    if (input.copyFromYearId && input.copyFees) {
+        const { copyFromYear } = await import('../fees/fee-setup.service');
+        await copyFromYear(created.id, { fromYearId: input.copyFromYearId });
+        // Fees only for the classes the new session runs.
+        await db.feeStructureLine.deleteMany({ where: { academicYearId: created.id, classId: { notIn: classIds } } });
+    }
     return getYear(created.id);
 };
 
@@ -162,7 +179,7 @@ export const copyStructure = async (targetId: string, fromId: string, what: { se
 
     if (what.sections) {
         const [from, existing] = await Promise.all([
-            db.section.findMany({ where: { academicYearId: fromId, isActive: true }, include: { classTeacher: { select: { status: true } } } }),
+            db.section.findMany({ where: { academicYearId: fromId, isActive: true, schoolClass: { inYears: { some: { academicYearId: targetId } } } }, include: { classTeacher: { select: { status: true } } } }),
             db.section.findMany({ where: { academicYearId: targetId }, select: { classId: true } }),
         ]);
         const skip = new Set(existing.map((s) => s.classId));
@@ -188,7 +205,7 @@ export const copyStructure = async (targetId: string, fromId: string, what: { se
     }
     if (what.subjects) {
         const [from, existing] = await Promise.all([
-            db.classSubject.findMany({ where: { academicYearId: fromId, subject: { isActive: true } } }),
+            db.classSubject.findMany({ where: { academicYearId: fromId, subject: { isActive: true }, schoolClass: { inYears: { some: { academicYearId: targetId } } } } }),
             db.classSubject.findMany({ where: { academicYearId: targetId }, select: { classId: true } }),
         ]);
         const skip = new Set(existing.map((s) => s.classId));

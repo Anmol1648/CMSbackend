@@ -1,4 +1,5 @@
 import { registerPermissions } from '../../core/registry/permissions';
+import { classesOfYear } from '../academic/year-classes.service';
 import { registerMenuGroup, registerMenuItems } from '../../core/registry/menu';
 import { auditModel, db } from '../../core/db';
 import type { ParsedRow } from '../../core/excel';
@@ -91,7 +92,7 @@ registerImport<StudentImportCtx>({
     permission: 'student.import',
     columns: async () => {
         const year = await currentYear();
-        const classes = await db.schoolClass.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { sortOrder: 'asc' } });
+        const classes = await classesOfYear(year?.id);
         const houses = await choicesOf('house');
         // One list at a time: many parallel queries can run out of database connections.
         const simple: { header: string; key: string; choices: string[] }[] = [];

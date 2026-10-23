@@ -7,6 +7,7 @@ import { getSetting } from '../../core/settings';
 import { cleanName } from '../masters/masters.service';
 import { ACADEMIC } from './academic.settings';
 import { assertYearOpen } from './years.service';
+import { classesOfYear, ensureInYear } from './year-classes.service';
 
 /** Classes (the same every year) and their sections (per year). */
 
@@ -66,6 +67,7 @@ export const listClasses = async (yearId?: string) => {
             ...(yearId ? { sections: { where: { academicYearId: yearId }, include: sectionInclude, orderBy: [{ sortOrder: 'asc' as const }, { name: 'asc' as const }] } } : {}),
         },
     });
+    const running = yearId ? new Map((await db.yearClass.findMany({ where: { academicYearId: yearId } })).map((y) => [y.classId, y])) : null;
     return classes.map(({ sections, ...c }) => ({
         id: c.id,
         name: c.name,
@@ -75,11 +77,16 @@ export const listClasses = async (yearId?: string) => {
         sortOrder: c.sortOrder,
         isActive: c.isActive,
         sections: (sections as SectionRow[] | undefined)?.map(presentSection) ?? [],
+        /** In the given session: runs there, admissions open, seats. */
+        inYear: running ? (running.has(c.id) ? { admissionsOpen: running.get(c.id)!.admissionsOpen, seats: running.get(c.id)!.seats } : null) : undefined,
     }));
 };
 
-export const classOptions = () =>
-    db.schoolClass.findMany({ where: { isActive: true }, select: { id: true, name: true, shortName: true, hasStreams: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+/** Dropdowns: the classes a session runs (the current one by default), or the whole catalogue. */
+export const classOptions = async (yearId?: string, all = false) =>
+    all
+        ? db.schoolClass.findMany({ where: { isActive: true }, select: { id: true, name: true, shortName: true, hasStreams: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] })
+        : (await classesOfYear(yearId)).map((c) => ({ id: c.id, name: c.name, shortName: c.shortName, hasStreams: c.hasStreams, admissionsOpen: c.admissionsOpen }));
 
 const getClass = async (id: string) => {
     if (!z.uuid().safeParse(id).success) throw notFound('Class not found');
@@ -213,6 +220,7 @@ const checkSection = async (
 
 export const createSection = async (input: z.infer<typeof sectionInputSchema>) => {
     await checkSection(input);
+    await ensureInYear(input.academicYearId, input.classId);
     const last = await db.section.aggregate({ where: { academicYearId: input.academicYearId, classId: input.classId }, _max: { sortOrder: true } });
     const s = await db.section.create({
         data: {
