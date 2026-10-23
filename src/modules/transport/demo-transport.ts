@@ -122,7 +122,7 @@ export const createDemoTransport = async () => {
     // Students: VII-B (all on Route 1 and 2), and a few from each other section.
     const enrol = await db.enrolment.findMany({ where: { academicYearId: year.id, student: { status: 'active' } }, select: { studentId: true, section: { select: { name: true, schoolClass: { select: { name: true } } } } }, orderBy: { studentId: 'asc' } });
     const viiB = enrol.filter((e) => e.section.name === 'B' && e.section.schoolClass.name === 'Class VII').map((e) => e.studentId);
-    const shubham = await db.student.findFirst({ where: { admissionNo: '20250235' }, select: { id: true } });
+    const shubham = await db.student.findFirst({ where: { OR: [{ admissionNo: '2025/0235' }, { user: { username: '20250235' } }] }, select: { id: true } });
     const others = enrol.filter((e) => !viiB.includes(e.studentId)).filter((_, k) => k % 9 === 0).map((e) => e.studentId);
     const from = dayDate(year.startDate.toISOString().slice(0, 10));
     const rows = [];
