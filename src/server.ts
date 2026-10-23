@@ -11,6 +11,7 @@ import { warmUpFaces } from './core/face';
 import { runAsSystem, runAsTenant } from './core/context';
 import { startQueue } from './modules/alerts/queue';
 import { startSimulator } from './modules/transport/tracking.service';
+import { startGpsPoller } from './modules/transport/gps.service';
 
 let server: Server | undefined;
 
@@ -25,6 +26,8 @@ const start = async () => {
     startQueue();
     // Transport: moves the demo (simulated) buses.
     startSimulator();
+    // Transport: reads the GPS devices of schools that have a provider.
+    startGpsPoller();
 };
 
 /** Loads the face models at start only when a school checks faces (else the first face check loads them). */

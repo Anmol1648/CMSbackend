@@ -9,6 +9,7 @@ registerPermissions({ key: 'transport', label: 'Transport', order: 42 }, [
     { resource: 'transport', action: 'manage', label: 'Set up transport: vehicles and their papers, routes, stops, students’ routes and stops' },
     { resource: 'transport', action: 'track_all', label: 'See every bus live on the map, and the trips’ history' },
     { resource: 'transport', action: 'drive', label: 'Run trips of the routes they drive or help on (the trip screen sends the bus’s position)' },
+    { resource: 'transport', action: 'setup', label: 'Connect GPS devices and Google Maps (their keys)' },
     { resource: 'transport', action: 'track_mine', label: 'See their own (or their children’s) bus live, and its alerts' },
 ]);
 
@@ -19,6 +20,7 @@ registerMenuItems([
     { key: 'transport-students', label: 'Students’ Transport', icon: 'airline_seat_recline_normal', href: '/transport/students', group: 'transport', order: 30, anyPermission: ['transport.view', 'transport.manage'] },
     { key: 'transport-vehicles', label: 'Vehicles', icon: 'directions_bus', href: '/transport/vehicles', group: 'transport', order: 40, anyPermission: ['transport.view', 'transport.manage'] },
     { key: 'transport-trips', label: 'Trips', icon: 'history', href: '/transport/trips', group: 'transport', order: 50, permission: 'transport.track_all' },
+    { key: 'transport-setup', label: 'GPS & Maps', icon: 'satellite_alt', href: '/transport/setup', group: 'transport', order: 60, permission: 'transport.setup' },
     { key: 'transport-drive', label: 'My Trip', icon: 'navigation', href: '/transport/drive', group: 'main', order: 29, permission: 'transport.drive' },
     { key: 'transport-mine', label: 'My Bus', icon: 'directions_bus', href: '/my-bus', group: 'main', order: 29, permission: 'transport.track_mine' },
 ]);

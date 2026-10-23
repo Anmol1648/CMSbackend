@@ -100,14 +100,20 @@ export const myDriving = async (userId: string) => {
 
 // ─── A trip ──────────────────────────────────────────────────────────────────
 
-export const startSchema = z.strictObject({ routeId: z.uuid(), kind: z.enum(['morning', 'afternoon', 'special']), source: z.enum(['phone', 'simulated']).default('phone') });
+export const startSchema = z.strictObject({ routeId: z.uuid(), kind: z.enum(['morning', 'afternoon', 'special']), source: z.enum(['phone', 'device', 'simulated']).default('phone') });
 
 export const startTrip = async (input: z.infer<typeof startSchema>, userId: string | null) => {
     if (userId && !(await mayRun(userId, input.routeId))) throw forbidden('You don’t drive or help on this route');
     const r = await db.transportRoute.findFirst({ where: { id: input.routeId } });
     if (!r) throw notFound('Route not found');
     if (await db.trip.findFirst({ where: { routeId: r.id, status: 'running' } })) throw badRequest('A trip of this route is already running; end it first');
-    const t = await db.trip.create({ data: { tenantId: getTenantId()!, routeId: r.id, vehicleId: r.vehicleId, userId, kind: input.kind, day: dayDate(todayIST()), source: input.source, isDemo: input.source === 'simulated' } });
+    // A vehicle with a GPS device (and a provider set) sends the position itself, not the phone.
+    let source = input.source;
+    if (source === 'phone' && r.vehicleId) {
+        const { gps } = await getSettings({ gps: TRANSPORT.gpsProvider });
+        if (gps !== 'none' && (await db.vehicle.findFirst({ where: { id: r.vehicleId, gpsDeviceId: { not: null } }, select: { id: true } }))) source = 'device';
+    }
+    const t = await db.trip.create({ data: { tenantId: getTenantId()!, routeId: r.id, vehicleId: r.vehicleId, userId, kind: input.kind, day: dayDate(todayIST()), source, isDemo: source === 'simulated' } });
     await db.tripEvent.create({ data: { tenantId: getTenantId()!, tripId: t.id, kind: 'start', userId } });
     const riders = await ridersOf(r.id, input.kind);
     const label = await routeLabel(r.id, r.vehicleId);

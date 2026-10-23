@@ -145,7 +145,7 @@ export const createDemoTransport = async () => {
             const late = kind === 'morning' && r === routes[1] ? 12 : 0;
             const points: { tenantId: string; tripId: string; lat: number; lng: number; speed: number; at: Date }[] = [];
             const events: { tenantId: string; tripId: string; kind: string; stopId?: string; at: Date; note?: string }[] = [];
-            const trip = await db.trip.create({ data: { tenantId, routeId: r.id, vehicleId: r.vehicleId, kind, day: dayDate(yesterday), startedAt: t0, status: 'done', source: 'simulated', isDemo: true } });
+            const trip = await db.trip.create({ data: { tenantId, routeId: r.id, vehicleId: r.vehicleId, kind, day: dayDate(yesterday), startedAt: t0, status: 'done', source: 'phone', isDemo: true } });
             let clock = t0.getTime() + late * 60_000;
             events.push({ tenantId, tripId: trip.id, kind: 'start', at: t0 });
             for (let j = 0; j < path.length - 1; j++) {

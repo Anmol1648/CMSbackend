@@ -1,11 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, successResponse } from '../../core/index';
-import { forbidden, validationError } from '../../core/errors';
+import { badRequest, forbidden, notFound, validationError } from '../../core/errors';
 import { authenticated, can } from '../../middlewares/access';
 import { getUserAccess } from '../rbac/access.service';
 import * as setup from './setup.service';
 import * as track from './tracking.service';
+import * as gps from './gps.service';
+import { readFile, saveUpload } from '../../core/files';
+import { sendFile, upload } from '../../core/http/files';
+import { getTenantId } from '../../core/context';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -31,6 +35,17 @@ transportRoutes.put('/vehicles/:id', manage, asyncHandler(async (req: Request, r
 transportRoutes.delete('/vehicles/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.deleteVehicle(req.params.id), 'Deleted')));
 transportRoutes.get('/vehicles/:id/documents', authenticated, viewers, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.listDocuments(req.params.id), 'Papers')));
 transportRoutes.post('/vehicles/:id/documents', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.addDocument(req.params.id, parse(setup.documentSchema, req.body)), 'Added', 201)));
+transportRoutes.post('/files', manage, upload.single('file'), asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('Choose a file');
+    const f = await saveUpload({ data: req.file.buffer, originalName: req.file.originalname, purpose: 'transport', allowed: ['pdf', 'png', 'jpeg'] });
+    successResponse(res, { id: f.id, name: f.originalName }, 'Uploaded', 201);
+}));
+transportRoutes.get('/documents/:id/file', authenticated, viewers, asyncHandler(async (req: Request, res: Response) => {
+    const doc = await setup.paperFile(req.params.id);
+    if (!doc) throw notFound('No scan for this paper');
+    const { file, data } = await readFile(doc);
+    sendFile(res, file.originalName, file.mimeType, data, { inline: true });
+}));
 transportRoutes.put('/documents/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.updateDocument(req.params.id, parse(setup.documentSchema, req.body)), 'Saved')));
 transportRoutes.delete('/documents/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.deleteDocument(req.params.id), 'Deleted')));
 
@@ -65,3 +80,10 @@ transportRoutes.post('/trips/:id/board', driver, asyncHandler(async (req: Reques
 transportRoutes.post('/trips/:id/sos', driver, asyncHandler(async (req: Request, res: Response) => successResponse(res, await track.sos(req.params.id, parse(track.sosSchema, req.body).note, uid(req)), 'Sent')));
 transportRoutes.post('/trips/:id/end', authenticated, needAny(['transport.track_all', 'transport.drive']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await track.endTrip(req.params.id, uid(req)), 'Ended')));
 transportRoutes.get('/my-bus', can('transport.track_mine'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await track.myBus(uid(req)), 'My bus')));
+
+// GPS devices and Google Maps.
+const setupOnly = can('transport.setup');
+transportRoutes.get('/connect', setupOnly, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await gps.connectInfo(), 'GPS & Maps')));
+transportRoutes.put('/connect', setupOnly, asyncHandler(async (req: Request, res: Response) => successResponse(res, await gps.saveConnect(parse(gps.connectSchema, req.body), uid(req)), 'Saved')));
+transportRoutes.post('/connect/test', setupOnly, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await gps.testGps(), 'Read')));
+transportRoutes.get('/map', authenticated, needAny(['transport.view', 'transport.manage', 'transport.track_all', 'transport.drive', 'transport.track_mine', 'transport.setup']), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await gps.mapTiles(getTenantId()!), 'Map')));

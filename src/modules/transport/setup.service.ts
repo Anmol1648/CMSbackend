@@ -97,6 +97,9 @@ export const listDocuments = async (vehicleId: string) => {
 
 const docData = (input: z.infer<typeof documentSchema>) => ({ typeId: input.typeId ?? null, number: input.number || null, issuedOn: input.issuedOn ? dayDate(input.issuedOn) : null, expiresOn: input.expiresOn ? dayDate(input.expiresOn) : null, fileId: input.fileId ?? null, notes: input.notes || null });
 
+/** The scan of a paper (its file id). */
+export const paperFile = async (id: string) => (await db.vehicleDocument.findFirst({ where: { id }, select: { fileId: true } }))?.fileId ?? null;
+
 export const addDocument = async (vehicleId: string, input: z.infer<typeof documentSchema>) => {
     if (!(await db.vehicle.findFirst({ where: { id: vehicleId } }))) throw notFound('Vehicle not found');
     const d = await db.vehicleDocument.create({ data: { tenantId: getTenantId()!, vehicleId, ...docData(input) } });
