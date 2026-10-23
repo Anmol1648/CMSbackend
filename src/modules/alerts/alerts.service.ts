@@ -76,7 +76,7 @@ export const saveAlert = async (key: string, input: z.infer<typeof alertSchema>,
     const def = findAlertDef(key);
     if (!def) throw notFound('Alert not found');
     if (input.recipients.some((r) => !def.recipients.some((x) => x.key === r))) throw badRequest('Choose who gets it from the list', [{ field: 'recipients', message: 'is not valid' }]);
-    checkFields(key, input);
+    checkFields(key, { subject: input.subject, body: input.body, shortText: input.shortText });
     const tenantId = getTenantId()!;
     const data = { ...input, updatedBy: userId };
     await db.alertConfig.upsert({ where: { tenantId_key: { tenantId, key } }, create: { tenantId, key, ...data }, update: data });
