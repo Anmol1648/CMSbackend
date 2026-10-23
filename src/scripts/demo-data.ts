@@ -16,11 +16,12 @@ import { createDemoLeave } from '../modules/leave/demo-leave';
 import { createDemoNotices } from '../modules/notices/demo-notices';
 import { createDemoExams } from '../modules/exams/demo-exams';
 import { createDemoAlerts } from '../modules/alerts/demo-alerts';
+import { createDemoHomework } from '../modules/homework/demo-homework';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -59,6 +60,12 @@ const main = async () => {
         out(`${tenant.name}: ${r.exams} exams, ${r.marks} marks.`);
         return;
     }
+    if (values.homework) {
+        // Only homework, for a school that already has its demo teachers and students.
+        const r = await runAsTenant(tenant.id, createDemoHomework);
+        out(`${tenant.name}: ${r.homework} homework, ${r.submissions} handed in / checked.`);
+        return;
+    }
     if (values.alerts) {
         // Only messages and notifications, for a school that already has its demo people.
         const r = await runAsTenant(tenant.id, createDemoAlerts);
@@ -79,6 +86,7 @@ const main = async () => {
     out(`${tenant.name}: ${r.leave.leaves} staff leaves, ${r.leave.compOffs} comp-offs.`);
     out(`${tenant.name}: ${r.notices.notices} notices, ${r.notices.events} events.`);
     out(`${tenant.name}: ${r.alerts.messages} sent messages, ${r.alerts.notifications} notifications.`);
+    out(`${tenant.name}: ${r.homework.homework} homework, ${r.homework.submissions} handed in / checked.`);
     if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
     out(`Every demo login uses the password ${DEMO_PASSWORD}`);

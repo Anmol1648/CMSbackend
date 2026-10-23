@@ -118,6 +118,7 @@ defineMaster({
         { name: 'Notices', code: 'notices', extra: { icon: 'campaign' } },
         { name: 'Messages', code: 'messages', extra: { icon: 'mail' } },
         { name: 'Admissions', code: 'admissions', extra: { icon: 'person_add' } },
+        { name: 'Homework', code: 'homework', extra: { icon: 'menu_book' } },
         { name: 'Students', code: 'students', extra: { icon: 'school' } },
         { name: 'Staff', code: 'staff', extra: { icon: 'badge' } },
     ],

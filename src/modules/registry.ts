@@ -45,6 +45,9 @@ import './leave/leave.alerts';
 import './notices/notices.alerts';
 import './admissions/admissions.alerts';
 import './promotion/tc.alerts';
+import './homework/homework.permissions';
+import './homework/homework.reports';
+import './homework/homework.alerts';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

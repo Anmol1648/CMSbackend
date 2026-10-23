@@ -132,6 +132,9 @@ model Tenant {
   recipientGroups         RecipientGroup[]
   jobRuns                 JobRun[]
 
+  homework            Homework[]
+  homeworkSubmissions HomeworkSubmission[]
+
   @@map("tenants")
 }
 
@@ -2959,4 +2962,74 @@ model JobRun {
 
   @@unique([tenantId, key, day])
   @@map("job_runs")
+}
+
+// ─── Homework ────────────────────────────────────────────────────────────────
+
+/// Homework given to one section in one subject (giving it to three sections makes three).
+model Homework {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  sectionId      String    @map("section_id") @db.Uuid
+  subjectId      String    @map("subject_id") @db.Uuid
+  /// Master "homework_type" (Homework, Classwork, Project…).
+  typeId         String?   @map("type_id") @db.Uuid
+  title          String
+  details        String    @default("")
+  attachmentIds  String[]  @default([]) @map("attachment_ids") @db.Uuid
+  givenOn        DateTime  @map("given_on") @db.Date
+  dueOn          DateTime  @map("due_on") @db.Date
+  /// online (students submit) | class (the teacher ticks done / not done)
+  mode           String    @default("online")
+  /// draft | published
+  status         String    @default("draft")
+  /// Shown from (later = scheduled).
+  publishAt      DateTime? @map("publish_at") @db.Timestamptz(6)
+  /// Students and parents were told (the "new homework" alert).
+  alertedAt      DateTime? @map("alerted_at") @db.Timestamptz(6)
+  /// The teacher who gave it.
+  staffId        String?   @map("staff_id") @db.Uuid
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?   @map("updated_by") @db.Uuid
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  submissions HomeworkSubmission[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, sectionId, dueOn])
+  @@index([tenantId, staffId, givenOn])
+  @@map("homework")
+}
+
+/// A student's homework: what they handed in, and the teacher's check.
+model HomeworkSubmission {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  homeworkId  String    @map("homework_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  /// submitted | late | done | not_done | checked | redo
+  status      String
+  answer      String?
+  fileIds     String[]  @default([]) @map("file_ids") @db.Uuid
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
+  submittedBy String?   @map("submitted_by") @db.Uuid
+  checkedAt   DateTime? @map("checked_at") @db.Timestamptz(6)
+  checkedBy   String?   @map("checked_by") @db.Uuid
+  /// Master "homework_grade" (Excellent, Good… Redo).
+  gradeId     String?   @map("grade_id") @db.Uuid
+  remark      String?
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  homework Homework @relation(fields: [homeworkId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([homeworkId, studentId])
+  @@index([tenantId, studentId])
+  @@map("homework_submissions")
 }
