@@ -13,6 +13,7 @@ import { runAsSystem, runAsTenant } from '../core/context';
 import { syncPermissions } from '../core/registry/permissions';
 import { applyDefaultGrants } from '../modules/rbac/default-grants';
 import { invalidateAccess } from '../modules/rbac/access.service';
+import { DEFAULT_ROLES } from '../modules/tenants/default-roles';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
@@ -31,6 +32,8 @@ const main = async () => {
         return;
     }
     const added = await runAsTenant(tenant.id, async () => {
+        // Default roles added after the school was created (e.g. Driver / Bus Helper).
+        await db.role.createMany({ data: DEFAULT_ROLES.map((r) => ({ tenantId: tenant.id, slug: r.slug, name: r.name, description: r.description, isSystem: r.isSystem ?? false, defaultFor: r.defaultFor ?? null })), skipDuplicates: true });
         const n = await applyDefaultGrants(tenant.id);
         await invalidateAccess();
         return n;

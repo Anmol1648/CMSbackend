@@ -22,6 +22,7 @@ import { clearDemoHomework, createDemoHomework } from '../homework/demo-homework
 import { clearDemoQuestions, createDemoQuestions } from '../questions/demo-questions';
 import { clearDemoTests, createDemoTests } from '../tests/demo-tests';
 import { clearDemoLearn, createDemoLearn } from '../learn/demo-learn';
+import { clearDemoTransport, createDemoTransport } from '../transport/demo-transport';
 import { randomUUID } from 'crypto';
 
 /**
@@ -281,9 +282,10 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     const questions = await createDemoQuestions();
     const tests = await createDemoTests();
     const learn = await createDemoLearn();
+    const transport = await createDemoTransport();
 
     await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries, receipts: fees.receipts } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -299,6 +301,7 @@ export const clearDemoData = async () => {
     await clearDemoAlerts();
     await clearDemoHomework();
     await clearDemoLearn();
+    await clearDemoTransport();
     await clearDemoTests();
     await clearDemoQuestions();
     await clearDemoExams();

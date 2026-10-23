@@ -59,6 +59,14 @@ export interface FineRule {
     cap: number;
 }
 
+/**
+ * Fees a module adds for a student, beyond their class's structure (e.g. Transport: the stop's
+ * fare in each instalment they use the bus). They count like structure lines: concessions apply.
+ */
+export type FeeSource = (yearId: string, students: DueStudent[], instalments: { id: string; dueDate: Date }[], client: typeof db | Tx) => Promise<Map<string, { feeHeadId: string; instalmentId: string; amount: number }[]>>;
+const sources: FeeSource[] = [];
+export const registerFeeSource = (source: FeeSource) => sources.push(source);
+
 const DAY = 86_400_000;
 const toDate = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
@@ -104,6 +112,8 @@ export const computeDues = async (yearId: string, students: DueStudent[], opts: 
         fineRule(),
     ]);
     const { joinRule } = await getSettings({ joinRule: FEES.newStudentFrom });
+    const extra = new Map<string, { feeHeadId: string; instalmentId: string; amount: number }[]>();
+    for (const source of sources) for (const [studentId, list] of await source(yearId, students, instalments, client)) extra.set(studentId, [...(extra.get(studentId) ?? []), ...list]);
     const headById = new Map(heads.map((h, i) => [h.id, { ...h, rank: i }]));
     const byClass = new Map<string, typeof structure>();
     for (const l of structure) byClass.set(l.classId, [...(byClass.get(l.classId) ?? []), l]);
@@ -121,7 +131,7 @@ export const computeDues = async (yearId: string, students: DueStudent[], opts: 
     for (const s of students) {
         const mine = concessions.filter((c) => (c.automatic ? matches(c, s) : givenTo.get(s.id)?.has(c.id)));
         const newcomer = s.admissionDate >= year.startDate;
-        const lines = byClass.get(s.classId) ?? [];
+        const lines = [...(byClass.get(s.classId) ?? []), ...(extra.get(s.id) ?? [])];
         // A student admitted during the year pays from the instalment they join in (or the next one),
         // by System Settings → Fees; "new admissions only" heads of the skipped ones move to the first.
         let start = 0;
@@ -146,7 +156,7 @@ export const computeDues = async (yearId: string, students: DueStudent[], opts: 
             const dl: DueLine[] = [];
             for (const headId of headIds) {
                 const head = headById.get(headId);
-                const own = idx < start ? 0 : lines.find((l) => l.instalmentId === inst.id && l.feeHeadId === headId)?.amount ?? 0;
+                const own = idx < start ? 0 : lines.filter((l) => l.instalmentId === inst.id && l.feeHeadId === headId).reduce((a, l) => a + l.amount, 0);
                 const structured = own + (idx === start ? carried.get(headId) ?? 0 : 0);
                 const gross = head?.oneTime && !newcomer ? 0 : structured;
                 let concession = 0;

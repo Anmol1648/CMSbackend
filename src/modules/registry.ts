@@ -54,6 +54,10 @@ import './tests/tests.permissions';
 import './tests/tests.alerts';
 import './tests/tests.widgets';
 import './learn/learn.permissions';
+import './transport/transport.permissions';
+import './transport/setup.service';
+import './transport/transport.alerts';
+import './transport/tracking.service';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

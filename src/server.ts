@@ -10,6 +10,7 @@ import { purgeOldPhotos } from './modules/attendance/staff-attendance.service';
 import { warmUpFaces } from './core/face';
 import { runAsSystem, runAsTenant } from './core/context';
 import { startQueue } from './modules/alerts/queue';
+import { startSimulator } from './modules/transport/tracking.service';
 
 let server: Server | undefined;
 
@@ -22,6 +23,8 @@ const start = async () => {
     startDailyJobs();
     // Alerts: the outbox and the daily alert jobs.
     startQueue();
+    // Transport: moves the demo (simulated) buses.
+    startSimulator();
 };
 
 /** Loads the face models at start only when a school checks faces (else the first face check loads them). */

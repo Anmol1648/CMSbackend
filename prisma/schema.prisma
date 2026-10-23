@@ -147,6 +147,15 @@ model Tenant {
   learnMessages   LearnMessage[]
   practiceQuizzes PracticeQuiz[]
 
+  vehicles         Vehicle[]
+  vehicleDocuments VehicleDocument[]
+  transportRoutes  TransportRoute[]
+  transportStops   TransportStop[]
+  studentTransport StudentTransport[]
+  trips            Trip[]
+  tripPoints       TripPoint[]
+  tripEvents       TripEvent[]
+
   @@map("tenants")
 }
 
@@ -3300,4 +3309,219 @@ model PracticeQuiz {
 
   @@index([tenantId, studentId, createdAt])
   @@map("practice_quizzes")
+}
+
+// ─── Transport ───────────────────────────────────────────────────────────────
+
+/// A school vehicle (bus, van…).
+model Vehicle {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  /// Registration number, e.g. UK07 PA 1234.
+  number      String
+  name        String
+  /// Master "vehicle_type" (Bus, Mini bus, Van…).
+  typeId      String?  @map("type_id") @db.Uuid
+  capacity    Int      @default(40)
+  make        String?
+  model       String?
+  year        Int?
+  /// The GPS device's id at its provider (System Settings → Transport), if the vehicle has one.
+  gpsDeviceId String?  @map("gps_device_id")
+  notes       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  isDemo      Boolean  @default(false) @map("is_demo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documents VehicleDocument[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, number])
+  @@map("vehicles")
+}
+
+/// A vehicle's paper (fitness, insurance, permit, PUC…) and when it expires.
+model VehicleDocument {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  vehicleId String    @map("vehicle_id") @db.Uuid
+  /// Master "vehicle_document".
+  typeId    String?   @map("type_id") @db.Uuid
+  number    String?
+  issuedOn  DateTime? @map("issued_on") @db.Date
+  expiresOn DateTime? @map("expires_on") @db.Date
+  fileId    String?   @map("file_id") @db.Uuid
+  notes     String?
+  isDemo    Boolean   @default(false) @map("is_demo")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, expiresOn])
+  @@map("vehicle_documents")
+}
+
+/// A bus route: its vehicle, driver and helper, and its stops in order.
+model TransportRoute {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  name           String
+  code           String?
+  vehicleId      String?  @map("vehicle_id") @db.Uuid
+  driverId       String?  @map("driver_id") @db.Uuid
+  helperId       String?  @map("helper_id") @db.Uuid
+  /// "07:00": when the morning trip leaves the first stop; the afternoon one leaves school.
+  morningStart   String   @default("07:00") @map("morning_start")
+  afternoonStart String   @default("14:00") @map("afternoon_start")
+  /// The school (end of the morning trip, start of the afternoon one).
+  schoolLat      Float?   @map("school_lat")
+  schoolLng      Float?   @map("school_lng")
+  color          String   @default("#1A365D")
+  isActive       Boolean  @default(true) @map("is_active")
+  isDemo         Boolean  @default(false) @map("is_demo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stops  TransportStop[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, name])
+  @@map("transport_routes")
+}
+
+/// A stop of a route, in order, with its usual times and fare.
+model TransportStop {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  routeId       String   @map("route_id") @db.Uuid
+  name          String
+  landmark      String?
+  lat           Float?
+  lng           Float?
+  sortOrder     Int      @default(0) @map("sort_order")
+  /// "07:25": when the morning bus is due here; the afternoon one.
+  morningTime   String?  @map("morning_time")
+  afternoonTime String?  @map("afternoon_time")
+  /// Transport fee for each instalment, from this stop.
+  fare          Int      @default(0)
+  isActive      Boolean  @default(true) @map("is_active")
+  isDemo        Boolean  @default(false) @map("is_demo")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  route  TransportRoute @relation(fields: [routeId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, routeId])
+  @@map("transport_stops")
+}
+
+/// A student's transport in a session: route, stop, which way, from when (and their own fare, if set).
+model StudentTransport {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  routeId        String    @map("route_id") @db.Uuid
+  stopId         String    @map("stop_id") @db.Uuid
+  /// both | pickup (morning only) | drop (afternoon only)
+  way            String    @default("both")
+  fromDate       DateTime  @map("from_date") @db.Date
+  toDate         DateTime? @map("to_date") @db.Date
+  /// A fare of their own for each instalment (else the stop's).
+  fare           Int?
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, academicYearId, studentId])
+  @@index([tenantId, routeId])
+  @@map("student_transport")
+}
+
+/// One run of a route (morning, afternoon or a special trip), tracked live.
+model Trip {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  routeId   String    @map("route_id") @db.Uuid
+  vehicleId String?   @map("vehicle_id") @db.Uuid
+  /// Who runs it (the driver's or helper's login).
+  userId    String?   @map("user_id") @db.Uuid
+  /// morning | afternoon | special
+  kind      String
+  day       DateTime  @db.Date
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(6)
+  /// running | done
+  status    String    @default("running")
+  /// phone | device | simulated
+  source    String    @default("phone")
+  lastLat   Float?    @map("last_lat")
+  lastLng   Float?    @map("last_lng")
+  lastSpeed Float?    @map("last_speed")
+  lastAt    DateTime? @map("last_at") @db.Timestamptz(6)
+  /// The next stop (index in the trip's order) and how late the bus is.
+  nextStop  Int       @default(0) @map("next_stop")
+  delayMin  Int       @default(0) @map("delay_min")
+  isDemo    Boolean   @default(false) @map("is_demo")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  points TripPoint[]
+  events TripEvent[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, day, status])
+  @@index([tenantId, routeId, day])
+  @@map("trips")
+}
+
+/// A position sent during a trip.
+model TripPoint {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  tripId   String   @map("trip_id") @db.Uuid
+  lat      Float
+  lng      Float
+  /// km/h
+  speed    Float?
+  accuracy Float?
+  at       DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trip   Trip   @relation(fields: [tripId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, tripId, at])
+  @@map("trip_points")
+}
+
+/// What happened on a trip: started, reached a stop, boarded / dropped, SOS, overspeed, late, ended.
+model TripEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  /// start | stop | boarded | dropped | absent | sos | overspeed | late | end
+  kind      String
+  stopId    String?  @map("stop_id") @db.Uuid
+  studentId String?  @map("student_id") @db.Uuid
+  note      String?
+  lat       Float?
+  lng       Float?
+  userId    String?  @map("user_id") @db.Uuid
+  at        DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trip   Trip   @relation(fields: [tripId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, tripId, at])
+  @@index([tenantId, studentId, at])
+  @@map("trip_events")
 }
