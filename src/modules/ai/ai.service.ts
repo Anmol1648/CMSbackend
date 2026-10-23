@@ -40,31 +40,51 @@ export class AiUnavailableError extends AppError {
     }
 }
 
-const gemini = async (key: string, model: string, r: AiRequest): Promise<AiReply> => {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        signal: AbortSignal.timeout(90_000),
-        body: JSON.stringify({
-            systemInstruction: { parts: [{ text: r.system }] },
-            contents: r.messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.text }] })),
-            generationConfig: { temperature: r.temperature ?? 0.6, maxOutputTokens: r.maxTokens ?? 4096, ...(r.json ? { responseMimeType: 'application/json' } : {}) },
-        }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-        error?: { message?: string };
-        promptFeedback?: { blockReason?: string };
-        candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
-        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+interface CallOptions {
+    timeoutMs: number;
+    /** Ask the model to think little before answering (newer models think by default, which is slow). */
+    fast: boolean;
+}
+
+/** The "think little" setting in the form the model takes (2.5 models: a budget; newer: a level). */
+const thinkingOf = (model: string) => (/2\.5/.test(model) ? { thinkingBudget: /pro/i.test(model) ? 128 : 0 } : { thinkingLevel: 'low' });
+
+const gemini = async (key: string, model: string, r: AiRequest, o: CallOptions): Promise<AiReply> => {
+    const call = async (thinking: boolean) => {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+            signal: AbortSignal.timeout(o.timeoutMs),
+            body: JSON.stringify({
+                systemInstruction: { parts: [{ text: r.system }] },
+                contents: r.messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.text }] })),
+                generationConfig: {
+                    temperature: r.temperature ?? 0.6,
+                    maxOutputTokens: r.maxTokens ?? 4096,
+                    ...(r.json ? { responseMimeType: 'application/json' } : {}),
+                    ...(thinking ? { thinkingConfig: thinkingOf(model) } : {}),
+                },
+            }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+            error?: { message?: string };
+            promptFeedback?: { blockReason?: string };
+            candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
+            usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+        };
+        return { res, data };
     };
+    let { res, data } = await call(o.fast);
+    // A model that doesn't take the thinking setting: ask again without it.
+    if (!res.ok && o.fast && res.status === 400 && /think/i.test(data.error?.message ?? '')) ({ res, data } = await call(false));
     if (!res.ok) throw new Error(`Gemini ${res.status}: ${(data.error?.message ?? 'request failed').slice(0, 200)}`);
     if (data.promptFeedback?.blockReason) throw new Error(`Gemini refused the request (${data.promptFeedback.blockReason})`);
-    const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('').trim();
+    const text = (data.candidates?.[0]?.content?.parts ?? []).filter((p) => !p.thought).map((p) => p.text ?? '').join('').trim();
     if (!text) throw new Error(`Gemini gave no answer (${data.candidates?.[0]?.finishReason ?? 'empty'})`);
     return { text, tokensIn: data.usageMetadata?.promptTokenCount ?? 0, tokensOut: data.usageMetadata?.candidatesTokenCount ?? 0 };
 };
 
-const PROVIDERS: Record<string, (key: string, model: string, r: AiRequest) => Promise<AiReply>> = { gemini };
+const PROVIDERS: Record<string, (key: string, model: string, r: AiRequest, o: CallOptions) => Promise<AiReply>> = { gemini };
 
 const keyOf = (enc: string) => {
     if (!enc) return '';
@@ -87,7 +107,7 @@ const monthStart = () => new Date(`${todayIST().slice(0, 8)}01T00:00:00+05:30`);
 
 /** Asks the AI (checking the limits) and records the request. */
 export const askAi = async (feature: string, userId: string | null, r: AiRequest) => {
-    const s = await getSettings({ on: AI.on, provider: AI.provider, model: AI.model, key: AI.key, daily: AI.dailyPerUser, monthly: AI.monthly });
+    const s = await getSettings({ on: AI.on, provider: AI.provider, model: AI.model, key: AI.key, daily: AI.dailyPerUser, monthly: AI.monthly, timeout: AI.timeoutSeconds, fast: AI.fast });
     if (!s.on) throw new AiUnavailableError('AI is switched off (System Settings → AI)');
     const key = keyOf(s.key);
     if (!key) throw new AiUnavailableError('AI isn’t set up yet: enter the key on Learning → AI Setup');
@@ -96,11 +116,11 @@ export const askAi = async (feature: string, userId: string | null, r: AiRequest
     const call = PROVIDERS[s.provider];
     const base = { tenantId: getTenantId()!, userId, feature, provider: s.provider, model: s.model };
     try {
-        const reply = await call(key, s.model, r);
+        const reply = await call(key, s.model, r, { timeoutMs: s.timeout * 1000, fast: s.fast });
         await db.aiUsage.create({ data: { ...base, tokensIn: reply.tokensIn, tokensOut: reply.tokensOut } });
         return reply.text;
     } catch (err) {
-        const message = (err as Error).message.slice(0, 300);
+        const message = ((err as Error).name === 'TimeoutError' || /aborted due to timeout/i.test((err as Error).message) ? `no answer within ${s.timeout} seconds (System Settings → AI); try a faster model or ask again` : (err as Error).message).slice(0, 300);
         await db.aiUsage.create({ data: { ...base, ok: false, error: message } });
         logger.warn('AI request failed', { feature, error: message });
         throw new AiUnavailableError(`The AI didn’t answer: ${message}`);

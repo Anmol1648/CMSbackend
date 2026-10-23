@@ -22,6 +22,8 @@ export const AI = {
         options: [{ value: 'gemini', label: 'Google Gemini' }],
     }),
     model: defineSetting<string>({ key: 'ai.model', group: G, label: 'Model', help: 'The provider’s model name, e.g. gemini-2.5-flash.', type: 'text', default: 'gemini-2.5-flash', schema: z.string().trim().min(3).max(80).regex(/^[A-Za-z0-9._-]+$/, 'letters, numbers, dots and dashes') }),
+    fast: defineSetting<boolean>({ key: 'ai.fast', group: G, label: 'Fast answers (the model thinks less before answering)', help: 'Newer models think first, which can take a minute. Off: slower, sometimes better answers.', type: 'boolean', default: true, schema: z.boolean() }),
+    timeoutSeconds: num('ai.timeout_seconds', 'Wait at most this many seconds for an AI answer', 120, 15, 300),
     dailyPerUser: num('ai.daily_per_user', 'AI requests one person can make in a day', 40, 1, 2000),
     monthly: num('ai.monthly_limit', 'AI requests the whole school can make in a month (0 = no limit)', 5000, 0, 1_000_000, 'Keeps the bill in check.'),
     maxQuestions: num('ai.max_questions', 'Questions the AI writes in one go', 15, 1, 50),
