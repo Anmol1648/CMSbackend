@@ -14,7 +14,9 @@ export interface MasterGroupDef {
 export interface MasterFieldDef {
     key: string;
     label: string;
-    type: 'text' | 'number' | 'boolean';
+    type: 'text' | 'number' | 'boolean' | 'select';
+    /** select: the choices (the value is stored). */
+    options?: { value: string; label: string }[];
     required?: boolean;
     max?: number;
     /** text: the value must match (after `upperCase`, if set). */

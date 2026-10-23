@@ -165,6 +165,11 @@ export const checkExtra = (def: MasterDef, raw: Record<string, unknown> | undefi
             else out[f.key] = v;
             continue;
         }
+        if (f.type === 'select') {
+            if (!f.options?.some((o) => o.value === v)) issues.push({ field: `extra.${f.key}`, message: 'choose one of the options' });
+            else out[f.key] = v as string;
+            continue;
+        }
         if (f.type === 'number') {
             const n = typeof v === 'number' ? v : Number(v);
             if (!Number.isFinite(n)) issues.push({ field: `extra.${f.key}`, message: 'must be a number' });

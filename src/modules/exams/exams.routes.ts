@@ -1,12 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, successResponse } from '../../core/index';
-import { forbidden, validationError } from '../../core/errors';
+import { badRequest, forbidden, validationError } from '../../core/errors';
 import { authenticated, can } from '../../middlewares/access';
 import { getUserAccess } from '../rbac/access.service';
 import * as setup from './setup.service';
 import * as marks from './marks.service';
 import * as results from './results.service';
+import { examLabels } from './exams.labels';
+import { getSettings } from '../../core/settings';
+import { EXAMS } from './exams.settings';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -27,6 +30,8 @@ export const examRoutes = Router();
 const setupOnly = can('exam.setup');
 
 // Grading scales and result rules.
+// What the school calls stages and mark statuses (anyone who works with exams or sees results).
+examRoutes.get('/labels', authenticated, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await examLabels(), 'Labels')));
 examRoutes.get('/scales', authenticated, needAny(['exam.setup', ...ENTERERS, 'exam.view']), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await setup.listScales(), 'Grading scales')));
 examRoutes.post('/scales', setupOnly, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.saveScale(null, parse(setup.scaleSchema, req.body)), 'Saved', 201)));
 examRoutes.put('/scales/:id', setupOnly, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.saveScale(req.params.id, parse(setup.scaleSchema, req.body)), 'Saved')));
@@ -77,6 +82,10 @@ examRoutes.post('/:id/status', authenticated, needAny(['exam.setup', 'exam.publi
     // Publishing results (or taking them back) is for those who may publish; the rest for exam set-up.
     if ((status === 'published' || exam.status === 'published') && !a.permissions['exam.publish']) throw forbidden('Only those who publish results (principal) can do this');
     if (status !== 'published' && exam.status !== 'published' && !a.permissions['exam.setup']) throw forbidden();
+    if (status === 'published' && exam.status !== 'locked') {
+        const { lock } = await getSettings({ lock: EXAMS.lockBeforePublish });
+        if (lock || exam.status !== 'open') throw badRequest(lock ? 'Lock marks entry first (System Settings → Exams)' : 'Open marks entry first');
+    }
     successResponse(res, await setup.setExamStatus(req.params.id, status, uid(req)), 'Saved');
 }));
 examRoutes.get('/:id/subjects', authenticated, needAny(['exam.setup', 'exam.view', ...ENTERERS]), asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.examSubjects(req.params.id), 'Subjects')));

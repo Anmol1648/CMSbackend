@@ -11,6 +11,9 @@ import { isoOf, todayIST } from '../attendance/attendance.settings';
 import { summaries } from '../attendance/student-attendance.service';
 import { nextClassIn, nextYearOf } from '../promotion/promotion.service';
 import { Band, gradeOf, Part, ruleFor } from './setup.service';
+import { getSettings } from '../../core/settings';
+import { EXAMS } from './exams.settings';
+import { markStatuses } from './exams.labels';
 
 /**
  * Results: for one exam, a term (its exams, by weightage) or the session (every exam that counts).
@@ -41,7 +44,8 @@ export const resolveScope = async (kind: ScopeKind, id: string) => {
     if (!y) throw notFound('Session not found');
     const exams = await db.exam.findMany({ where: { academicYearId: id, countsInResult: true }, orderBy: [{ sortOrder: 'asc' }] });
     const pub = await db.resultPublication.findFirst({ where: { academicYearId: id, scope: 'final' } });
-    return { yearId: id, label: `Final result ${y.name}`, exams, term: null, published: !!pub };
+    const { finalName } = await getSettings({ finalName: EXAMS.finalName });
+    return { yearId: id, label: `${finalName} ${y.name}`, exams, term: null, published: !!pub };
 };
 
 type SubjectResult = {
@@ -89,28 +93,43 @@ export const computeResults = async (kind: ScopeKind, id: string, sectionId: str
     const toCap = scope.term?.endDate ? isoOf(scope.term.endDate) : isoOf(year!.endDate);
     const to = toCap < todayIST() ? toCap : todayIST();
     const attendance = rule.showAttendance && from <= to ? await summaries(ids, from, to) : new Map();
+    const countsOf = new Map((await markStatuses()).map((s) => [s.code, s.counts]));
     const nextYear = kind === 'final' ? await nextYearOf(scope.yearId) : null;
     const nextClass = nextYear ? await nextClassIn(section.classId, nextYear.id) : null;
 
     const students = enrol.map((e) => {
         const sid = e.student.id;
-        const subj: SubjectResult[] = subjects.map((s) => {
+        const perSubject = subjects.map((s) => {
             const per = exams.flatMap((ex) => {
                 const es = examSubjects.find((x) => x.examId === ex.id && x.subjectId === s.id);
                 if (!es) return [];
                 const parts = es.components as Part[];
                 const max = parts.reduce((a, p) => a + p.max, 0);
                 const m = markOf.get(`${es.id}|${sid}`);
-                const status = m?.status ?? (m ? 'P' : 'none');
+                const status = m?.status ?? 'none';
+                // Absent, medical… count as the school set them (Masters → Mark statuses).
+                const counts = status === 'P' || status === 'none' ? null : (countsOf.get(status.toUpperCase()) ?? 'leave_out');
                 const pm = (m?.marks ?? {}) as Record<string, number | string>;
-                const obtained = status === 'AB' ? 0 : status === 'P' ? (m?.total ?? null) : null;
-                const grade = rule.descriptive ? ((pm.grade as string) ?? null) : obtained != null && max ? (gradeOf(bands, (obtained / max) * 100)?.grade ?? null) : null;
+                const obtained: number | null = status === 'P' ? (m?.total ?? null) : counts === 'zero' ? 0 : null;
+                const grade: string | null = rule.descriptive ? ((pm.grade as string) ?? null) : null;
                 const partMarks = Object.fromEntries(parts.map((p) => [p.key, typeof pm[p.key] === 'number' ? (pm[p.key] as number) : null]));
-                return [{ examId: ex.id, obtained, max, status, grade, parts: partMarks, exam: ex, components: parts }];
+                return [{ examId: ex.id, obtained, max, status, grade, parts: partMarks, exam: ex, components: parts, average: counts === 'average' }];
             });
+            return { s, per };
+        });
+        // “Average”: the student's % in the exam's other papers they sat, applied to this paper.
+        for (const ex of exams) {
+            const papers = perSubject.flatMap((x) => x.per.filter((p) => p.examId === ex.id));
+            if (!papers.some((p) => p.average)) continue;
+            const sat = papers.filter((p) => p.status === 'P' && p.obtained != null && p.max > 0);
+            const pct = sat.length ? sat.reduce((a, p) => a + p.obtained!, 0) / sat.reduce((a, p) => a + p.max, 0) : null;
+            for (const p of papers) if (p.average && pct != null) p.obtained = round1(p.max * pct);
+        }
+        const subj: SubjectResult[] = perSubject.map(({ s, per }) => {
+            if (!rule.descriptive) for (const p of per) p.grade = p.obtained != null && p.max ? (gradeOf(bands, (p.obtained / p.max) * 100)?.grade ?? null) : null;
             if (rule.descriptive) {
                 const last = [...per].reverse().find((p) => p.grade);
-                return { subjectId: s.id, subject: s.name, exams: per.map(({ exam: _e, components: _c, ...x }) => x), percent: null, grade: last?.grade ?? null, point: null, passed: null, grace: 0 };
+                return { subjectId: s.id, subject: s.name, exams: per.map(({ exam: _e, components: _c, average: _a, ...x }) => x), percent: null, grade: last?.grade ?? null, point: null, passed: null, grace: 0 };
             }
             const counted = per.filter((p) => p.obtained != null && p.max > 0);
             const w = counted.reduce((a, p) => a + weightOf(p.exam), 0);
@@ -124,7 +143,7 @@ export const computeResults = async (kind: ScopeKind, id: string, sectionId: str
                         if (v != null && (v / c.max) * 100 < rule.passPercent) passed = false;
                     }
             const g = gradeOf(bands, percent);
-            return { subjectId: s.id, subject: s.name, exams: per.map(({ exam: _e, components: _c, ...x }) => x), percent, grade: g?.grade ?? null, point: g?.point ?? null, passed, grace: 0 };
+            return { subjectId: s.id, subject: s.name, exams: per.map(({ exam: _e, components: _c, average: _a, ...x }) => x), percent, grade: g?.grade ?? null, point: g?.point ?? null, passed, grace: 0 };
         });
 
         // Overall: one exam = total of marks; several = the average of the subjects' %.

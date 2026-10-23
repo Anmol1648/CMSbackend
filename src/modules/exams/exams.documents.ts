@@ -33,9 +33,8 @@ const cardsOf = (r: Awaited<ReturnType<typeof computeResults>>, gradesOnly = fal
                 if (!x) return { text: '—' };
                 if (r.rule.descriptive) return { text: x.grade ?? '—' };
                 if (gradesOnly && x.status === 'P') return { text: x.obtained != null && x.max ? (gradeOf(r.rule.bands, (x.obtained / x.max) * 100)?.grade ?? '—') : '—' };
-                if (x.status === 'AB') return { text: 'AB' };
-                if (x.status === 'ML') return { text: 'ML' };
-                if (x.status === 'NA') return { text: 'NA' };
+                // Absent, medical… show their short form (Masters → Mark statuses).
+                if (x.status !== 'P' && x.status !== 'none') return { text: x.status };
                 return { text: x.obtained == null ? '—' : `${num(x.obtained)}/${x.max}` };
             }),
             percent: sub.percent == null ? '—' : `${num(sub.percent)}%`,

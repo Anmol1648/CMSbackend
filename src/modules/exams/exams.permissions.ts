@@ -1,6 +1,7 @@
 import { registerPermissions } from '../../core/registry/permissions';
 import { registerMenuGroup, registerMenuItems } from '../../core/registry/menu';
 import './exams.settings';
+import './exams.labels';
 
 registerPermissions({ key: 'exams', label: 'Exams', order: 34 }, [
     { resource: 'exam', action: 'setup', label: 'Set up exams: terms, exams, date sheets, grading scales and result rules' },

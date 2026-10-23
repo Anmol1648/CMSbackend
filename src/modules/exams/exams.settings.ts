@@ -8,6 +8,8 @@ import { defineMaster, defineMasterGroup } from '../masters/masters.registry';
  */
 
 const G = 'Exams';
+const name = (key: string, label: string, fallback: string) =>
+    defineSetting<string>({ key, group: G, label, help: 'What screens and report cards call it.', type: 'text', default: fallback, schema: z.string().trim().min(1).max(40) });
 
 export const EXAMS = {
     halfMarks: defineSetting<boolean>({
@@ -50,7 +52,31 @@ export const EXAMS = {
         default: true,
         schema: z.boolean(),
     }),
+    lockBeforePublish: defineSetting<boolean>({
+        key: 'exams.lock_before_publish',
+        group: G,
+        label: 'Marks entry must be locked before results are published',
+        help: 'Off: results can be published straight from “marks entry open” (entry closes when they are).',
+        type: 'boolean',
+        default: true,
+        schema: z.boolean(),
+    }),
+    presentName: name('exams.name_present', 'Name for “present” on the marks sheet', 'Present'),
+    draftName: name('exams.name_draft', 'Name of the stage: being set up', 'Being set up'),
+    openName: name('exams.name_open', 'Name of the stage: marks entry open', 'Marks entry open'),
+    lockedName: name('exams.name_locked', 'Name of the stage: entry locked', 'Entry locked'),
+    publishedName: name('exams.name_published', 'Name of the stage: results published', 'Results published'),
+    finalName: name('exams.name_final', 'Name of the session’s result (report card title)', 'Final result'),
+    marksKindName: name('exams.name_kind_marks', 'Name of grade scales worked out from marks %', 'By marks %'),
+    descriptiveKindName: name('exams.name_kind_descriptive', 'Name of grade scales the teacher chooses from', 'Grades chosen by the teacher'),
 };
+
+/** How a mark status other than “present” counts in the result. */
+export const MARK_COUNTS = [
+    { value: 'zero', label: 'Counted as 0 marks' },
+    { value: 'leave_out', label: 'Left out of the total' },
+    { value: 'average', label: 'Given the average of the student’s other papers in the exam' },
+] as const;
 
 defineMasterGroup({ key: 'exams', label: 'Exams', order: 13 });
 defineMaster({
@@ -72,6 +98,22 @@ defineMaster({
         { name: 'Annual', code: 'AN', extra: { parts: 'Written 80, Internal 20', weightage: 50 } },
         { name: 'Pre-Board', code: 'PB', extra: { parts: 'Written 80, Internal 20', weightage: 0 } },
         { name: 'Class Test', code: 'CT', extra: { parts: 'Written 20', weightage: 0 } },
+    ],
+});
+defineMaster({
+    key: 'exam_mark_status',
+    label: 'Mark status',
+    plural: 'Mark statuses',
+    description: 'What a teacher can mark instead of marks (absent, medical…), the short form shown on marks sheets and report cards (the code), and how it counts in the result.',
+    group: 'exams',
+    order: 15,
+    code: 'required',
+    ordering: 'manual',
+    fields: [{ key: 'counts', label: 'In the result it is', type: 'select', required: true, options: [...MARK_COUNTS] }],
+    seed: [
+        { name: 'Absent', code: 'AB', extra: { counts: 'zero' } },
+        { name: 'Medical', code: 'ML', extra: { counts: 'leave_out' } },
+        { name: 'Not taking', code: 'NA', extra: { counts: 'leave_out' } },
     ],
 });
 defineMaster({

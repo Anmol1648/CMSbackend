@@ -10,14 +10,13 @@ import { isoOf, todayIST } from '../attendance/attendance.settings';
 import { getSettings } from '../../core/settings';
 import { Band, loadExam, Part, ruleFor } from './setup.service';
 import { EXAMS } from './exams.settings';
+import { markStatuses } from './exams.labels';
 
 /**
  * Entering marks: the subject teacher of a section (Subject Teachers), or the office for any; while
  * the exam is open for entry and before its deadline. After that only those who may moderate change
  * them, and each change is recorded. Class teachers add co-scholastic grades and remarks.
  */
-
-const STATUS = ['P', 'AB', 'ML', 'NA'] as const;
 
 const powers = async (userId: string) => {
     const a = await getUserAccess(userId);
@@ -120,7 +119,7 @@ export const getSheet = async (examSubjectId: string, sectionId: string, userId:
         edit: editState(es.exam, p),
         students: students.map((s) => {
             const m = marks.get(s.student.id);
-            return { id: s.student.id, name: fullName(s.student), admissionNo: s.student.admissionNo, roll: s.rollNumber, status: (m?.status ?? 'P') as (typeof STATUS)[number], marks: (m?.marks ?? {}) as Record<string, number | string | null>, total: m?.total ?? null, entered: !!m };
+            return { id: s.student.id, name: fullName(s.student), admissionNo: s.student.admissionNo, roll: s.rollNumber, status: m?.status ?? 'P', marks: (m?.marks ?? {}) as Record<string, number | string | null>, total: m?.total ?? null, entered: !!m };
         }),
     };
 };
@@ -130,7 +129,7 @@ export const sheetSchema = z.strictObject({
         .array(
             z.strictObject({
                 studentId: z.uuid(),
-                status: z.enum(STATUS),
+                status: z.string().trim().toUpperCase().pipe(z.string().min(1).max(20)),
                 marks: z.record(z.string(), z.union([z.number().min(0).max(1000), z.string().max(20), z.null()])),
             })
         )
@@ -146,9 +145,11 @@ export const saveSheet = async (examSubjectId: string, sectionId: string, input:
     const parts = es.components as Part[];
     const grades = new Set(rule.scale.bands.map((b: Band) => b.grade));
     const { halves } = await getSettings({ halves: EXAMS.halfMarks });
+    const statuses = new Set((await markStatuses()).filter((s) => s.active).map((s) => s.code));
     const issues: { field: string; message: string }[] = [];
     const rows = input.rows.map((r, i) => {
         if (!allowed.has(r.studentId)) issues.push({ field: `rows.${i}`, message: 'is not a student of this subject' });
+        if (r.status !== 'P' && !statuses.has(r.status)) issues.push({ field: `rows.${i}.status`, message: 'is not a mark status (Masters → Mark statuses)' });
         if (r.status !== 'P') return { ...r, marks: {}, total: null };
         if (rule.descriptive) {
             const g = typeof r.marks.grade === 'string' ? r.marks.grade : null;
