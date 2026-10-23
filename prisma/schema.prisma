@@ -143,6 +143,10 @@ model Tenant {
   onlineTestQuestions OnlineTestQuestion[]
   testAttempts        TestAttempt[]
 
+  learnChats      LearnChat[]
+  learnMessages   LearnMessage[]
+  practiceQuizzes PracticeQuiz[]
+
   @@map("tenants")
 }
 
@@ -3223,4 +3227,77 @@ model TestAttempt {
   @@unique([testId, studentId])
   @@index([tenantId, studentId])
   @@map("test_attempts")
+}
+
+// ─── AI learning ─────────────────────────────────────────────────────────────
+
+/// A student's conversation with the AI tutor about a subject (and chapter).
+model LearnChat {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  classId   String   @map("class_id") @db.Uuid
+  subjectId String   @map("subject_id") @db.Uuid
+  chapterId String?  @map("chapter_id") @db.Uuid
+  /// ask | explain | summary | points | questions
+  mode      String   @default("ask")
+  title     String
+  messages  Int      @default(0)
+  /// Some answer was refused as off-topic or unsafe (for the school to look at).
+  flagged   Boolean  @default(false)
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  LearnMessage[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, studentId, updatedAt])
+  @@map("learn_chats")
+}
+
+model LearnMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  chatId    String   @map("chat_id") @db.Uuid
+  /// user | assistant
+  role      String
+  text      String
+  /// ok | off_topic | unsafe
+  flag      String   @default("ok")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chat   LearnChat @relation(fields: [chatId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, chatId, createdAt])
+  @@map("learn_messages")
+}
+
+/// A practice quiz a student asked for: its questions (from the bank or the AI) and how they did.
+model PracticeQuiz {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  classId     String    @map("class_id") @db.Uuid
+  subjectId   String    @map("subject_id") @db.Uuid
+  chapterId   String?   @map("chapter_id") @db.Uuid
+  /// bank | ai
+  source      String
+  /// [{ text, options: [{ text, correct }], explanation }]
+  questions   Json
+  answers     Json      @default("[]")
+  score       Int?
+  total       Int
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, studentId, createdAt])
+  @@map("practice_quizzes")
 }
