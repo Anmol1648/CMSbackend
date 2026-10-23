@@ -38,8 +38,9 @@ export const customSchema = z.strictObject({
     channels: z.array(z.enum(CHANNELS)).min(1, 'choose at least one').max(4),
     type: z.string().trim().min(1).max(40).default('messages'),
     priority: z.string().trim().max(30).default('normal'),
-    subject: z.string().trim().min(1, 'is required').max(200),
-    body: z.string().trim().min(1, 'is required').max(5000),
+    // Needed only when someone gets one message each (lists have their own wording).
+    subject: z.string().trim().max(200).default(''),
+    body: z.string().trim().max(5000).default(''),
     shortText: z.string().trim().max(480).nullable().optional(),
     summarySubject: z.string().trim().min(1, 'is required').max(200).default('{{alert}}: {{count}}'),
     summaryBody: z.string().trim().min(1, 'is required').max(5000).default('{{list}}'),
@@ -73,6 +74,9 @@ const checkInput = async (input: CustomInput, userId: string) => {
     const allowed = r.about === 'student' ? ['parent', 'student', 'class_teacher'] : ['staff'];
     const bad = input.sendTo.filter((s) => !allowed.includes(s) && !/^role:[0-9a-f-]{36}$/.test(s));
     if (bad.length) throw badRequest('Choose who gets it from the list', [{ field: 'sendTo', message: 'is not valid for this report' }]);
+    const perRow = input.sendTo.some((s) => (PER_ROW as readonly string[]).includes(s));
+    if (perRow && !input.subject) throw badRequest('Write the subject of the message', [{ field: 'subject', message: 'is required' }]);
+    if (perRow && !input.body) throw badRequest('Write the message', [{ field: 'body', message: 'is required' }]);
     if (input.frequency !== 'daily' && !input.day) throw badRequest(input.frequency === 'weekly' ? 'Choose the day of the week' : 'Choose the day of the month', [{ field: 'day', message: 'is required' }]);
     if (input.frequency === 'weekly' && input.day! > 7) throw badRequest('Choose a day of the week', [{ field: 'day', message: 'must be 1 (Monday) to 7 (Sunday)' }]);
     const known = new Set(['name', 'school', 'alert', 'group', ...r.columns.map((c) => c.key)]);
