@@ -4,7 +4,8 @@ import { defineMaster, defineMasterGroup } from '../masters/masters.registry';
 
 /**
  * System Settings → Exams, and the exam lists (Masters → Exams). Grading scales and result rules
- * (pass %, grace, rank) have their own screen: Exams → Grading & Result Rules.
+ * (pass %, grace, rank) have their own screen: Exams → Grading & Result Rules. Who sees and enters
+ * what is in Roles & Permissions (exam.*), not here.
  */
 
 const G = 'Exams';
@@ -34,15 +35,6 @@ export const EXAMS = {
             { value: 'grades_only', label: 'Grades only' },
         ],
     }),
-    classTeacherAll: defineSetting<boolean>({
-        key: 'exams.class_teacher_enters_all',
-        group: G,
-        label: 'Class teachers can enter the marks of every subject of their own section',
-        help: 'Off: each subject’s marks are entered by its teacher (Staff → Subject Teachers), or the office.',
-        type: 'boolean',
-        default: false,
-        schema: z.boolean(),
-    }),
     datesheetNotice: defineSetting<boolean>({
         key: 'exams.datesheet_notice',
         group: G,
@@ -51,19 +43,6 @@ export const EXAMS = {
         type: 'boolean',
         default: true,
         schema: z.boolean(),
-    }),
-    subjectTeacherSees: defineSetting<string>({
-        key: 'exams.subject_teacher_sees',
-        group: G,
-        label: 'Subject teachers see results of the sections they teach',
-        help: 'Their own subject only: just their subject’s marks and analysis, no totals, ranks or report cards. Class teachers always see their own section in full.',
-        type: 'select',
-        default: 'own_subject',
-        schema: z.enum(['own_subject', 'whole_section']),
-        options: [
-            { value: 'own_subject', label: 'Their own subject only' },
-            { value: 'whole_section', label: 'The whole section' },
-        ],
     }),
     lockBeforePublish: defineSetting<boolean>({
         key: 'exams.lock_before_publish',

@@ -287,8 +287,7 @@ export const analyse = (r: Computed) => {
 
 /**
  * What the person sees of each section's results: 'all' (in full), or per section either null (in
- * full: their own class) or the subjects they teach there (System Settings → Exams decides whether
- * subject teachers see only those or the whole section).
+ * full: their own class) or the subjects they teach there (exam.view_taught_sections: in full).
  */
 export type SectionLimits = 'all' | Map<string, string[] | null>;
 export const sectionLimits = async (userId: string, yearId: string): Promise<SectionLimits> => {
@@ -296,13 +295,13 @@ export const sectionLimits = async (userId: string, yearId: string): Promise<Sec
     if (a.permissions['exam.view'] === 'all' || a.permissions['exam.publish'] || a.permissions['exam.marks_any']) return 'all';
     const staff = await db.staff.findFirst({ where: { userId }, select: { id: true } });
     if (!staff) return new Map();
-    const [own, teach, { sees }] = await Promise.all([
+    const [own, teach] = await Promise.all([
         db.section.findMany({ where: { academicYearId: yearId, classTeacherId: staff.id }, select: { id: true } }),
         db.teachingAssignment.findMany({ where: { academicYearId: yearId, staffId: staff.id }, select: { sectionId: true, subjectId: true } }),
-        getSettings({ sees: EXAMS.subjectTeacherSees }),
     ]);
+    const full = !!a.permissions['exam.view_taught_sections'];
     const m = new Map<string, string[] | null>();
-    for (const t of teach) m.set(t.sectionId, sees === 'whole_section' ? null : [...(m.get(t.sectionId) ?? []), t.subjectId]);
+    for (const t of teach) m.set(t.sectionId, full ? null : [...(m.get(t.sectionId) ?? []), t.subjectId]);
     for (const s of own) m.set(s.id, null);
     return m;
 };
