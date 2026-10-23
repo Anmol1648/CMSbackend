@@ -19,6 +19,7 @@ const normalizeMobile = (raw: string) => {
 import { currentYear } from '../academic/years.service';
 import { ADMISSIONS } from './admissions.settings';
 import type { enquiryFilters } from './admissions.schemas';
+import { alertEnquiryAssigned } from './admissions.alerts';
 
 /** Admission enquiries: from first call to admitted (converted into a student) or lost. */
 
@@ -412,6 +413,7 @@ export const createEnquiry = async (input: z.infer<typeof enquiryCreateSchema>, 
             online: !!opts.online,
         } as Prisma.EnquiryUncheckedCreateInput,
     });
+    alertEnquiryAssigned(e.id, viewer.userId);
     return { enquiry: await getEnquiry(e.id, { ...viewer, scope: 'all' }), warning };
 };
 
@@ -426,6 +428,7 @@ export const updateEnquiry = async (id: string, input: EnquiryFields, viewer: Vi
         }
     }
     await db.enquiry.update({ where: { id }, data: dbFields(input) as Prisma.EnquiryUncheckedUpdateInput });
+    if (input.assignedToId && input.assignedToId !== current.assignedToId) alertEnquiryAssigned(id, viewer.userId);
     return getEnquiry(id, viewer);
 };
 

@@ -9,6 +9,7 @@ import { getUserAccess } from '../rbac/access.service';
 import { dayDate, isoOf, todayIST } from '../attendance/attendance.settings';
 import { NOTICES } from './notices.settings';
 import { Audience, audienceFields, describeAudience, hasAudience, meantFor, membersOf, pickAudience, population, viewerOf } from './audience';
+import { alertNotice } from './notices.alerts';
 
 /**
  * Notices and circulars: written (draft), sent for approval when the school wants that, published
@@ -200,6 +201,7 @@ export const publishNotice = async (id: string, userId: string) => {
     const at = n.publishAt && n.publishAt > new Date() ? n.publishAt : new Date();
     await db.notice.update({ where: { id }, data: { status: 'published', publishAt: at, publishedBy: userId, publishedAt: new Date() } });
     await recordAudit({ action: 'notice_published', entity: 'notice', entityId: id, changes: { title: n.title } });
+    alertNotice(id);
     return manageOne(id);
 };
 

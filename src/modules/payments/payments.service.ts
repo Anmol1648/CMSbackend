@@ -19,6 +19,7 @@ import { allocate, coversWhole } from '../fees/dues.service';
 import { duesOf, recordReceipt } from '../fees/receipts.service';
 import { GatewayConfig, mockSignature, PROVIDERS } from './providers';
 import type { onlinePaymentFilters } from './payments.schemas';
+import { alertReceipt } from '../fees/fee.alerts';
 
 /** Online payments: the school's gateway account, orders, confirmation (browser + webhook), status checks. */
 
@@ -313,6 +314,7 @@ const markPaid = async (paymentId: string, paymentRef: string) => {
         const p = result.payment;
         if (p.purpose === 'registration' && p.enquiryId) await registrationPaidOnline(p.enquiryId, p.amount - p.convenienceFee, paymentRef);
         await recordAudit({ action: 'online_payment_paid', entity: 'online_payment', entityId: p.id, changes: { amount: p.amount, purpose: p.purpose, paymentRef } });
+        if (result.receiptId) alertReceipt(result.receiptId, p.userId ?? null);
         if (p.error) logger.warn('Online payment needs attention', { paymentId: p.id, error: p.error });
     }
     return result;

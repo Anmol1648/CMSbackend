@@ -14,6 +14,7 @@ import { sectionLabel } from '../timetable/tt-setup.service';
 import { dayDate, isoOf, todayIST } from '../attendance/attendance.settings';
 import { computeDues, dueStudents } from '../fees/dues.service';
 import { PROMOTION } from './promotion.settings';
+import { alertTc } from './tc.alerts';
 
 /**
  * Transfer certificates: asked for (by the office, or by promotion as "leaving"), cleared (fees by
@@ -152,6 +153,7 @@ export const requestTc = async (input: z.infer<typeof requestSchema>, userId: st
         },
     });
     await recordAudit({ action: 'tc_requested', entity: 'student', entityId: s.id, changes: { leavingDate: input.leavingDate } });
+    alertTc(row.id, 'requested');
     return getTc(row.id);
 };
 
@@ -209,6 +211,7 @@ export const issueTc = async (id: string, userId: string) => {
     });
     if (r.student.userId) await revokeUserSessions(r.student.userId, 'admin');
     await recordAudit({ action: 'tc_issued', entity: 'student', entityId: r.studentId, changes: { tcNo, dues: t.dues?.total ?? 0 } });
+    alertTc(id, 'issued');
     return getTc(id);
 };
 

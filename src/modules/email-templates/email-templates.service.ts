@@ -19,7 +19,7 @@ const definition = (key: string): EmailTemplateDef => {
 };
 
 /** The school's details for the email frame; the logo as an inline attachment (send) or data URI (preview). */
-const schoolFrame = async (mode: 'send' | 'preview') => {
+export const schoolFrame = async (mode: 'send' | 'preview') => {
     const p = await db.schoolProfile.findFirst();
     if (!p) throw notFound('School profile not found');
     let logo: { data: Buffer; mime: string; name: string } | null = null;

@@ -17,6 +17,7 @@ import { clearDemoAttendance, createDemoAttendance } from '../attendance/demo-at
 import { clearDemoLeave, createDemoLeave } from '../leave/demo-leave';
 import { clearDemoNotices, createDemoNotices } from '../notices/demo-notices';
 import { clearDemoExams, createDemoExams } from '../exams/demo-exams';
+import { clearDemoAlerts, createDemoAlerts } from '../alerts/demo-alerts';
 import { randomUUID } from 'crypto';
 
 /**
@@ -271,9 +272,10 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     const leave = await createDemoLeave();
     const notices = await createDemoNotices();
     const exams = await createDemoExams();
+    const alerts = await createDemoAlerts();
 
     await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries, receipts: fees.receipts } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -286,6 +288,7 @@ export const clearDemoData = async () => {
     const receipts = await clearDemoFees();
     // Timetables point at demo staff.
     await clearDemoTimetable();
+    await clearDemoAlerts();
     await clearDemoExams();
     await clearDemoNotices();
     await clearDemoLeave();

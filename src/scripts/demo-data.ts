@@ -15,11 +15,12 @@ import { createDemoAttendance } from '../modules/attendance/demo-attendance';
 import { createDemoLeave } from '../modules/leave/demo-leave';
 import { createDemoNotices } from '../modules/notices/demo-notices';
 import { createDemoExams } from '../modules/exams/demo-exams';
+import { createDemoAlerts } from '../modules/alerts/demo-alerts';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -58,6 +59,12 @@ const main = async () => {
         out(`${tenant.name}: ${r.exams} exams, ${r.marks} marks.`);
         return;
     }
+    if (values.alerts) {
+        // Only messages and notifications, for a school that already has its demo people.
+        const r = await runAsTenant(tenant.id, createDemoAlerts);
+        out(`${tenant.name}: ${r.messages} sent messages, ${r.notifications} notifications, ${r.log} alert log entries.`);
+        return;
+    }
     if (values.notices) {
         // Only notices and events, for a school that already has its demo people.
         const r = await runAsTenant(tenant.id, createDemoNotices);
@@ -71,6 +78,7 @@ const main = async () => {
     out(`${tenant.name}: attendance for the last ${r.attendance.days} school days (${r.attendance.registers} registers), ${r.attendance.staffDays} staff check-ins, ${r.attendance.holidays} holidays.`);
     out(`${tenant.name}: ${r.leave.leaves} staff leaves, ${r.leave.compOffs} comp-offs.`);
     out(`${tenant.name}: ${r.notices.notices} notices, ${r.notices.events} events.`);
+    out(`${tenant.name}: ${r.alerts.messages} sent messages, ${r.alerts.notifications} notifications.`);
     if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
     out(`Every demo login uses the password ${DEMO_PASSWORD}`);

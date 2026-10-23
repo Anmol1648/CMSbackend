@@ -14,6 +14,7 @@ import { FEES } from './fees.settings';
 import { allocate, AllocationLine, computeDues, coversWhole, dueStudents, StudentDues } from './dues.service';
 import { dayOf } from './fee-setup.service';
 import type { receiptFilters } from './fees.schemas';
+import { alertReceipt } from './fee.alerts';
 
 /** Taking fees (counter and online), receipts, cancelling, and a student's fee page. */
 
@@ -148,6 +149,7 @@ export const collectFee = async (input: z.infer<typeof collectSchema>, viewer: V
     const { receipt: made } = await withTransaction((tx) => recordReceipt(tx, { ...input, yearId, date }), { timeout: 30_000 });
     const receipt = made!;
     await recordAudit({ action: 'fee_collected', entity: 'fee_receipt', entityId: receipt.id, changes: { receiptNo: receipt.receiptNo, amount: receipt.amount, mode: receipt.mode } });
+    alertReceipt(receipt.id, viewer.userId);
     return getReceipt(receipt.id, { ...viewer, scope: 'all' });
 };
 

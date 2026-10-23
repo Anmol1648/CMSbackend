@@ -9,6 +9,7 @@ import { purgeOldAuditRecords } from './modules/audit/audit.service';
 import { purgeOldPhotos } from './modules/attendance/staff-attendance.service';
 import { warmUpFaces } from './core/face';
 import { runAsSystem, runAsTenant } from './core/context';
+import { startQueue } from './modules/alerts/queue';
 
 let server: Server | undefined;
 
@@ -19,6 +20,8 @@ const start = async () => {
         logger.info(`cms-backend running on http://0.0.0.0:${env.PORT}`, { env: env.NODE_ENV, cache: cache.kind, permissions: synced.total });
     });
     startDailyJobs();
+    // Alerts: the outbox and the daily alert jobs.
+    startQueue();
 };
 
 /** Loads the face models at start only when a school checks faces (else the first face check loads them). */

@@ -9,6 +9,7 @@ import { classesOfYear } from '../academic/year-classes.service';
 import { dayDate, isoOf } from '../attendance/attendance.settings';
 import { getSettings } from '../../core/settings';
 import { EXAMS } from './exams.settings';
+import { alertDatesheet, alertResults } from './exams.alerts';
 
 /**
  * Exam set-up: grading scales and result rules (per class group), terms and exams of a session,
@@ -299,6 +300,7 @@ export const setExamStatus = async (id: string, status: 'draft' | 'open' | 'lock
     const e = await loadExam(id);
     await db.exam.update({ where: { id }, data: { status, ...(status === 'published' ? { publishedAt: new Date(), publishedBy: userId } : status === 'locked' && e.status === 'published' ? { publishedAt: null } : {}) } });
     await recordAudit({ action: `exam_${status}`, entity: 'exam', entityId: id, changes: { name: e.name, was: e.status } });
+    if (status === 'published' && e.status !== 'published') alertResults({ key: `exam:${id}`, label: e.name, yearId: e.academicYearId, classIds: e.classIds });
     return presentExam(await loadExam(id));
 };
 
@@ -436,5 +438,6 @@ export const publishDatesheet = async (examId: string, userId: string) => {
         await tx.exam.update({ where: { id: examId }, data: { datesheetNoticeId: n.id } });
     });
     await recordAudit({ action: 'datesheet_published', entity: 'exam', entityId: examId, changes: { name: e.name, papers: dated.length } });
+    alertDatesheet(examId);
     return examSubjects(examId);
 };

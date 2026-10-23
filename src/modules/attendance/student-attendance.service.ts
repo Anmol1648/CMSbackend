@@ -12,6 +12,7 @@ import { ATTENDANCE, dayDate, isoOf, STUDENT_LEAVE_TYPE_SEED, todayIST } from '.
 import { codedLabel, codedList, CodedOption } from '../masters/coded-lists';
 import { dayOff, daysOff } from './calendar.service';
 import { lessonsOf, Period, periodsOf, sectionsTaughtBy } from './periods.service';
+import { alertAbsentees } from './attendance.alerts';
 
 /**
  * Student attendance: the class teacher (or someone allowed to mark any section) marks a section's
@@ -284,6 +285,12 @@ export const saveRegister = async (input: z.infer<typeof saveSchema>, userId: st
     });
     const byStatus = Object.fromEntries(list.map((s) => [s.code, input.marks.filter((m) => m.statusId === s.id).length]).filter(([, n]) => n));
     await recordAudit({ action: existing ? 'attendance_changed' : 'attendance_marked', entity: 'attendance_sheet', entityId: sheetId, changes: { section: sectionLabel(section), date: input.date, slot: input.slot, ...byStatus } });
+    // Parents of those absent in the day's first register (Alerts → Built-in Alerts).
+    if (slots[0]?.value === input.slot) {
+        const absent = new Map(list.filter((s) => s.present === 0 && !s.excused).map((s) => [s.id, s.name]));
+        const nameOf = new Map(students.map((s) => [s.id, s.name]));
+        alertAbsentees(section, input.date, input.marks.filter((m) => absent.has(m.statusId)).map((m) => ({ studentId: m.studentId, name: nameOf.get(m.studentId) ?? '', status: absent.get(m.statusId)! })));
+    }
     return getRegister({ section: section.id, date: input.date, slot: input.slot }, userId);
 };
 

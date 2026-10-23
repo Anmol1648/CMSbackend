@@ -120,7 +120,17 @@ model Tenant {
   examMarks          ExamMark[]
   examNotes          ExamStudentNote[]
   resultPublications ResultPublication[]
-  attendancePunches AttendancePunch[]
+  attendancePunches  AttendancePunch[]
+
+  notifications           Notification[]
+  messages                Message[]
+  messageDeliveries       MessageDelivery[]
+  alertConfigs            AlertConfig[]
+  messageTemplates        MessageTemplate[]
+  notificationPreferences NotificationPreference[]
+  customAlerts            CustomAlert[]
+  recipientGroups         RecipientGroup[]
+  jobRuns                 JobRun[]
 
   @@map("tenants")
 }
@@ -653,23 +663,23 @@ model AcademicYear {
 
 /// A class (grade), e.g. Class VI. The same classes run every year; sections are per year.
 model SchoolClass {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String   @map("tenant_id") @db.Uuid
-  name       String
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
   /// Short form for lists and reports, e.g. "VI".
-  shortName  String?  @map("short_name")
+  shortName   String?  @map("short_name")
   /// Master "class_group" (Primary, Middle…), used to apply fees or exams to many classes.
-  groupId    String?  @map("group_id") @db.Uuid
+  groupId     String?  @map("group_id") @db.Uuid
   /// Sections and subjects are split by stream (Science, Commerce…), e.g. XI and XII.
-  hasStreams Boolean  @default(false) @map("has_streams")
+  hasStreams  Boolean  @default(false) @map("has_streams")
   /// The class students are promoted to (empty = the next class in order; none after the last).
-  nextClassId String? @map("next_class_id") @db.Uuid
-  sortOrder  Int      @default(0) @map("sort_order")
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy  String?  @map("created_by") @db.Uuid
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy  String?  @map("updated_by") @db.Uuid
+  nextClassId String?  @map("next_class_id") @db.Uuid
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?  @map("updated_by") @db.Uuid
 
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   group             MasterValue?       @relation("ClassGroup", fields: [groupId, tenantId], references: [id, tenantId], onDelete: Restrict)
@@ -2307,13 +2317,13 @@ model Notice {
   /// Off the board after this day (still in the archive).
   expiresOn     DateTime? @map("expires_on") @db.Date
   /// Who it is for (any of these). Students / parents: the whole school, or only these classes / sections.
-  forEveryone  Boolean  @default(false) @map("for_everyone")
-  forAllStaff  Boolean  @default(false) @map("for_all_staff")
-  roleIds      String[] @default([]) @map("role_ids") @db.Uuid
-  forStudents  Boolean  @default(false) @map("for_students")
-  forParents   Boolean  @default(false) @map("for_parents")
-  classIds     String[] @default([]) @map("class_ids") @db.Uuid
-  sectionIds   String[] @default([]) @map("section_ids") @db.Uuid
+  forEveryone   Boolean   @default(false) @map("for_everyone")
+  forAllStaff   Boolean   @default(false) @map("for_all_staff")
+  roleIds       String[]  @default([]) @map("role_ids") @db.Uuid
+  forStudents   Boolean   @default(false) @map("for_students")
+  forParents    Boolean   @default(false) @map("for_parents")
+  classIds      String[]  @default([]) @map("class_ids") @db.Uuid
+  sectionIds    String[]  @default([]) @map("section_ids") @db.Uuid
   /// Readers press "I have read this".
   needsAck      Boolean   @default(false) @map("needs_ack")
   attachmentIds String[]  @default([]) @map("attachment_ids") @db.Uuid
@@ -2368,13 +2378,13 @@ model SchoolEvent {
   venue         String?
   description   String?
   /// Who it is for (any of these). Students / parents: the whole school, or only these classes / sections.
-  forEveryone  Boolean  @default(false) @map("for_everyone")
-  forAllStaff  Boolean  @default(false) @map("for_all_staff")
-  roleIds      String[] @default([]) @map("role_ids") @db.Uuid
-  forStudents  Boolean  @default(false) @map("for_students")
-  forParents   Boolean  @default(false) @map("for_parents")
-  classIds     String[] @default([]) @map("class_ids") @db.Uuid
-  sectionIds   String[] @default([]) @map("section_ids") @db.Uuid
+  forEveryone   Boolean  @default(false) @map("for_everyone")
+  forAllStaff   Boolean  @default(false) @map("for_all_staff")
+  roleIds       String[] @default([]) @map("role_ids") @db.Uuid
+  forStudents   Boolean  @default(false) @map("for_students")
+  forParents    Boolean  @default(false) @map("for_parents")
+  classIds      String[] @default([]) @map("class_ids") @db.Uuid
+  sectionIds    String[] @default([]) @map("section_ids") @db.Uuid
   /// none | students | staff | both: its days are holidays for them.
   holidayFor    String   @default("none") @map("holiday_for")
   attachmentIds String[] @default([]) @map("attachment_ids") @db.Uuid
@@ -2529,27 +2539,27 @@ model GradeScale {
 
 /// How results are worked out for a class group (Primary, Middle…); the one without a group is for the rest.
 model ResultRule {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String   @map("tenant_id") @db.Uuid
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
   /// Master "class_group"; empty = every class not in a group with its own rule.
-  classGroupId     String?  @map("class_group_id") @db.Uuid
+  classGroupId   String?  @map("class_group_id") @db.Uuid
   /// Subjects are graded (no marks), e.g. pre-primary.
-  descriptive      Boolean  @default(false)
-  gradeScaleId     String?  @map("grade_scale_id") @db.Uuid
-  coScaleId        String?  @map("co_scale_id") @db.Uuid
+  descriptive    Boolean  @default(false)
+  gradeScaleId   String?  @map("grade_scale_id") @db.Uuid
+  coScaleId      String?  @map("co_scale_id") @db.Uuid
   /// % needed to pass a subject.
-  passPercent      Float    @default(33) @map("pass_percent")
+  passPercent    Float    @default(33) @map("pass_percent")
   /// Each part (theory, practical…) must be passed on its own.
-  passEachPart     Boolean  @default(false) @map("pass_each_part")
+  passEachPart   Boolean  @default(false) @map("pass_each_part")
   /// Grace: up to this many marks, in at most this many subjects (0 = none).
-  graceMarks       Int      @default(0) @map("grace_marks")
-  graceSubjects    Int      @default(0) @map("grace_subjects")
-  showRank         Boolean  @default(false) @map("show_rank")
-  showAttendance   Boolean  @default(true) @map("show_attendance")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy        String?  @map("created_by") @db.Uuid
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy        String?  @map("updated_by") @db.Uuid
+  graceMarks     Int      @default(0) @map("grace_marks")
+  graceSubjects  Int      @default(0) @map("grace_subjects")
+  showRank       Boolean  @default(false) @map("show_rank")
+  showAttendance Boolean  @default(true) @map("show_attendance")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?  @map("updated_by") @db.Uuid
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -2702,4 +2712,245 @@ model ResultPublication {
 
   @@index([tenantId, academicYearId])
   @@map("result_publications")
+}
+
+// ─── Alerts & Messaging ──────────────────────────────────────────────────────
+
+/// One in-app notification for one person (the bell).
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  /// Notification type (Masters → Notification types, by code): attendance, fees, exams…
+  type      String
+  title     String
+  body      String
+  /// Screen it opens (e.g. /my-results).
+  link      String?
+  /// Priority (Masters → Priorities, by code): normal, important, emergency.
+  priority  String    @default("normal")
+  alertKey  String?   @map("alert_key")
+  messageId String?   @map("message_id") @db.Uuid
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  isDemo    Boolean   @default(false) @map("is_demo")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, userId, readAt])
+  @@map("notifications")
+}
+
+/// A message written on Messages → Compose (or one run of an alert): what was sent, to whom (described), how.
+model Message {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  /// compose | alert | custom
+  kind           String    @default("compose")
+  alertKey       String?   @map("alert_key")
+  subject        String
+  /// Email / in-app text; {{placeholders}} filled per person.
+  body           String
+  /// Short text for SMS / WhatsApp.
+  shortText      String?   @map("short_text")
+  /// in_app | email | sms | whatsapp
+  channels       String[]  @default([])
+  /// Master "message_category".
+  categoryId     String?   @map("category_id") @db.Uuid
+  priority       String    @default("normal")
+  /// What was chosen on the To line (people, sections, roles, groups, addresses), for showing and resending.
+  audience       Json      @default("{}")
+  audienceLabel  String    @default("") @map("audience_label")
+  cc             String[]  @default([])
+  attachmentIds  String[]  @default([]) @map("attachment_ids") @db.Uuid
+  /// An ERP document attached for each student (e.g. report_card) and its parameters.
+  documentKey    String?   @map("document_key")
+  documentParams Json?     @map("document_params")
+  /// draft | scheduled | sending | sent | cancelled
+  status         String    @default("draft")
+  sendAt         DateTime? @map("send_at") @db.Timestamptz(6)
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz(6)
+  recipients     Int       @default(0)
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries MessageDelivery[]
+
+  @@index([tenantId, status, sendAt])
+  @@index([tenantId, createdAt])
+  @@map("messages")
+}
+
+/// One message to one person on one channel: the Alert Log. Email / SMS / WhatsApp wait here to be sent.
+model MessageDelivery {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  messageId     String?   @map("message_id") @db.Uuid
+  alertKey      String?   @map("alert_key")
+  userId        String?   @map("user_id") @db.Uuid
+  recipientName String    @map("recipient_name")
+  /// staff | student | parent | other
+  recipientKind String    @default("other") @map("recipient_kind")
+  /// The email address or mobile number (none for in-app).
+  address       String?
+  /// in_app | email | sms | whatsapp
+  channel       String
+  /// queued | sending | sent | failed | skipped
+  status        String    @default("queued")
+  reason        String?
+  subject       String
+  body          String
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  sentAt        DateTime? @map("sent_at") @db.Timestamptz(6)
+  readAt        DateTime? @map("read_at") @db.Timestamptz(6)
+  /// Same alert, same person, same channel, same thing (e.g. absent:<student>:<day>) is sent once.
+  dedupeKey     String?   @map("dedupe_key")
+  /// Sections the message is about (for the log's Assigned scope).
+  sectionIds    String[]  @default([]) @map("section_ids") @db.Uuid
+  /// Uploaded files to attach, and an ERP document to render for this person ({ key, params }).
+  attachmentIds String[]  @default([]) @map("attachment_ids") @db.Uuid
+  document      Json?
+  isDemo        Boolean   @default(false) @map("is_demo")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, status, nextAttemptAt])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, messageId])
+  @@index([tenantId, address])
+  @@map("message_deliveries")
+}
+
+/// A school's choices for one built-in alert (defaults come from the code).
+model AlertConfig {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  key        String
+  enabled    Boolean
+  channels   String[] @default([])
+  recipients String[] @default([])
+  priority   String   @default("normal")
+  /// People can't turn it off for themselves.
+  required   Boolean  @default(false)
+  subject    String?
+  body       String?
+  shortText  String?  @map("short_text")
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy  String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@map("alert_configs")
+}
+
+/// A saved message for Compose ("School closed", "PTM invitation").
+model MessageTemplate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  name       String
+  categoryId String?  @map("category_id") @db.Uuid
+  subject    String
+  body       String
+  shortText  String?  @map("short_text")
+  isDemo     Boolean  @default(false) @map("is_demo")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy  String?  @map("created_by") @db.Uuid
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy  String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@map("message_templates")
+}
+
+/// The channels a person turned off for a notification type (My Profile → Notifications).
+model NotificationPreference {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String
+  /// Channels turned off: in_app, email, sms, whatsapp.
+  muted     String[] @default([])
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, type])
+  @@map("notification_preferences")
+}
+
+/// An alert the school made from a report: who (the report's rows), when, what.
+model CustomAlert {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  name       String
+  reportKey  String    @map("report_key")
+  filters    Json      @default("{}")
+  /// parent | student | staff | class_teacher | role:<id>
+  sendTo     String[]  @default([]) @map("send_to")
+  /// daily | weekly | monthly
+  frequency  String    @default("weekly")
+  /// weekly: 1 (Mon) … 7; monthly: 1 … 28.
+  day        Int?
+  /// "08:00" (school time).
+  time       String    @default("08:00")
+  channels   String[]  @default([])
+  subject    String
+  body       String
+  shortText  String?   @map("short_text")
+  /// Don't send to the same person again within these days.
+  repeatDays Int       @default(7) @map("repeat_days")
+  enabled    Boolean   @default(true)
+  lastRunAt  DateTime? @map("last_run_at") @db.Timestamptz(6)
+  lastResult String?   @map("last_result")
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy  String?   @map("created_by") @db.Uuid
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy  String?   @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("custom_alerts")
+}
+
+/// A saved To line for Compose ("Sports team parents").
+model RecipientGroup {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  audience  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@map("recipient_groups")
+}
+
+/// A scheduled job that ran for a school on a day (each runs once a day).
+model JobRun {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  key       String
+  day       DateTime @db.Date
+  result    String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key, day])
+  @@map("job_runs")
 }

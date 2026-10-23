@@ -36,6 +36,15 @@ import './promotion/promotion.documents';
 import './exams/exams.permissions';
 import './exams/exams.documents';
 import './exams/exams.reports';
+import './alerts/alerts.permissions';
+// Each module's built-in alerts (Alerts → Built-in Alerts) and daily alert jobs.
+import './attendance/attendance.alerts';
+import './fees/fee.alerts';
+import './exams/exams.alerts';
+import './leave/leave.alerts';
+import './notices/notices.alerts';
+import './admissions/admissions.alerts';
+import './promotion/tc.alerts';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

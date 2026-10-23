@@ -15,6 +15,7 @@ import { publishedOf } from '../timetable/timetable.service';
 import { LEAVE } from './leave.settings';
 import { eligible, leaveTypeById, leaveTypes } from './leave-types.service';
 import { balanceOf, balancesOf, leaveYearOf } from './balances.service';
+import { alertLeaveDecided, alertLeaveToDecide } from './leave.alerts';
 
 /**
  * Staff leave: a person asks (or the office records it for them), the person they report to and/or
@@ -190,6 +191,7 @@ export const applyLeave = async (input: ApplyInput, userId: string) => {
     await recordAudit({ action: 'staff_leave_asked', entity: 'staff_leave', entityId: row.id, changes: { staff: staffName(s), type: r.t.code, from: input.from, to: input.to, days: r.days } });
     // Recorded by the office: no second step.
     if (office) return finalApprove(row.id, userId, 'Recorded by the office');
+    alertLeaveToDecide(row.id);
     return (await present([await loadOne(row.id)], userId))[0];
 };
 
@@ -346,6 +348,7 @@ export const decideLeave = async (id: string, input: z.infer<typeof decideSchema
     if (!input.approve) {
         await db.staffLeave.update({ where: { id }, data: { status: 'rejected', decidedBy: userId, decidedAt: new Date(), decisionNote: input.note || null } });
         await recordAudit({ action: 'staff_leave_rejected', entity: 'staff_leave', entityId: id, changes: { staff: staffName(r.staff), from: isoOf(r.fromDate), to: isoOf(r.toDate) } });
+        alertLeaveDecided(id);
         return (await present([await loadOne(id)], userId))[0];
     }
     const a = await getUserAccess(userId);
@@ -353,6 +356,7 @@ export const decideLeave = async (id: string, input: z.infer<typeof decideSchema
     if (r.stage === 1 && (await modeOf(r.leaveType)) === 'two_level' && !a.permissions['leave.approve_all']) {
         await db.staffLeave.update({ where: { id }, data: { stage: 2, firstBy: userId, firstAt: new Date(), firstNote: input.note || null } });
         await recordAudit({ action: 'staff_leave_recommended', entity: 'staff_leave', entityId: id, changes: { staff: staffName(r.staff) } });
+        alertLeaveToDecide(id);
         return (await present([await loadOne(id)], userId))[0];
     }
     return finalApprove(id, userId, input.note);
@@ -377,6 +381,7 @@ const finalApprove = async (id: string, userId: string, note?: string) => {
     });
     if (!r.half) await toSubstitution(r.staffId, working);
     await recordAudit({ action: 'staff_leave_approved', entity: 'staff_leave', entityId: id, changes: { staff: staffName(r.staff), type: r.leaveType.code, from: isoOf(r.fromDate), to: isoOf(r.toDate), days: r.days } });
+    alertLeaveDecided(id);
     return (await present([await loadOne(id)], userId))[0];
 };
 

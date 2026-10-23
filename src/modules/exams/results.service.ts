@@ -14,6 +14,7 @@ import { Band, gradeOf, Part, ruleFor } from './setup.service';
 import { getSettings } from '../../core/settings';
 import { EXAMS } from './exams.settings';
 import { markStatuses } from './exams.labels';
+import { alertResults } from './exams.alerts';
 
 /**
  * Results: for one exam, a term (its exams, by weightage) or the session (every exam that counts).
@@ -352,6 +353,10 @@ export const publishScope = async (yearId: string, scope: 'term' | 'final', term
     await db.resultPublication.deleteMany({ where: { academicYearId: yearId, scope, termId: scope === 'term' ? termId : null } });
     if (publish) await db.resultPublication.create({ data: { tenantId: getTenantId()!, academicYearId: yearId, scope, termId: scope === 'term' ? termId : null, publishedBy: userId } });
     await recordAudit({ action: publish ? 'results_published' : 'results_unpublished', entity: 'academic_year', entityId: yearId, changes: { scope, termId } });
+    if (publish) {
+        const label = scope === 'term' ? ((await db.examTerm.findFirst({ where: { id: termId! }, select: { name: true } }))?.name ?? 'Term') : (await getSettings({ f: EXAMS.finalName })).f;
+        alertResults({ key: `${scope}:${scope === 'term' ? termId : yearId}`, label, yearId });
+    }
     return { published: publish };
 };
 
