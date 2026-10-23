@@ -37,6 +37,8 @@ import { promotionRoutes, tcRoutes } from './modules/promotion/promotion.routes'
 import { examRoutes } from './modules/exams/exams.routes';
 import { alertRoutes } from './modules/alerts/alerts.routes';
 import { homeworkRoutes } from './modules/homework/homework.routes';
+import { aiRoutes } from './modules/ai/ai.routes';
+import { questionRoutes } from './modules/questions/questions.routes';
 import { admsRoutes, deviceRoutes, deviceWebhookRoutes } from './modules/attendance/devices.routes';
 
 export const app = express();
@@ -115,6 +117,8 @@ app.use('/api/tc', tcRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/homework', homeworkRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/questions', questionRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

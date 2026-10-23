@@ -135,6 +135,10 @@ model Tenant {
   homework            Homework[]
   homeworkSubmissions HomeworkSubmission[]
 
+  chapters  Chapter[]
+  questions Question[]
+  aiUsage   AiUsage[]
+
   @@map("tenants")
 }
 
@@ -3032,4 +3036,91 @@ model HomeworkSubmission {
   @@unique([homeworkId, studentId])
   @@index([tenantId, studentId])
   @@map("homework_submissions")
+}
+
+// ─── Syllabus, question bank, AI ─────────────────────────────────────────────
+
+/// A chapter of a class's subject (the syllabus), with its topics.
+model Chapter {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  classId     String   @map("class_id") @db.Uuid
+  subjectId   String   @map("subject_id") @db.Uuid
+  name        String
+  topics      String[] @default([])
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  isDemo      Boolean  @default(false) @map("is_demo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, classId, subjectId, name])
+  @@index([tenantId, classId, subjectId])
+  @@map("chapters")
+}
+
+/// A question of the question bank.
+model Question {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  classId      String    @map("class_id") @db.Uuid
+  subjectId    String    @map("subject_id") @db.Uuid
+  chapterId    String?   @map("chapter_id") @db.Uuid
+  /// mcq (one answer) | multi (several) | true_false | fill | short | long
+  type         String
+  text         String
+  imageFileId  String?   @map("image_file_id") @db.Uuid
+  /// mcq / multi: [{ "text": "…", "correct": true }]
+  options      Json      @default("[]")
+  /// true_false: "true" / "false"; fill: the answer(s), "|" between accepted ones; short / long: a model answer.
+  answer       String?
+  explanation  String?
+  marks        Float     @default(1)
+  /// Masters "question_difficulty" and "question_level" (Bloom).
+  difficultyId String?   @map("difficulty_id") @db.Uuid
+  levelId      String?   @map("level_id") @db.Uuid
+  /// draft | pending (waits for review) | approved | rejected
+  status       String    @default("draft")
+  /// manual | import | ai
+  source       String    @default("manual")
+  reviewNote   String?   @map("review_note")
+  reviewedBy   String?   @map("reviewed_by") @db.Uuid
+  reviewedAt   DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  isDemo       Boolean   @default(false) @map("is_demo")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy    String?   @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, classId, subjectId, chapterId, status])
+  @@map("questions")
+}
+
+/// One AI request: who, what for, how big (for limits and the usage screen).
+model AiUsage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  /// generate_questions | suggest_chapters | test | tutor | quiz…
+  feature   String
+  provider  String
+  model     String
+  tokensIn  Int      @default(0) @map("tokens_in")
+  tokensOut Int      @default(0) @map("tokens_out")
+  ok        Boolean  @default(true)
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, userId, createdAt])
+  @@map("ai_usage")
 }
