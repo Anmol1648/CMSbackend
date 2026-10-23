@@ -662,13 +662,13 @@ defineWidget({
 
 // ─── The layouts each role starts with ───────────────────────────────────────
 
-const LEADERSHIP = ['approvals', 'attendance_today', 'staff_today', 'fee_today', 'fee_dues', 'unmarked_sections', 'staff_on_leave', 'fee_trend', 'enquiries', 'school_strength', 'admission_funnel', 'fee_by_class', 'low_attendance', 'notices_latest', 'upcoming_events'];
+const LEADERSHIP = ['approvals', 'attendance_today', 'staff_today', 'fee_today', 'fee_dues', 'exam_entry_progress', 'exam_last_result', 'unmarked_sections', 'staff_on_leave', 'fee_trend', 'enquiries', 'school_strength', 'admission_funnel', 'fee_by_class', 'low_attendance', 'notices_latest', 'upcoming_events'];
 defineDefaultLayout('school-admin', LEADERSHIP);
 defineDefaultLayout('super-admin', LEADERSHIP);
-defineDefaultLayout('principal', ['approvals', 'attendance_today', 'staff_today', 'fee_dues', 'school_strength', 'unmarked_sections', 'staff_on_leave', 'fee_trend', 'low_attendance', 'enquiries', 'admission_funnel', 'notices_latest', 'upcoming_events', 'my_checkin']);
-defineDefaultLayout('office-staff', ['approvals', 'my_checkin', 'attendance_today', 'staff_today', 'unmarked_sections', 'staff_on_leave', 'fee_today', 'enquiries', 'notices_latest', 'upcoming_events', 'my_leave']);
+defineDefaultLayout('principal', ['approvals', 'attendance_today', 'staff_today', 'exam_last_result', 'exam_entry_progress', 'fee_dues', 'school_strength', 'unmarked_sections', 'staff_on_leave', 'fee_trend', 'low_attendance', 'enquiries', 'admission_funnel', 'notices_latest', 'upcoming_events', 'my_checkin']);
+defineDefaultLayout('office-staff', ['approvals', 'my_checkin', 'attendance_today', 'exam_entry_progress', 'staff_today', 'unmarked_sections', 'staff_on_leave', 'fee_today', 'enquiries', 'notices_latest', 'upcoming_events', 'my_leave']);
 defineDefaultLayout('accountant', ['fee_today', 'fee_dues', 'fee_by_mode', 'my_checkin', 'fee_trend', 'fee_by_class', 'approvals', 'notices_latest', 'my_leave', 'upcoming_events']);
 defineDefaultLayout('teacher', ['my_checkin', 'my_class_attendance', 'my_day', 'approvals', 'my_leave', 'notices_latest', 'upcoming_events']);
 defineDefaultLayout('class-teacher', ['my_checkin', 'my_class_attendance', 'my_day', 'approvals', 'my_leave', 'low_attendance', 'notices_latest', 'upcoming_events']);
-defineDefaultLayout('student', ['child_attendance', 'child_fees', 'my_day', 'notices_latest', 'upcoming_events']);
-defineDefaultLayout('guardian', ['child_attendance', 'child_fees', 'my_day', 'notices_latest', 'upcoming_events']);
+defineDefaultLayout('student', ['child_attendance', 'child_fees', 'child_results', 'my_day', 'notices_latest', 'upcoming_events']);
+defineDefaultLayout('guardian', ['child_attendance', 'child_fees', 'child_results', 'my_day', 'notices_latest', 'upcoming_events']);

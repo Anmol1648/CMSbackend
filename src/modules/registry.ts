@@ -33,6 +33,9 @@ import './dashboard/dashboard.permissions';
 import './promotion/promotion.permissions';
 import './promotion/promotion.reports';
 import './promotion/promotion.documents';
+import './exams/exams.permissions';
+import './exams/exams.documents';
+import './exams/exams.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

@@ -122,6 +122,8 @@ export const sectionPromotion = async (yearId: string, sectionId: string) => {
     const end = isoOf(from.endDate) < todayIST() ? isoOf(from.endDate) : todayIST();
     const [attendance, dues] = await Promise.all([summaries(ids, isoOf(from.startDate), end), computeDues(yearId, await dueStudents(yearId, { id: { in: ids } }))]);
     const targetLabel = new Map([...targets, ...sameClass].map((s) => [s.id, sectionLabel(s)]));
+    // The session's final result (once published): who passed and who needs to repeat.
+    const final = await finalResultOf(yearId, sectionId);
     return {
         from: { id: from.id, name: from.name },
         to: to ? { id: to.id, name: to.name, status: to.status } : null,
@@ -148,11 +150,22 @@ export const sectionPromotion = async (yearId: string, sectionId: string) => {
                 attendance: attendance.get(r.student.id)?.percent ?? null,
                 dues: d?.totals.balance ?? 0,
                 done: p ? { outcome: p.outcome, toSection: p.toSectionId ? (targetLabel.get(p.toSectionId) ?? null) : null, carried: p.carriedAmount, at: p.createdAt } : null,
-                suggestion: next ? { outcome: 'promoted', toSectionId: pick(targets) } : { outcome: 'passed_out', toSectionId: null },
+                result: final.get(r.student.id) ?? null,
+                suggestion: !next ? { outcome: 'passed_out', toSectionId: null } : final.get(r.student.id) === 'Needs improvement' ? { outcome: 'detained', toSectionId: pick(sameClass) } : { outcome: 'promoted', toSectionId: pick(targets) },
             };
         }),
         defaults: { promoted: pick(targets), detained: pick(sameClass) },
     };
+};
+
+/** Each student's final result of the session, if it has been published. */
+const finalResultOf = async (yearId: string, sectionId: string) => {
+    const out = new Map<string, string>();
+    if (!(await db.resultPublication.findFirst({ where: { academicYearId: yearId, scope: 'final' } }))) return out;
+    const { computeResults } = await import('../exams/results.service');
+    const r = await computeResults('final', yearId, sectionId).catch(() => null);
+    for (const s of r?.students ?? []) if (s.result) out.set(s.student.id, s.result);
+    return out;
 };
 
 // ─── Promoting ───────────────────────────────────────────────────────────────

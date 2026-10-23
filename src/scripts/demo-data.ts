@@ -14,11 +14,12 @@ import { clearDemoData, createDemoData, DEMO_PASSWORD } from '../modules/student
 import { createDemoAttendance } from '../modules/attendance/demo-attendance';
 import { createDemoLeave } from '../modules/leave/demo-leave';
 import { createDemoNotices } from '../modules/notices/demo-notices';
+import { createDemoExams } from '../modules/exams/demo-exams';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -49,6 +50,12 @@ const main = async () => {
         // Only staff leave, for a school that already has its demo staff (added after them).
         const r = await runAsTenant(tenant.id, createDemoLeave);
         out(`${tenant.name}: ${r.leaves} staff leaves (${r.attendance} days in the staff register), ${r.compOffs} comp-offs.`);
+        return;
+    }
+    if (values.exams) {
+        // Only exams, for a school that already has its demo students.
+        const r = await runAsTenant(tenant.id, createDemoExams);
+        out(`${tenant.name}: ${r.exams} exams, ${r.marks} marks.`);
         return;
     }
     if (values.notices) {

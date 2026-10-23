@@ -111,6 +111,15 @@ model Tenant {
   yearClasses      YearClass[]
   promotions       StudentPromotion[]
   tcs              TransferCertificate[]
+
+  gradeScales        GradeScale[]
+  resultRules        ResultRule[]
+  examTerms          ExamTerm[]
+  exams              Exam[]
+  examSubjects       ExamSubject[]
+  examMarks          ExamMark[]
+  examNotes          ExamStudentNote[]
+  resultPublications ResultPublication[]
   attendancePunches AttendancePunch[]
 
   @@map("tenants")
@@ -2495,4 +2504,202 @@ model TransferCertificate {
   @@unique([tenantId, tcNo])
   @@index([tenantId, status])
   @@map("transfer_certificates")
+}
+
+// ─── Exams ───────────────────────────────────────────────────────────────────
+
+/// A grading scale: marks % → grade (CBSE 9-point), or descriptive grades (pre-primary, co-scholastic).
+model GradeScale {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  /// marks: bands by % ({ grade, min, point, remark }); descriptive: grades chosen by the teacher ({ grade, remark }).
+  kind      String   @default("marks")
+  bands     Json     @default("[]")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("grade_scales")
+}
+
+/// How results are worked out for a class group (Primary, Middle…); the one without a group is for the rest.
+model ResultRule {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  /// Master "class_group"; empty = every class not in a group with its own rule.
+  classGroupId     String?  @map("class_group_id") @db.Uuid
+  /// Subjects are graded (no marks), e.g. pre-primary.
+  descriptive      Boolean  @default(false)
+  gradeScaleId     String?  @map("grade_scale_id") @db.Uuid
+  coScaleId        String?  @map("co_scale_id") @db.Uuid
+  /// % needed to pass a subject.
+  passPercent      Float    @default(33) @map("pass_percent")
+  /// Each part (theory, practical…) must be passed on its own.
+  passEachPart     Boolean  @default(false) @map("pass_each_part")
+  /// Grace: up to this many marks, in at most this many subjects (0 = none).
+  graceMarks       Int      @default(0) @map("grace_marks")
+  graceSubjects    Int      @default(0) @map("grace_subjects")
+  showRank         Boolean  @default(false) @map("show_rank")
+  showAttendance   Boolean  @default(true) @map("show_attendance")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String?  @map("created_by") @db.Uuid
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy        String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("result_rules")
+}
+
+/// A term of a session (Term 1, Term 2).
+model ExamTerm {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  name           String
+  /// For the attendance shown on the term's report card.
+  startDate      DateTime? @map("start_date") @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  sortOrder      Int       @default(0) @map("sort_order")
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?   @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  exams  Exam[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, academicYearId])
+  @@map("exam_terms")
+}
+
+/// An exam of a session (Periodic Test 1, Half-Yearly…) for some classes.
+model Exam {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  academicYearId    String    @map("academic_year_id") @db.Uuid
+  termId            String?   @map("term_id") @db.Uuid
+  name              String
+  shortName         String?   @map("short_name")
+  sortOrder         Int       @default(0) @map("sort_order")
+  classIds          String[]  @default([]) @map("class_ids") @db.Uuid
+  /// The parts of each subject unless a subject says otherwise: [{ "key": "th", "label": "Theory", "max": 80 }, …]
+  components        Json      @default("[]")
+  /// Share of the term / final result (e.g. 10 for a periodic test, 30 for half-yearly).
+  weightage         Float     @default(0)
+  countsInResult    Boolean   @default(true) @map("counts_in_result")
+  /// draft | open (marks being entered) | locked | published
+  status            String    @default("draft")
+  entryDeadline     DateTime? @map("entry_deadline") @db.Date
+  datesheetNoticeId String?   @map("datesheet_notice_id") @db.Uuid
+  publishedAt       DateTime? @map("published_at") @db.Timestamptz(6)
+  publishedBy       String?   @map("published_by") @db.Uuid
+  isDemo            Boolean   @default(false) @map("is_demo")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy         String?   @map("created_by") @db.Uuid
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy         String?   @map("updated_by") @db.Uuid
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  term     ExamTerm?         @relation(fields: [termId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  subjects ExamSubject[]
+  notes    ExamStudentNote[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, academicYearId])
+  @@map("exams")
+}
+
+/// A subject of an exam for a class: its parts and maximum marks, and its date on the date sheet.
+model ExamSubject {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  examId        String    @map("exam_id") @db.Uuid
+  classId       String    @map("class_id") @db.Uuid
+  subjectId     String    @map("subject_id") @db.Uuid
+  components    Json      @default("[]")
+  date          DateTime? @db.Date
+  startTime     String?   @map("start_time")
+  endTime       String?   @map("end_time")
+  room          String?
+  invigilatorId String?   @map("invigilator_id") @db.Uuid
+  sortOrder     Int       @default(0) @map("sort_order")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  exam   Exam       @relation(fields: [examId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  marks  ExamMark[]
+
+  @@unique([id, tenantId])
+  @@unique([examId, classId, subjectId])
+  @@map("exam_subjects")
+}
+
+/// A student's marks in an exam subject: per part, or a grade (descriptive); AB = absent, ML = medical, NA = not taking it.
+model ExamMark {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  examSubjectId String   @map("exam_subject_id") @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  /// { "th": 62, "pr": 18 } or { "grade": "A" }
+  marks         Json     @default("{}")
+  /// P | AB | ML | NA
+  status        String   @default("P")
+  total         Float?
+  enteredBy     String?  @map("entered_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  examSubject ExamSubject @relation(fields: [examSubjectId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([examSubjectId, studentId])
+  @@index([tenantId, studentId])
+  @@map("exam_marks")
+}
+
+/// What the class teacher adds for a student in an exam: co-scholastic grades, discipline, remarks.
+model ExamStudentNote {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  examId     String   @map("exam_id") @db.Uuid
+  studentId  String   @map("student_id") @db.Uuid
+  /// { "<co-scholastic subject id>": "A" }
+  coGrades   Json     @default("{}") @map("co_grades")
+  discipline String?
+  remark     String?
+  enteredBy  String?  @map("entered_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  exam   Exam   @relation(fields: [examId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([examId, studentId])
+  @@map("exam_student_notes")
+}
+
+/// A term's or the session's final result made visible to students and parents.
+model ResultPublication {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  /// term | final
+  scope          String
+  termId         String?  @map("term_id") @db.Uuid
+  publishedBy    String?  @map("published_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, academicYearId])
+  @@map("result_publications")
 }
