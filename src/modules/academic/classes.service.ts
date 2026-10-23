@@ -36,6 +36,8 @@ export const classInputSchema = z.strictObject({
     groupId: uuid('class group').nullable().optional(),
     hasStreams: z.boolean().optional(),
     isActive: z.boolean().optional(),
+    /** The class students are promoted to; empty = the next class in order. */
+    nextClassId: uuid('next class').nullable().optional(),
 });
 export const classUpdateSchema = classInputSchema.partial();
 
@@ -74,6 +76,7 @@ export const listClasses = async (yearId?: string) => {
         shortName: c.shortName,
         group: c.group,
         hasStreams: c.hasStreams,
+        nextClassId: c.nextClassId,
         sortOrder: c.sortOrder,
         isActive: c.isActive,
         sections: (sections as SectionRow[] | undefined)?.map(presentSection) ?? [],
@@ -117,6 +120,7 @@ export const createClass = async (input: z.infer<typeof classInputSchema>) => {
             groupId: input.groupId ?? null,
             hasStreams: input.hasStreams ?? false,
             isActive: input.isActive ?? true,
+            nextClassId: input.nextClassId ?? null,
             sortOrder: (last._max.sortOrder ?? 0) + 10,
         },
     });
@@ -132,7 +136,7 @@ export const updateClass = async (id: string, input: z.infer<typeof classUpdateS
         const subjects = await db.classSubject.count({ where: { classId: id, streamId: { not: null } } });
         if (withStream || subjects) throw conflict(`${current.name} has sections or subjects set for a stream. Change those first.`);
     }
-    await db.schoolClass.update({ where: { id }, data: { ...merged, ...(input.hasStreams !== undefined ? { hasStreams: input.hasStreams } : {}), ...(input.isActive !== undefined ? { isActive: input.isActive } : {}) } });
+    await db.schoolClass.update({ where: { id }, data: { ...merged, ...(input.hasStreams !== undefined ? { hasStreams: input.hasStreams } : {}), ...(input.isActive !== undefined ? { isActive: input.isActive } : {}), ...(input.nextClassId !== undefined ? { nextClassId: input.nextClassId === id ? null : input.nextClassId } : {}) } });
     return (await listClasses()).find((x) => x.id === id)!;
 };
 

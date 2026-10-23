@@ -30,6 +30,9 @@ import './leave/leave.reports';
 import './notices/notices.permissions';
 import './notices/notices.reports';
 import './dashboard/dashboard.permissions';
+import './promotion/promotion.permissions';
+import './promotion/promotion.reports';
+import './promotion/promotion.documents';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

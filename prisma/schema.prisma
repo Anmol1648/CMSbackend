@@ -109,6 +109,8 @@ model Tenant {
 
   dashboardLayouts DashboardLayout[]
   yearClasses      YearClass[]
+  promotions       StudentPromotion[]
+  tcs              TransferCertificate[]
   attendancePunches AttendancePunch[]
 
   @@map("tenants")
@@ -651,6 +653,8 @@ model SchoolClass {
   groupId    String?  @map("group_id") @db.Uuid
   /// Sections and subjects are split by stream (Science, Commerce…), e.g. XI and XII.
   hasStreams Boolean  @default(false) @map("has_streams")
+  /// The class students are promoted to (empty = the next class in order; none after the last).
+  nextClassId String? @map("next_class_id") @db.Uuid
   sortOrder  Int      @default(0) @map("sort_order")
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -925,6 +929,8 @@ model Student {
   city           MasterValue?           @relation("StudentCity", fields: [cityId, tenantId], references: [id, tenantId], onDelete: Restrict)
   previousBoard  MasterValue?           @relation("StudentPreviousBoard", fields: [previousBoardId, tenantId], references: [id, tenantId], onDelete: Restrict)
   leavingReason  MasterValue?           @relation("StudentLeavingReason", fields: [leavingReasonId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  promotions     StudentPromotion[]
+  tcs            TransferCertificate[]
   enrolments     Enrolment[]
   documents      StudentDocument[]
   enquiries      Enquiry[]              @relation("EnquiryStudent")
@@ -2420,4 +2426,73 @@ model YearClass {
   @@unique([academicYearId, classId])
   @@index([tenantId, academicYearId])
   @@map("year_classes")
+}
+
+// ─── Promotion and transfer certificates ─────────────────────────────────────
+
+/// What happened to a student at the end of a session: promoted, kept back, passed out or leaving.
+/// Kept so a promotion can be undone (before the new session is used for them).
+model StudentPromotion {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  studentId            String   @map("student_id") @db.Uuid
+  fromYearId           String   @map("from_year_id") @db.Uuid
+  toYearId             String?  @map("to_year_id") @db.Uuid
+  fromSectionId        String   @map("from_section_id") @db.Uuid
+  toSectionId          String?  @map("to_section_id") @db.Uuid
+  /// promoted | detained | passed_out | leaving
+  outcome              String
+  /// Fee adjustments made to carry the old session's dues (removed on undo).
+  carriedAdjustmentIds String[] @default([]) @map("carried_adjustment_ids") @db.Uuid
+  carriedAmount        Int      @default(0) @map("carried_amount")
+  isDemo               Boolean  @default(false) @map("is_demo")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy            String?  @map("created_by") @db.Uuid
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([studentId, fromYearId])
+  @@index([tenantId, fromYearId])
+  @@map("student_promotions")
+}
+
+/// A transfer certificate: asked for, cleared (fees, library…), issued with a number, printed.
+model TransferCertificate {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  studentId       String    @map("student_id") @db.Uuid
+  /// requested | issued | cancelled
+  status          String    @default("requested")
+  tcNo            String?   @map("tc_no")
+  applicationDate DateTime  @map("application_date") @db.Date
+  leavingDate     DateTime  @map("leaving_date") @db.Date
+  /// Master "leaving_reason".
+  reasonId        String?   @map("reason_id") @db.Uuid
+  /// "Class VII" (the class the student was in) and the result ("Passed and promoted to Class VIII").
+  lastClass       String?   @map("last_class")
+  result          String?
+  conduct         String    @default("Good")
+  remarks         String?
+  /// [{ "id": master value, "label": "Library books returned", "done": true, "by": "…", "at": "…" }]
+  clearances      Json      @default("[]")
+  requestedBy     String?   @map("requested_by") @db.Uuid
+  issuedBy        String?   @map("issued_by") @db.Uuid
+  issuedAt        DateTime? @map("issued_at") @db.Timestamptz(6)
+  /// Printed after the first time (marked "Duplicate").
+  printCount      Int       @default(0) @map("print_count")
+  cancelledAt     DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelNote      String?   @map("cancel_note")
+  isDemo          Boolean   @default(false) @map("is_demo")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       String?   @map("created_by") @db.Uuid
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy       String?   @map("updated_by") @db.Uuid
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([tenantId, tcNo])
+  @@index([tenantId, status])
+  @@map("transfer_certificates")
 }
