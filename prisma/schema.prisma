@@ -139,6 +139,10 @@ model Tenant {
   questions Question[]
   aiUsage   AiUsage[]
 
+  onlineTests         OnlineTest[]
+  onlineTestQuestions OnlineTestQuestion[]
+  testAttempts        TestAttempt[]
+
   @@map("tenants")
 }
 
@@ -3123,4 +3127,100 @@ model AiUsage {
   @@index([tenantId, createdAt])
   @@index([tenantId, userId, createdAt])
   @@map("ai_usage")
+}
+
+// ─── Online tests ────────────────────────────────────────────────────────────
+
+/// An online test of a class's subject, for some of its sections, open in a time window.
+model OnlineTest {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  academicYearId   String    @map("academic_year_id") @db.Uuid
+  classId          String    @map("class_id") @db.Uuid
+  subjectId        String    @map("subject_id") @db.Uuid
+  sectionIds       String[]  @default([]) @map("section_ids") @db.Uuid
+  chapterIds       String[]  @default([]) @map("chapter_ids") @db.Uuid
+  title            String
+  instructions     String    @default("")
+  durationMin      Int       @map("duration_min")
+  startsAt         DateTime  @map("starts_at") @db.Timestamptz(6)
+  endsAt           DateTime  @map("ends_at") @db.Timestamptz(6)
+  shuffleQuestions Boolean   @default(true) @map("shuffle_questions")
+  shuffleOptions   Boolean   @default(true) @map("shuffle_options")
+  /// instant (when submitted) | after_review (when the teacher publishes)
+  showResult       String    @default("after_review") @map("show_result")
+  /// Marks taken off for a wrong objective answer.
+  negativeMarks    Float     @default(0) @map("negative_marks")
+  totalMarks       Float     @default(0) @map("total_marks")
+  /// draft | published | results (results shown to students)
+  status           String    @default("draft")
+  resultsAt        DateTime? @map("results_at") @db.Timestamptz(6)
+  alertedAt        DateTime? @map("alerted_at") @db.Timestamptz(6)
+  staffId          String?   @map("staff_id") @db.Uuid
+  isDemo           Boolean   @default(false) @map("is_demo")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String?   @map("created_by") @db.Uuid
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy        String?   @map("updated_by") @db.Uuid
+
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  questions OnlineTestQuestion[]
+  attempts  TestAttempt[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, classId, subjectId])
+  @@index([tenantId, startsAt])
+  @@map("online_tests")
+}
+
+/// A question of a test: a copy of the bank's question as it was when added (later edits don't change the test).
+model OnlineTestQuestion {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  testId     String   @map("test_id") @db.Uuid
+  questionId String?  @map("question_id") @db.Uuid
+  sortOrder  Int      @default(0) @map("sort_order")
+  marks      Float
+  /// { type, text, options, answer, explanation, imageFileId, chapterId }
+  snapshot   Json
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  test   OnlineTest @relation(fields: [testId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, testId])
+  @@map("online_test_questions")
+}
+
+/// A student's go at a test: their answers, and the marks (automatic and the teacher's).
+model TestAttempt {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  testId      String    @map("test_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  /// When time runs out (the duration, or the end of the window if sooner).
+  dueAt       DateTime  @map("due_at") @db.Timestamptz(6)
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
+  /// in_progress | submitted (written answers to mark) | marked
+  status      String    @default("in_progress")
+  /// The student's order: { questions: [tqId…], options: { tqId: [original index…] } }
+  layout      Json      @default("{}")
+  /// { tqId: answer } (mcq: original choice index; multi: [indexes]; true_false: "true"/"false"; text otherwise)
+  answers     Json      @default("{}")
+  /// { tqId: { marks, by: "auto" | "teacher", note? } }
+  marks       Json      @default("{}")
+  score       Float?
+  markedBy    String?   @map("marked_by") @db.Uuid
+  markedAt    DateTime? @map("marked_at") @db.Timestamptz(6)
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  test   OnlineTest @relation(fields: [testId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([testId, studentId])
+  @@index([tenantId, studentId])
+  @@map("test_attempts")
 }

@@ -50,6 +50,9 @@ import './homework/homework.reports';
 import './homework/homework.alerts';
 import './ai/ai.permissions';
 import './questions/questions.permissions';
+import './tests/tests.permissions';
+import './tests/tests.alerts';
+import './tests/tests.widgets';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

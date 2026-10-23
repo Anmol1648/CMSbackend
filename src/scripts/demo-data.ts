@@ -18,11 +18,12 @@ import { createDemoExams } from '../modules/exams/demo-exams';
 import { createDemoAlerts } from '../modules/alerts/demo-alerts';
 import { createDemoHomework } from '../modules/homework/demo-homework';
 import { createDemoQuestions } from '../modules/questions/demo-questions';
+import { createDemoTests } from '../modules/tests/demo-tests';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -61,6 +62,12 @@ const main = async () => {
         out(`${tenant.name}: ${r.exams} exams, ${r.marks} marks.`);
         return;
     }
+    if (values.tests) {
+        // Only online tests (after the question bank).
+        const r = await runAsTenant(tenant.id, createDemoTests);
+        out(`${tenant.name}: ${r.tests} online tests, ${r.attempts} attempts.`);
+        return;
+    }
     if (values.questions) {
         // Only the syllabus and question bank.
         const r = await runAsTenant(tenant.id, createDemoQuestions);
@@ -95,6 +102,7 @@ const main = async () => {
     out(`${tenant.name}: ${r.alerts.messages} sent messages, ${r.alerts.notifications} notifications.`);
     out(`${tenant.name}: ${r.homework.homework} homework, ${r.homework.submissions} handed in / checked.`);
     out(`${tenant.name}: ${r.questions.chapters} chapters, ${r.questions.questions} questions.`);
+    out(`${tenant.name}: ${r.tests.tests} online tests, ${r.tests.attempts} attempts.`);
     if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
     out(`Every demo login uses the password ${DEMO_PASSWORD}`);
