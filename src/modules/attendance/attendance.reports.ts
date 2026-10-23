@@ -47,6 +47,7 @@ const studentsOf = async (yearId: string, sectionIds: string[]) =>
 
 defineReport({
     key: 'attendance_absentees',
+    about: 'student',
     category: 'Attendance',
     label: 'Absentees of the day',
     description: 'Students marked absent, late, half day or on leave on a day, section by section, with the parent’s number to call.',
@@ -95,6 +96,7 @@ defineReport({
                 const sec = sections.find((s) => s.id === m.sheet.sectionId)!;
                 const st = byId.get(m.statusId)!;
                 return {
+                    studentId: m.studentId,
                     order: order.get(sec.id) ?? 0,
                     roll: e?.rollNumber ?? null,
                     student: e ? fullName(e.student) : '—',
@@ -171,6 +173,7 @@ defineReport({
 
 defineReport({
     key: 'attendance_percentage',
+    about: 'student',
     category: 'Attendance',
     label: 'Attendance % of students',
     description: 'Each student’s days present, absent and on leave, and the % for a period, section by section; optionally only those below the minimum.',
@@ -217,6 +220,7 @@ defineReport({
                 const s = sums.get(e.student.id)!;
                 const sec = sections.find((x) => x.id === e.sectionId)!;
                 return {
+                    studentId: e.student.id,
                     order: order.get(sec.id) ?? 0,
                     roll: e.rollNumber,
                     student: fullName(e.student),
@@ -282,6 +286,7 @@ defineReport({
 
 defineReport({
     key: 'staff_attendance_monthly',
+    about: 'staff',
     category: 'Attendance',
     label: 'Staff attendance of a month',
     description: 'Each staff member’s working days, days present, late arrivals, half days, leave and days absent in a month.',
@@ -318,6 +323,7 @@ defineReport({
             const counted = mine.filter((r) => r.approval !== 'pending' && r.approval !== 'rejected');
             const presentRows = counted.filter((r) => (st(r) ? st(r)!.present > 0 : !!r.checkIn));
             return {
+                staffId: s.id,
                 employeeCode: s.employeeCode,
                 name: fullName(s),
                 designation: s.designation?.name ?? '',

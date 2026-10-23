@@ -155,6 +155,7 @@ defineReport({
 
 defineReport({
     key: 'leave_away',
+    about: 'staff',
     category: 'Staff Leave',
     label: 'Staff on leave on a day',
     description: 'Who is on approved leave on a day (and who has asked), with the leave and its dates.',
@@ -176,7 +177,7 @@ defineReport({
             orderBy: { staff: { firstName: 'asc' } },
         });
         return {
-            rows: rows.map((r) => ({ staff: staffName(r.staff), designation: r.staff.designation?.name ?? null, type: `${r.leaveType.name}${r.half ? ` (${r.half} half)` : ''}`, from: isoOf(r.fromDate), to: isoOf(r.toDate), status: STATUS[r.status] })),
+            rows: rows.map((r) => ({ staffId: r.staff.id, staff: staffName(r.staff), designation: r.staff.designation?.name ?? null, type: `${r.leaveType.name}${r.half ? ` (${r.half} half)` : ''}`, from: isoOf(r.fromDate), to: isoOf(r.toDate), status: STATUS[r.status] })),
             subtitle: showDay(f.date),
         };
     },

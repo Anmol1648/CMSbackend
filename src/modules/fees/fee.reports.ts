@@ -127,6 +127,7 @@ defineReport({
 
 defineReport({
     key: 'fee_defaulters',
+    about: 'student',
     category: 'Fees',
     label: 'Fee defaulters',
     description: 'Students with fees overdue (or anything left to pay), section by section, with the parent’s number, what is overdue and since when.',
@@ -171,6 +172,7 @@ defineReport({
                 last = s.section;
             }
             return {
+                studentId: s.id,
                 roll: s.roll,
                 student: s.name,
                 admissionNo: s.admissionNo,

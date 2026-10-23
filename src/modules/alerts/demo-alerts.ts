@@ -50,6 +50,9 @@ export const createDemoAlerts = async () => {
     if (!(await db.recipientGroup.findFirst({ where: { name: 'Sports team parents' } })))
         await db.recipientGroup.create({ data: { tenantId, name: 'Sports team parents', audience: { studentIds: team, who: ['parent'] } as Prisma.InputJsonValue, createdBy: office?.id ?? null } });
 
+    // Run a second time: only what is still missing (templates above, custom alerts below).
+    const again = (await db.notification.count({ where: { isDemo: true } })) > 0;
+
     // Sent messages, written as already delivered.
     const staffIds = (await db.staff.findMany({ where: { status: 'working' }, select: { id: true } })).map((s) => s.id);
     const [viiParents, staff, allParents] = await Promise.all([parentsOf(inVii.map((e) => e.studentId)), staffOf(staffIds), parentsOf(enrol.slice(0, 250).map((e) => e.studentId))]);
@@ -60,7 +63,7 @@ export const createDemoAlerts = async () => {
     ];
     let messages = 0;
     let notifications = 0;
-    for (const m of MESSAGES) {
+    for (const m of again ? [] : MESSAGES) {
         if (!m.people.length || (await db.message.findFirst({ where: { subject: m.subject, isDemo: true } }))) continue;
         const at = ago(m.days, 10);
         const msg = await db.message.create({ data: { tenantId, kind: 'compose', subject: m.subject, body: m.body, channels: m.channels, categoryId: cat(m.cat), audience: m.audience as Prisma.InputJsonValue, audienceLabel: m.label, status: 'sent', sendAt: at, sentAt: at, recipients: m.people.length, isDemo: true, createdBy: m.by, createdAt: at } });
@@ -88,7 +91,7 @@ export const createDemoAlerts = async () => {
     // Alerts of the last days: absent and fee reminders to some parents, results published.
     const exam = await db.exam.findFirst({ where: { academicYearId: year.id, status: 'published' }, orderBy: { publishedAt: 'desc' }, select: { name: true } });
     let log = 0;
-    const sample = enrol.filter((_, i) => i % 9 === 0).slice(0, 120);
+    const sample = again ? [] : enrol.filter((_, i) => i % 9 === 0).slice(0, 120);
     const parentOf = new Map<string, Recipient>();
     for (const p of await parentsOf(sample.map((e) => e.studentId))) for (const s of p.studentIds) if (!parentOf.has(s)) parentOf.set(s, p);
     const sec = new Map(sections.map((s) => [s.id, sectionLabel(s)]));
@@ -128,7 +131,41 @@ export const createDemoAlerts = async () => {
     const staffNotes: Prisma.NotificationCreateManyInput[] = [];
     if (principal) staffNotes.push({ tenantId, userId: principal.id, type: 'leave', title: 'Leave request: Deepak Rautela, 2 day(s)', body: 'Deepak Rautela has asked for Casual Leave. Please approve or reject it.', link: '/leave/approvals', priority: 'normal', alertKey: 'leave_applied', isDemo: true, createdAt: ago(0, 8) });
     for (const t of teacherUsers) staffNotes.push({ tenantId, userId: t.id, type: 'notices', title: 'Notice: Annual day rehearsals from Monday', body: 'Rehearsals for the annual day start on Monday in the last two periods.', link: '/notices', priority: 'important', alertKey: 'notice_published', isDemo: true, createdAt: ago(2, 11) });
-    if (staffNotes.length) notifications += (await db.notification.createMany({ data: staffNotes })).count;
+    if (staffNotes.length && !again) notifications += (await db.notification.createMany({ data: staffNotes })).count;
+
+    // Two custom alerts, ready but switched off.
+    const CUSTOM = [
+        {
+            name: 'Attendance below 75% (weekly)',
+            reportKey: 'attendance_percentage',
+            filters: { show: 'below' },
+            sendTo: ['parent', 'class_teacher'],
+            frequency: 'weekly',
+            day: 1,
+            subject: 'Attendance of {{student}} is {{percent}}%',
+            body: 'Dear {{name}},\n\nThe attendance of {{student}} ({{group}}) this session is {{percent}}% ({{present}} of {{days}} days). Students need 75% to sit the exams.\n\nPlease make sure {{student}} comes to school regularly.',
+            shortText: '{{school}}: attendance of {{student}} is {{percent}}%. 75% is needed.',
+            summarySubject: '{{alert}}: {{count}} of your students',
+            summaryBody: 'These students are below 75% attendance:\n\n{{list}}',
+        },
+        {
+            name: 'Fee defaulters (monthly)',
+            reportKey: 'fee_defaulters',
+            filters: { show: 'overdue' },
+            sendTo: ['parent'],
+            frequency: 'monthly',
+            day: 1,
+            subject: 'Fees of {{student}} are overdue: {{overdue}}',
+            body: 'Dear {{name}},\n\nFees of {{overdue}} for {{student}} ({{overdueInstalments}}) are overdue. Please pay at the school office or online.',
+            shortText: '{{school}}: {{overdue}} overdue for {{student}}. Please pay soon.',
+            summarySubject: '{{alert}}: {{count}}',
+            summaryBody: '{{list}}',
+        },
+    ];
+    if (author)
+        for (const c of CUSTOM)
+            if (!(await db.customAlert.findFirst({ where: { name: c.name } })))
+                await db.customAlert.create({ data: { tenantId, ...c, time: '08:00', channels: ['in_app', 'email'], type: c.reportKey.startsWith('fee') ? 'fees' : 'attendance', repeatDays: 7, enabled: false, isDemo: true, createdBy: author.id } });
 
     return { messages, notifications, log };
 };
@@ -138,6 +175,7 @@ export const clearDemoAlerts = async () => {
     await db.messageDelivery.deleteMany({ where: { isDemo: true } });
     await db.message.deleteMany({ where: { isDemo: true } });
     await db.messageTemplate.deleteMany({ where: { isDemo: true } });
+    await db.customAlert.deleteMany({ where: { isDemo: true } });
     await db.recipientGroup.deleteMany({ where: { name: 'Sports team parents' } });
     // Notifications and log rows of demo people that real alerts made while the demo ran.
     const demoUsers = (await db.user.findMany({ where: { isDemo: true }, select: { id: true } })).map((u) => u.id);

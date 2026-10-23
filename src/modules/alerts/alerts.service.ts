@@ -13,6 +13,7 @@ import { COMMON_FIELDS, findAlertDef, listAlertDefs } from './alerts.registry';
 import { alertSetup, deliver, fill } from './deliver';
 import { listDailyJobs, runJob } from './jobs';
 import { usersOf } from './recipients';
+import { customNames } from './custom-alerts.service';
 
 /** Alerts → Built-in Alerts, the Alert Log and Alerts → Channels. */
 
@@ -167,21 +168,21 @@ export const alertLog = async (q: z.infer<typeof logQuery>, userId: string) => {
         db.messageDelivery.count({ where }),
         db.messageDelivery.groupBy({ by: ['status'], where, _count: { _all: true } }),
     ]);
-    const labels = new Map(listAlertDefs().map((d) => [d.key, d.label]));
+    const labels = new Map([...listAlertDefs().map((d) => [d.key, d.label] as const), ...(await customNames())]);
     return {
         rows: rows.map((r) => ({ ...r, source: r.alertKey ? (labels.get(r.alertKey) ?? r.alertKey) : r.messageId ? 'Message' : 'Test' })),
         total,
         page: q.page,
         pages: Math.max(1, Math.ceil(total / take)),
         counts: Object.fromEntries(counts.map((c) => [c.status, c._count._all])),
-        alerts: listAlertDefs().map((d) => ({ key: d.key, label: d.label })),
+        alerts: [...listAlertDefs().map((d) => ({ key: d.key, label: d.label })), ...[...(await customNames())].map(([key, label]) => ({ key, label: `${label} (custom)` }))],
     };
 };
 
 export const exportLog = async (q: z.infer<typeof logQuery>, userId: string) => {
     const where = await logWhere(q, userId);
     const rows = await db.messageDelivery.findMany({ where, orderBy: { createdAt: 'desc' }, take: 20_000, select: { alertKey: true, recipientName: true, recipientKind: true, address: true, channel: true, status: true, reason: true, subject: true, createdAt: true, sentAt: true } });
-    const labels = new Map(listAlertDefs().map((d) => [d.key, d.label]));
+    const labels = new Map([...listAlertDefs().map((d) => [d.key, d.label] as const), ...(await customNames())]);
     return rows.map((r) => ({ ...r, alertKey: r.alertKey ? (labels.get(r.alertKey) ?? r.alertKey) : 'Message' }));
 };
 

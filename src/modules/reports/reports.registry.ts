@@ -59,6 +59,11 @@ export interface ReportDef {
     orientation: 'portrait' | 'landscape';
     /** The built-in Jasper design (file name in reports/jasper/), if the report has one. */
     jasper?: string;
+    /**
+     * Whom each row is about, so the report can drive custom alerts (Alerts → Custom Alerts): its
+     * rows then carry `studentId` or `staffId` (not shown as columns).
+     */
+    about?: 'student' | 'staff';
     run(filters: Record<string, string>, ctx: ReportContext): Promise<ReportResult>;
 }
 

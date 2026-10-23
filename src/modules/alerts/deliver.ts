@@ -45,6 +45,8 @@ export interface Outgoing {
     documents?: ((r: Recipient & { role?: string }) => Attachment[]) | null;
     cc?: string[];
     isDemo?: boolean;
+    /** Custom alerts keep their own "don't repeat within N days" instead of the per-day limit. */
+    ignoreDailyLimit?: boolean;
 }
 
 export const fill = (text: string, vars: Record<string, string>) => text.replace(/\{\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*\}\}/g, (_m, k: string) => vars[k] ?? '');
@@ -83,7 +85,7 @@ export const deliver = async (out: Outgoing, people: (Recipient & { role?: strin
 
     // At most N copies of the same alert to one person on a channel in a day.
     const sentToday = new Map<string, number>();
-    if (out.alertKey) {
+    if (out.alertKey && !out.ignoreDailyLimit) {
         const dayStart = new Date(`${todayIST()}T00:00:00+05:30`);
         const rows = await db.messageDelivery.groupBy({ by: ['userId', 'address', 'channel'], where: { alertKey: out.alertKey, createdAt: { gte: dayStart }, status: { in: ['sent', 'queued', 'sending'] } }, _count: { _all: true } });
         for (const r of rows) sentToday.set(`${r.userId ?? r.address}|${r.channel}`, r._count._all);
@@ -112,7 +114,7 @@ export const deliver = async (out: Outgoing, people: (Recipient & { role?: strin
         for (const c of chosen) {
             const address = c === 'in_app' ? null : reach(p, c)!;
             const dedupeKey = out.dedupe ? `${out.dedupe}:${recipientId(p)}:${c}` : null;
-            if (out.alertKey && (sentToday.get(`${p.userId ?? address}|${c}`) ?? 0) >= s.maxPerDay) {
+            if (out.alertKey && !out.ignoreDailyLimit && (sentToday.get(`${p.userId ?? address}|${c}`) ?? 0) >= s.maxPerDay) {
                 deliveries.push({ ...base, channel: c, address, status: 'skipped', reason: 'already sent to them today (System Settings → Alerts)', body: short.slice(0, 500), dedupeKey });
                 continue;
             }

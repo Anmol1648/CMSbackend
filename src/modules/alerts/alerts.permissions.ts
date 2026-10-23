@@ -5,6 +5,7 @@ import { registerMasterUsage } from '../masters/masters.registry';
 import './alerts.settings';
 import './jobs';
 import './messages.service';
+import './custom-alerts.service';
 
 registerPermissions({ key: 'messaging', label: 'Messages & Alerts', order: 38 }, [
     { resource: 'message', action: 'send', label: 'Write and send messages (Compose)', description: 'Assigned = only to the students and parents of the sections they teach or are class teacher of.', scopes: ['all', 'assigned'] },
@@ -27,6 +28,7 @@ registerMenuItems([
     { key: 'messages-sent', label: 'Sent Messages', icon: 'outbox', href: '/messages', group: 'messaging', order: 20, anyPermission: ['message.send', 'message.view_sent'] },
     { key: 'message-templates', label: 'Message Templates', icon: 'article', href: '/messages/templates', group: 'messaging', order: 30, permission: 'alert.templates' },
     { key: 'alerts-builtin', label: 'Built-in Alerts', icon: 'notifications_active', href: '/alerts', group: 'messaging', order: 40, permission: 'alert.setup' },
+    { key: 'alerts-custom', label: 'Custom Alerts', icon: 'auto_awesome', href: '/alerts/custom', group: 'messaging', order: 50, permission: 'alert.custom' },
     { key: 'alerts-log', label: 'Alert Log', icon: 'receipt_long', href: '/alerts/log', group: 'messaging', order: 60, permission: 'alert.log' },
     { key: 'alerts-channels', label: 'Channels', icon: 'cell_tower', href: '/alerts/channels', group: 'messaging', order: 70, permission: 'alert.setup' },
 ]);

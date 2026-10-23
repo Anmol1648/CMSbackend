@@ -75,6 +75,8 @@ export const ALERTS = {
     retries: num('alerts.retries', 'Try a failed message again this many times', 3, 0, 10),
     perMinute: num('alerts.per_minute', 'Send at most this many emails a minute', 60, 1, 1000, 'So the mail provider doesn’t block the school for sending too fast.'),
     bounceLimit: num('alerts.bounce_limit', 'Flag an email address after this many failed messages', 3, 1, 20),
+    customMax: num('alerts.custom_max', 'At most this many custom alerts (made from reports)', 30, 1, 200),
+    customMaxPeople: num('alerts.custom_max_people', 'A custom alert reaches at most this many people in one run', 2000, 10, 20000, 'More rows than this and the run stops, so a wrong filter can’t message the whole school.'),
     toast: bool('alerts.toast', 'Pop up important notifications on screen', true),
     refreshSeconds: num('alerts.refresh_seconds', 'Check for new notifications every this many seconds', 30, 10, 600),
     // Encrypted provider keys (Alerts → Channels).

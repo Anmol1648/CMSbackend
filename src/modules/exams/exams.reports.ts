@@ -32,6 +32,7 @@ const sectionsOf = async (examId: string, userId: string, classId?: string, inFu
 
 defineReport({
     key: 'exam_result_list',
+    about: 'student',
     category: 'Exams',
     label: 'Exam result (class-wise)',
     description: 'Each student’s total, %, grade, rank and result in an exam, section by section, with the subjects not passed.',
@@ -62,6 +63,7 @@ defineReport({
                 rows.push({
                     groupKey: `${String(s.schoolClass.sortOrder).padStart(4, '0')}${String(s.sortOrder).padStart(3, '0')}`,
                     groupLabel: sectionLabel(s),
+                    studentId: st.student.id,
                     roll: st.student.roll,
                     student: st.student.name,
                     admissionNo: st.student.admissionNo,

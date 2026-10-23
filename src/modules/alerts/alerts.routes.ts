@@ -10,6 +10,7 @@ import { getUserAccess } from '../rbac/access.service';
 import * as notes from './notifications.service';
 import * as messages from './messages.service';
 import * as alerts from './alerts.service';
+import * as custom from './custom-alerts.service';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -80,6 +81,18 @@ alertRoutes.get('/jobs', setup, asyncHandler(async (_req: Request, res: Response
 alertRoutes.post('/jobs/:key/run', setup, asyncHandler(async (req: Request, res: Response) => successResponse(res, await alerts.runJobNow(req.params.key), 'Done')));
 alertRoutes.get('/channels', setup, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await alerts.channelSetup(), 'Channels')));
 alertRoutes.put('/channels/keys', setup, asyncHandler(async (req: Request, res: Response) => successResponse(res, await alerts.saveChannelKeys(parse(alerts.channelKeysSchema, req.body), uid(req)), 'Saved')));
+
+// ─── Custom alerts (from reports) ────────────────────────────────────────────
+
+const customs = can('alert.custom');
+alertRoutes.get('/custom', customs, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await custom.listCustom(), 'Alerts')));
+alertRoutes.get('/custom/options', customs, asyncHandler(async (req: Request, res: Response) => successResponse(res, await custom.customOptions(uid(req)), 'Reports')));
+alertRoutes.post('/custom/preview', customs, asyncHandler(async (req: Request, res: Response) => successResponse(res, await custom.previewCustom(parse(custom.customSchema, req.body), uid(req)), 'Preview')));
+alertRoutes.get('/custom/:id', customs, asyncHandler(async (req: Request, res: Response) => successResponse(res, await custom.getCustom(req.params.id), 'Alert')));
+alertRoutes.post('/custom', customs, asyncHandler(async (req: Request, res: Response) => successResponse(res, await custom.saveCustom(null, parse(custom.customSchema, req.body), uid(req)), 'Saved', 201)));
+alertRoutes.put('/custom/:id', customs, asyncHandler(async (req: Request, res: Response) => successResponse(res, await custom.saveCustom(req.params.id, parse(custom.customSchema, req.body), uid(req)), 'Saved')));
+alertRoutes.delete('/custom/:id', customs, asyncHandler(async (req: Request, res: Response) => successResponse(res, await custom.deleteCustom(req.params.id), 'Deleted')));
+alertRoutes.post('/custom/:id/run', customs, asyncHandler(async (req: Request, res: Response) => successResponse(res, await custom.runCustomNow(req.params.id), 'Done')));
 
 // ─── Alert log ───────────────────────────────────────────────────────────────
 

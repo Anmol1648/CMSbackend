@@ -2891,33 +2891,39 @@ model NotificationPreference {
 
 /// An alert the school made from a report: who (the report's rows), when, what.
 model CustomAlert {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String    @map("tenant_id") @db.Uuid
-  name       String
-  reportKey  String    @map("report_key")
-  filters    Json      @default("{}")
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  name           String
+  reportKey      String    @map("report_key")
+  filters        Json      @default("{}")
   /// parent | student | staff | class_teacher | role:<id>
-  sendTo     String[]  @default([]) @map("send_to")
+  sendTo         String[]  @default([]) @map("send_to")
   /// daily | weekly | monthly
-  frequency  String    @default("weekly")
+  frequency      String    @default("weekly")
   /// weekly: 1 (Mon) … 7; monthly: 1 … 28.
-  day        Int?
+  day            Int?
   /// "08:00" (school time).
-  time       String    @default("08:00")
-  channels   String[]  @default([])
-  subject    String
-  body       String
-  shortText  String?   @map("short_text")
+  time           String    @default("08:00")
+  channels       String[]  @default([])
+  subject        String
+  body           String
+  shortText      String?   @map("short_text")
   /// Don't send to the same person again within these days.
-  repeatDays Int       @default(7) @map("repeat_days")
-  enabled    Boolean   @default(true)
-  lastRunAt  DateTime? @map("last_run_at") @db.Timestamptz(6)
-  lastResult String?   @map("last_result")
-  isDemo     Boolean   @default(false) @map("is_demo")
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy  String?   @map("created_by") @db.Uuid
-  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy  String?   @map("updated_by") @db.Uuid
+  repeatDays     Int       @default(7) @map("repeat_days")
+  /// To class teachers / a role: one list of the report's rows.
+  summarySubject String    @default("{{alert}}: {{count}}") @map("summary_subject")
+  summaryBody    String    @default("{{list}}") @map("summary_body")
+  /// Notification type (Masters → Notification types) and priority.
+  type           String    @default("messages")
+  priority       String    @default("normal")
+  enabled        Boolean   @default(true)
+  lastRunAt      DateTime? @map("last_run_at") @db.Timestamptz(6)
+  lastResult     String?   @map("last_result")
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?   @map("updated_by") @db.Uuid
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 

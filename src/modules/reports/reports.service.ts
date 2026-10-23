@@ -183,6 +183,25 @@ export const runReport = async (key: string, raw: Record<string, unknown>, userI
     };
 };
 
+// ─── For custom alerts ───────────────────────────────────────────────────────
+
+/** Reports whose rows are people (they can drive custom alerts) that this person may run. */
+export const alertReports = async (userId: string) => {
+    const a = await access(userId);
+    return listReportDefs()
+        .filter((d) => d.about && mayRun(d, a.permissions))
+        .sort((x, y) => categoryRank(x.category) - categoryRank(y.category) || x.label.localeCompare(y.label))
+        .map((d) => ({ key: d.key, label: d.label, category: d.category, description: d.description, about: d.about!, columns: d.columns.map((c) => ({ key: c.key, label: c.label, type: c.type })) }));
+};
+
+/** A report's rows for a custom alert, run as the person who made it (so it never reaches more than they may see). */
+export const rowsForAlert = async (key: string, raw: Record<string, unknown>, userId: string) => {
+    const { def } = await defFor(key, userId);
+    if (!def.about) throw badRequest('This report can’t be used for alerts');
+    const { result } = await gather(def, raw, userId);
+    return { def, rows: result.rows, subtitle: result.subtitle ?? '' };
+};
+
 // ─── Files ───────────────────────────────────────────────────────────────────
 
 const MIME: Record<ExportFormat, string> = {
