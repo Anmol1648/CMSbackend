@@ -164,6 +164,10 @@ model Tenant {
   libraryStockChecks  LibraryStockCheck[]
   libraryStockScans   LibraryStockScan[]
 
+  ptms        Ptm[]
+  ptmTeachers PtmTeacher[]
+  ptmMeetings PtmMeeting[]
+
   @@map("tenants")
 }
 
@@ -3737,4 +3741,97 @@ model LibraryStockScan {
 
   @@unique([checkId, copyId])
   @@map("library_stock_scans")
+}
+
+/// A parent–teacher meeting day: which sections, the time window and slot length, who sits.
+model Ptm {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  title          String
+  date           DateTime  @db.Date
+  /// "09:00" – "13:00", school time.
+  startTime      String    @map("start_time")
+  endTime        String    @map("end_time")
+  slotMinutes    Int       @default(10) @map("slot_minutes")
+  /// A break with no slots, e.g. "11:00" – "11:20".
+  breakStart     String?   @map("break_start")
+  breakEnd       String?   @map("break_end")
+  /// in_person | online | both
+  mode           String    @default("in_person")
+  /// class: the class teacher only · class_subject: and the subject teachers
+  whoSits        String    @default("class_subject") @map("who_sits")
+  /// Parents book slots (else walk-in only).
+  booking        Boolean   @default(true)
+  sectionIds     String[]  @map("section_ids") @db.Uuid
+  /// draft | published | done | cancelled
+  status         String    @default("draft")
+  note           String?
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(6)
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  teachers PtmTeacher[]
+  meetings PtmMeeting[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, date])
+  @@map("ptms")
+}
+
+/// A teacher sitting at a PTM: their room or video link, or away that day.
+model PtmTeacher {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  ptmId    String  @map("ptm_id") @db.Uuid
+  staffId  String  @map("staff_id") @db.Uuid
+  room     String?
+  link     String?
+  away     Boolean @default(false)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ptm    Ptm    @relation(fields: [ptmId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([ptmId, staffId])
+  @@map("ptm_teachers")
+}
+
+/// A parent meeting a teacher about a student: the booked slot (or walk-in), and the outcome.
+model PtmMeeting {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  ptmId       String    @map("ptm_id") @db.Uuid
+  staffId     String    @map("staff_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  /// "09:20"; null for a walk-in.
+  slot        String?
+  /// Master "ptm_topic" ids the parent picked, and their note.
+  topicIds    String[]  @map("topic_ids") @db.Uuid
+  parentNote  String?   @map("parent_note")
+  /// booked | waiting (checked in at the desk) | attended | absent | cancelled
+  status      String    @default("booked")
+  bookedBy    String?   @map("booked_by") @db.Uuid
+  checkedInAt DateTime? @map("checked_in_at") @db.Timestamptz(6)
+  metAt       DateTime? @map("met_at") @db.Timestamptz(6)
+  /// Master "ptm_remark" points, the teacher's words, action points and a follow-up date.
+  remarkIds   String[]  @map("remark_ids") @db.Uuid
+  remarks     String?
+  actions     String?
+  followUpOn  DateTime? @map("follow_up_on") @db.Date
+  /// Parents see the remarks (System Settings → PTM decides the default).
+  shared      Boolean   @default(true)
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ptm    Ptm    @relation(fields: [ptmId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([ptmId, staffId, studentId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, ptmId, staffId])
+  @@map("ptm_meetings")
 }

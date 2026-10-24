@@ -43,6 +43,7 @@ import { testRoutes } from './modules/tests/tests.routes';
 import { learnRoutes } from './modules/learn/learn.routes';
 import { transportRoutes } from './modules/transport/transport.routes';
 import { libraryRoutes } from './modules/library/library.routes';
+import { ptmRoutes } from './modules/ptm/ptm.routes';
 import { admsRoutes, deviceRoutes, deviceWebhookRoutes } from './modules/attendance/devices.routes';
 
 export const app = express();
@@ -127,6 +128,7 @@ app.use('/api/tests', testRoutes);
 app.use('/api/learn', learnRoutes);
 app.use('/api/transport', transportRoutes);
 app.use('/api/library', libraryRoutes);
+app.use('/api/ptm', ptmRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());
