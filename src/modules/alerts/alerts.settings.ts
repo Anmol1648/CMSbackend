@@ -125,6 +125,8 @@ defineMaster({
         { name: 'Staff', code: 'staff', extra: { icon: 'badge' } },
         { name: 'Assets', code: 'assets', extra: { icon: 'inventory_2' } },
         { name: 'Inventory', code: 'inventory', extra: { icon: 'inventory' } },
+        { name: 'Hostel', code: 'hostel', extra: { icon: 'bed' } },
+        { name: 'Mess', code: 'mess', extra: { icon: 'restaurant' } },
     ],
 });
 defineMaster({

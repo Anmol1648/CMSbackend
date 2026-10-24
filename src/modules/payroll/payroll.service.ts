@@ -247,6 +247,11 @@ const ptFor = (state: string, gross: number) => {
 };
 const roundNet = (n: number, how: string) => (how === 'rupee' ? Math.round(n) : how === 'ten' ? Math.round(n / 10) * 10 : r2(n));
 
+type OutsideDeduction = { code: string; name: string; amount: number };
+const deductionSources: ((month: string, staffIds: string[]) => Promise<Map<string, OutsideDeduction[]>>)[] = [];
+/** Other modules add their charges to the payslip as deductions (e.g. the mess bill). */
+export const registerPayrollDeduction = (source: (month: string, staffIds: string[]) => Promise<Map<string, OutsideDeduction[]>>) => deductionSources.push(source);
+
 /** Works out (or again) every payslip of a month; a finalised month cannot be prepared again. */
 export const prepare = async (month: string, userId: string, opts: { isDemo?: boolean; at?: Date } = {}) => {
     const run = await db.payrollRun.findFirst({ where: { month } });
@@ -264,6 +269,7 @@ export const prepare = async (month: string, userId: string, opts: { isDemo?: bo
     const paid = staff.filter((x) => salaries.has(x.id));
     const missing = staff.filter((x) => !salaries.has(x.id)).map((x) => staffName(x));
     const { totalDays, out } = await daysFor(month, paid);
+    const outside = await Promise.all(deductionSources.map((f) => f(month, paid.map((x) => x.id))));
     const head = (code: string) => hs.find((h) => h.code === code);
     const r = run ?? (await db.payrollRun.create({ data: { tenantId: getTenantId()!, month, totalDays, preparedBy: userId, isDemo: !!opts.isDemo, ...(opts.at ? { preparedAt: opts.at } : {}) } }));
     if (run) await db.payrollRun.update({ where: { id: run.id }, data: { status: 'prepared', totalDays, preparedBy: userId, preparedAt: opts.at ?? new Date(), approvedBy: null, approvedAt: null } });
@@ -303,6 +309,7 @@ export const prepare = async (month: string, userId: string, opts: { isDemo?: bo
             if (amt > 0) deductions.push({ code: l.kind === 'advance' ? 'ADV' : 'LOAN', name: `${l.kind === 'advance' ? (head('ADV')?.name ?? 'Salary advance') : (head('LOAN')?.name ?? 'Loan instalment')} (balance ₹${r2(l.balance - amt)})`, amount: amt, full: l.balance });
         }
         for (const a of adjustments.filter((x) => x.staffId === st.id && x.kind === 'deduction')) deductions.push({ code: 'ADJ', name: a.label, amount: r2(a.amount) });
+        for (const m of outside) for (const d of m.get(st.id) ?? []) if (d.amount > 0) deductions.push({ ...d, amount: r2(d.amount) });
         const deducted = r2(deductions.reduce((a, x) => a + x.amount, 0));
         const net = roundNet(gross - deducted, s.rounding);
         const warnings = [...(!st.bankAccountNo || !st.ifsc ? ['No bank account'] : []), ...(net <= 0 ? ['Net pay is zero or less'] : []), ...(dd.paidDays < dd.totalDays / 2 ? ['Paid for less than half the month'] : [])];

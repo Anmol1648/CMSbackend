@@ -112,6 +112,14 @@ import './accounts/accounts.permissions';
 import './accounts/accounts.alerts';
 import './accounts/posting.service';
 import './accounts/accounts.reports';
+import './hostel/hostel.permissions';
+import './hostel/hostel.service';
+import './hostel/hostel.alerts';
+import './hostel/hostel.reports';
+import './mess/mess.permissions';
+import './mess/mess.service';
+import './mess/mess.alerts';
+import './mess/mess.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

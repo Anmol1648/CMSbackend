@@ -237,6 +237,23 @@ model Tenant {
   accVouchers AccVoucher[]
   accEntries  AccEntry[]
 
+  hostels             Hostel[]
+  hostelRooms         HostelRoom[]
+  hostelAllotments    HostelAllotment[]
+  hostelRollCalls     HostelRollCall[]
+  hostelLeaves        HostelLeave[]
+  hostelVisitorAllows HostelVisitorAllow[]
+  hostelMedical       HostelMedical[]
+  hostelNotes         HostelNote[]
+
+  messPlans         MessPlan[]
+  messSubscriptions MessSubscription[]
+  messMenus         MessMenu[]
+  messSpecials      MessSpecial[]
+  messSkips         MessSkip[]
+  messServes        MessServe[]
+  messRatings       MessRating[]
+
   @@map("tenants")
 }
 
@@ -5402,4 +5419,326 @@ model AccEntry {
   @@index([tenantId, ledgerId])
   @@index([tenantId, voucherId])
   @@map("acc_entries")
+}
+
+/// A hostel (boys', girls'…) with its warden.
+model Hostel {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  /// boys | girls | mixed
+  gender    String   @default("mixed")
+  wardenId  String?  @map("warden_id") @db.Uuid
+  phone     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rooms  HostelRoom[]
+
+  @@unique([id, tenantId])
+  @@map("hostels")
+}
+
+/// A room of a hostel: block, floor, number, type (Masters → Hostel room types: fee) and beds.
+model HostelRoom {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  hostelId   String  @map("hostel_id") @db.Uuid
+  block      String?
+  floor      Int     @default(0)
+  number     String
+  roomTypeId String? @map("room_type_id") @db.Uuid
+  beds       Int     @default(2)
+  isActive   Boolean @default(true) @map("is_active")
+  isDemo     Boolean @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  hostel Hostel @relation(fields: [hostelId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@unique([hostelId, number])
+  @@map("hostel_rooms")
+}
+
+/// A student's bed in a room for a period (moving = this one ends, a new one starts).
+model HostelAllotment {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  hostelId       String    @map("hostel_id") @db.Uuid
+  roomId         String    @map("room_id") @db.Uuid
+  bed            Int
+  fromDate       DateTime  @map("from_date") @db.Date
+  toDate         DateTime? @map("to_date") @db.Date
+  /// active | vacated
+  status         String    @default("active")
+  note           String?
+  createdBy      String?   @map("created_by") @db.Uuid
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, roomId, status])
+  @@index([tenantId, studentId])
+  @@map("hostel_allotments")
+}
+
+/// The night roll call of a hostel: each boarder present, absent or on leave.
+model HostelRollCall {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  hostelId String   @map("hostel_id") @db.Uuid
+  date     DateTime @db.Date
+  /// { "<student id>": "present" | "absent" | "leave" }
+  marks    Json     @default("{}")
+  takenBy  String?  @map("taken_by") @db.Uuid
+  takenAt  DateTime @default(now()) @map("taken_at") @db.Timestamptz(6)
+  isDemo   Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([hostelId, date])
+  @@map("hostel_roll_calls")
+}
+
+/// Leave / out-pass of a boarder: asked by the parent or made by the warden, approved, scanned out and in at the gate.
+model HostelLeave {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  hostelId    String    @map("hostel_id") @db.Uuid
+  fromAt      DateTime  @map("from_at") @db.Timestamptz(6)
+  toAt        DateTime  @map("to_at") @db.Timestamptz(6)
+  reason      String
+  /// Going with (parent / guardian name) and where.
+  escort      String?
+  destination String?
+  /// pending | approved | rejected | out | returned | cancelled
+  status      String    @default("pending")
+  passCode    String    @map("pass_code")
+  requestedBy String?   @map("requested_by") @db.Uuid
+  answeredBy  String?   @map("answered_by") @db.Uuid
+  answeredAt  DateTime? @map("answered_at") @db.Timestamptz(6)
+  answer      String?
+  outAt       DateTime? @map("out_at") @db.Timestamptz(6)
+  inAt        DateTime? @map("in_at") @db.Timestamptz(6)
+  late        Boolean   @default(false)
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, passCode])
+  @@index([tenantId, status])
+  @@map("hostel_leaves")
+}
+
+/// People a boarder's parents allow to visit or take them out.
+model HostelVisitorAllow {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  name      String
+  relation  String?
+  phone     String?
+  addedBy   String?  @map("added_by") @db.Uuid
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, studentId])
+  @@map("hostel_visitor_allows")
+}
+
+/// The sick bay register: complaint, treatment, medicine, parent told.
+model HostelMedical {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  studentId  String   @map("student_id") @db.Uuid
+  hostelId   String?  @map("hostel_id") @db.Uuid
+  at         DateTime @default(now()) @db.Timestamptz(6)
+  complaint  String
+  treatment  String?
+  medicine   String?
+  referred   Boolean  @default(false)
+  parentTold Boolean  @default(false) @map("parent_told")
+  recordedBy String?  @map("recorded_by") @db.Uuid
+  isDemo     Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, studentId])
+  @@map("hostel_medical")
+}
+
+/// Room inspection notes and fines (fines go into the fees).
+model HostelNote {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  hostelId       String   @map("hostel_id") @db.Uuid
+  roomId         String?  @map("room_id") @db.Uuid
+  studentId      String?  @map("student_id") @db.Uuid
+  academicYearId String?  @map("academic_year_id") @db.Uuid
+  /// inspection | fine
+  kind           String   @default("inspection")
+  note           String
+  fine           Int?
+  at             DateTime @default(now()) @db.Timestamptz(6)
+  recordedBy     String?  @map("recorded_by") @db.Uuid
+  isDemo         Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, hostelId])
+  @@map("hostel_notes")
+}
+
+/// A mess plan: which meals (Masters → Meals) and its charge (per fee instalment for students, per month for staff).
+model MessPlan {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  mealIds     String[] @map("meal_ids") @db.Uuid
+  /// Charged in each fee instalment (students).
+  fee         Int      @default(0)
+  /// Charged each month on the payslip (staff).
+  monthly     Int      @default(0)
+  /// Boarders are put on this plan when they get a bed.
+  forBoarders Boolean  @default(false) @map("for_boarders")
+  /// students | staff | both
+  forWho      String   @default("both") @map("for_who")
+  isActive    Boolean  @default(true) @map("is_active")
+  isDemo      Boolean  @default(false) @map("is_demo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@map("mess_plans")
+}
+
+/// A student or staff member on a plan for a period.
+model MessSubscription {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  planId         String    @map("plan_id") @db.Uuid
+  studentId      String?   @map("student_id") @db.Uuid
+  staffId        String?   @map("staff_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  fromDate       DateTime  @map("from_date") @db.Date
+  toDate         DateTime? @map("to_date") @db.Date
+  /// active | ended
+  status         String    @default("active")
+  /// hostel = made when the bed was allotted
+  source         String    @default("manual")
+  createdBy      String?   @map("created_by") @db.Uuid
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, studentId])
+  @@index([tenantId, staffId])
+  @@map("mess_subscriptions")
+}
+
+/// The weekly menu (a cycle of 1–4 weeks): what is served at a meal on a weekday.
+model MessMenu {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  week     Int     @default(1)
+  /// 1 = Monday … 7 = Sunday
+  weekday  Int
+  mealId   String  @map("meal_id") @db.Uuid
+  items    String
+  isDemo   Boolean @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, week, weekday, mealId])
+  @@map("mess_menus")
+}
+
+/// A special menu on a date (festival, function), instead of the weekly one.
+model MessSpecial {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  date     DateTime @db.Date
+  mealId   String   @map("meal_id") @db.Uuid
+  items    String
+  note     String?
+  isDemo   Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, date, mealId])
+  @@map("mess_specials")
+}
+
+/// A meal someone will not take (told before the cut-off), so it is not cooked.
+model MessSkip {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  subscriptionId String   @map("subscription_id") @db.Uuid
+  date           DateTime @db.Date
+  mealId         String   @map("meal_id") @db.Uuid
+  createdBy      String?  @map("created_by") @db.Uuid
+  isDemo         Boolean  @default(false) @map("is_demo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, date, mealId])
+  @@index([tenantId, date])
+  @@map("mess_skips")
+}
+
+/// A meal served at the counter: to a subscriber, or to guests (charged to cash, a student or a staff member).
+model MessServe {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  date           DateTime @db.Date
+  mealId         String   @map("meal_id") @db.Uuid
+  subscriptionId String?  @map("subscription_id") @db.Uuid
+  guestName      String?  @map("guest_name")
+  guests         Int      @default(0)
+  amount         Int      @default(0)
+  /// cash | student | staff (guest meals)
+  payBy          String?  @map("pay_by")
+  studentId      String?  @map("student_id") @db.Uuid
+  staffId        String?  @map("staff_id") @db.Uuid
+  at             DateTime @default(now()) @db.Timestamptz(6)
+  by             String?  @db.Uuid
+  isDemo         Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date, mealId])
+  @@index([tenantId, subscriptionId])
+  @@map("mess_serves")
+}
+
+/// How someone liked a meal (1–5 stars).
+model MessRating {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  date     DateTime @db.Date
+  mealId   String   @map("meal_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  stars    Int
+  comment  String?
+  isDemo   Boolean  @default(false) @map("is_demo")
+  at       DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, date, mealId, userId])
+  @@map("mess_ratings")
 }

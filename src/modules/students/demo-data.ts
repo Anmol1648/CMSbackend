@@ -36,6 +36,8 @@ import { clearDemoInventory, createDemoInventory } from '../inventory/demo-inven
 import { clearDemoExams2, createDemoExams2 } from '../exams/demo-exams2';
 import { clearDemoPayroll, createDemoPayroll } from '../payroll/demo-payroll';
 import { clearDemoAccounts, createDemoAccounts } from '../accounts/demo-accounts';
+import { clearDemoHostel, createDemoHostel } from '../hostel/demo-hostel';
+import { clearDemoMess, createDemoMess } from '../mess/demo-mess';
 import { randomUUID } from 'crypto';
 
 /**
@@ -306,12 +308,14 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     const assets = await createDemoAssets();
     const idcards = await createDemoIdCards();
     const inventory = await createDemoInventory();
+    const hostel = await createDemoHostel();
+    const mess = await createDemoMess();
     const exams2 = await createDemoExams2();
     const payroll = await createDemoPayroll();
     const accounts = await createDemoAccounts();
 
     await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries, receipts: fees.receipts } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, library, ptm, visitors, complaints, discipline, feedback, uploads, assets, idcards, inventory, exams2, payroll, accounts, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, library, ptm, visitors, complaints, discipline, feedback, uploads, assets, idcards, inventory, hostel, mess, exams2, payroll, accounts, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -337,6 +341,8 @@ export const clearDemoData = async () => {
     await clearDemoUploads();
     await clearDemoAssets();
     await clearDemoIdCards();
+    await clearDemoMess();
+    await clearDemoHostel();
     await clearDemoInventory();
     await clearDemoExams2();
     await clearDemoAccounts();

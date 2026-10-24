@@ -25,6 +25,8 @@ export const DEFAULT_ROLES: DefaultRole[] = [
     { slug: 'librarian', name: 'Librarian', description: 'Runs the library: books, the issue and return counter, fines.' },
     { slug: 'security-guard', name: 'Security Guard', description: 'The gate: visitors in and out, passes, students collected early.' },
     { slug: 'storekeeper', name: 'Storekeeper', description: 'Keeps the store: receives goods, issues items to staff, counts stock, sells uniforms and diaries.' },
+    { slug: 'warden', name: 'Hostel Warden', description: 'Runs their hostel: night roll call, leave passes, sick bay, inspections and fines.' },
+    { slug: 'mess-incharge', name: 'Mess In-charge', description: 'Runs the mess: menu, daily headcount, the counter, guests and kitchen costs.' },
     { slug: 'driver', name: 'Driver / Bus Helper', description: 'Runs the trips of their bus (sends its position, marks students on and off).' },
     { slug: 'student', name: 'Student', description: 'Own timetable, attendance and results.', defaultFor: 'student' },
     { slug: 'guardian', name: 'Guardian', description: "Their children's records.", defaultFor: 'guardian' },
