@@ -27,14 +27,29 @@ enum TenantStatus {
 
 /// A school. Not tenant-scoped itself.
 model Tenant {
-  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code      String       @unique
-  name      String
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String       @unique
+  name            String
   /// Web address that resolves to this school on the login page (e.g. erp.greenvalley.in).
-  domain    String?      @unique
-  status    TenantStatus @default(active)
-  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  domain          String?      @unique
+  status          TenantStatus @default(active)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  /// The plan it is on (Platform console → Plans); its modules and limits are copied to the school and can be changed per school.
+  planId          String?      @map("plan_id") @db.Uuid
+  /// true = every module; false = only `modules` (product module keys, see modules/platform/catalogue.ts)
+  modulesAll      Boolean      @default(true) @map("modules_all")
+  modules         String[]     @default([])
+  /// { maxStudents?, aiMonthly?, storageMb? } set by the platform (0 / missing = no limit)
+  limits          Json         @default("{}")
+  contactName     String?      @map("contact_name")
+  contactEmail    String?      @map("contact_email")
+  contactPhone    String?      @map("contact_phone")
+  city            String?
+  notes           String?
+  suspendedReason String?      @map("suspended_reason")
+  /// Set when deletion is requested: everything is removed after this date (the school stays suspended until then).
+  deleteAfter     DateTime?    @map("delete_after") @db.Timestamptz(6)
 
   profile               SchoolProfile?
   users                 User[]
@@ -5826,4 +5841,79 @@ model AiChatMessage {
 
   @@index([tenantId, chatId, createdAt])
   @@map("ai_chat_messages")
+}
+
+// ─── The platform (Klytos Labs): not part of any school ─────────────────────
+
+/// A person who runs the platform console (owner, or support with fewer rights).
+model PlatformUser {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String    @unique
+  name               String
+  /// owner | support
+  role               String    @default("support")
+  passwordHash       String    @map("password_hash")
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  mfaSecretEnc       String?   @map("mfa_secret_enc")
+  mfaEnabled         Boolean   @default(false) @map("mfa_enabled")
+  /// active | disabled
+  status             String    @default("active")
+  failedLogins       Int       @default(0) @map("failed_logins")
+  lockedUntil        DateTime? @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_users")
+}
+
+/// A plan schools can be put on: the modules it includes and its limits.
+model PlatformPlan {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique
+  description String   @default("")
+  modules     String[] @default([])
+  /// { maxStudents?, aiMonthly?, storageMb? }
+  limits      Json     @default("{}")
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_plans")
+}
+
+/// What platform staff did (created, suspended, changed a school…).
+model PlatformLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String
+  /// The school it was about (no link: the school may be deleted later)
+  tenantId   String?  @map("tenant_id") @db.Uuid
+  schoolName String?  @map("school_name")
+  details    Json     @default("{}")
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@index([tenantId])
+  @@map("platform_logs")
+}
+
+/// A notice to schools: a maintenance banner, or a "What's new" note after an update.
+model PlatformNotice {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// banner | news
+  kind      String
+  title     String
+  body      String    @default("")
+  /// all | admins (school admins and principals)
+  audience  String    @default("all")
+  startsAt  DateTime  @default(now()) @map("starts_at") @db.Timestamptz(6)
+  endsAt    DateTime? @map("ends_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([kind, startsAt])
+  @@map("platform_notices")
 }

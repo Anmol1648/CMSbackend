@@ -2,7 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import tls from 'tls';
 import nodemailer, { Transporter } from 'nodemailer';
+import { z } from 'zod';
 import { logger } from '../logger';
+import { db } from '../db';
+import { getTenantId } from '../context';
+import { decryptSecret } from '../encryption';
+import { defineSetting, getSettings } from '../settings';
 
 /**
  * Sends email over SMTP. In tests nothing leaves the process (messages go to `testOutbox`);
@@ -21,6 +26,32 @@ export interface MailMessage {
 }
 
 export const testOutbox: MailMessage[] = [];
+
+/**
+ * A school's own mail server (set by Klytos in the Platform console, the password encrypted). Without
+ * one, its email goes from the platform's sender as "<School> via <PLATFORM_NAME>", replies to the
+ * school's email (School Profile).
+ */
+const hiddenText = (key: string) => defineSetting<string>({ key, group: 'Email', label: key, type: 'text', default: '', schema: z.string().max(2000), hidden: true });
+export const SCHOOL_MAIL = { host: hiddenText('mail.host'), port: hiddenText('mail.port'), user: hiddenText('mail.user'), pass: hiddenText('mail.pass'), from: hiddenText('mail.from') };
+const schoolTransporters = new Map<string, { sig: string; t: Transporter }>();
+const schoolTransporter = (tenantId: string, m: { host: string; port: string; user: string; pass: string }) => {
+    const sig = `${m.host}|${m.port}|${m.user}|${m.pass}`;
+    const hit = schoolTransporters.get(tenantId);
+    if (hit?.sig === sig) return hit.t;
+    let pass = '';
+    try {
+        pass = decryptSecret(m.pass);
+    } catch {
+        return null;
+    }
+    const port = Number(m.port) || 587;
+    const t = nodemailer.createTransport({ host: m.host, port, secure: port === 465, auth: { user: m.user, pass }, tls: extraTrust(), pool: true, maxConnections: 2 });
+    schoolTransporters.set(tenantId, { sig, t });
+    return t;
+};
+/** Forget a school's mail connection (after its mail server is changed). */
+export const forgetSchoolMail = (tenantId: string) => schoolTransporters.delete(tenantId);
 
 let transporter: Transporter | null | undefined;
 
@@ -67,14 +98,27 @@ export const sendMail = async (message: MailMessage): Promise<void> => {
         testOutbox.push(message);
         return;
     }
-    const t = getTransporter();
+    let t = getTransporter();
+    let from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    let name = message.fromName;
+    let replyTo: string | undefined;
+    const tenantId = getTenantId();
+    if (tenantId) {
+        const own = await getSettings(SCHOOL_MAIL).catch(() => null);
+        const ownT = own?.host && own.user && own.pass ? schoolTransporter(tenantId, own) : null;
+        if (ownT) {
+            t = ownT;
+            from = own!.from || own!.user;
+        } else if (name && process.env.PLATFORM_NAME) name = `${name} via ${process.env.PLATFORM_NAME}`;
+        replyTo = (await db.schoolProfile.findFirst({ select: { email: true } }).catch(() => null))?.email ?? undefined;
+    }
     if (!t) {
         logger.warn('SMTP is not configured; email not sent', { to: message.to, subject: message.subject });
         return;
     }
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
     await t.sendMail({
-        from: message.fromName ? `"${message.fromName.replace(/"/g, '')}" <${from}>` : from,
+        from: name ? `"${name.replace(/"/g, '')}" <${from}>` : from,
+        ...(replyTo ? { replyTo } : {}),
         to: message.to,
         subject: message.subject,
         text: message.text,

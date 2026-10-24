@@ -24,6 +24,10 @@ const envSchema = z.object({
     DATABASE_URL: z.string().min(1, 'is required'),
     // School used when the web address doesn't match any school's domain (single-school setups).
     DEFAULT_TENANT_CODE: optional,
+    // Schools are also found at <school code>.<PLATFORM_DOMAIN> (e.g. dps.klytos.in), besides their own domains.
+    PLATFORM_DOMAIN: optional,
+    // Shown in emails sent for schools ("Green Valley School via Klytos") and in the console.
+    PLATFORM_NAME: optional,
     REDIS_URL: optional,
 
     JWT_PRIVATE_KEY: z.string().min(1, 'is required'),

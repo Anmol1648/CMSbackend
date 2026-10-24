@@ -3,7 +3,9 @@ import type { DataScope } from '@prisma/client';
 import { db } from '../../core/db';
 import { cache } from '../../core/cache';
 import { getTenantId } from '../../core/context';
-import { broader, listPermissionDefs } from '../../core/registry/permissions';
+import { broader, findPermissionDef, listPermissionDefs } from '../../core/registry/permissions';
+import { findTenantById } from '../tenants';
+import { disabledGroups } from '../platform/catalogue';
 
 /**
  * What a signed-in person may do: Super Admin (system role) gets every permission with scope "all";
@@ -48,6 +50,10 @@ export const getUserAccess = async (userId: string): Promise<UserAccess> => {
             for (const g of l.role.permissions) permissions[g.permissionKey] = permissions[g.permissionKey] ? broader(permissions[g.permissionKey], g.scope) : g.scope;
         }
     }
+    // Modules the school isn't on (Platform console): their permissions go, for Super Admin too.
+    const tenant = await findTenantById(tenantId);
+    const off = tenant ? disabledGroups(tenant) : new Set<string>();
+    if (off.size) for (const k of Object.keys(permissions)) if (off.has(findPermissionDef(k)?.module ?? '')) delete permissions[k];
     const access: UserAccess = { isSuperAdmin, roles: links.map((l) => ({ id: l.role.id, slug: l.role.slug, name: l.role.name })), permissions };
     await cache.set(cacheKey(tenantId, userId), JSON.stringify(access), TTL_SECONDS);
     return access;

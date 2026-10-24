@@ -109,6 +109,9 @@ export interface TenantRef {
     id: string;
     code: string;
     status: TenantStatus;
+    /** true = every module; else only `modules` (Platform console). */
+    modulesAll: boolean;
+    modules: string[];
 }
 
 const TTL_MS = 60_000;
@@ -122,13 +125,23 @@ const cached = async (key: string, load: () => Promise<TenantRef | null>): Promi
     return value;
 };
 
-const select = { id: true, code: true, status: true } as const;
+const select = { id: true, code: true, status: true, modulesAll: true, modules: true } as const;
 
 export const findTenantByDomain = (domain: string) =>
     cached(`domain:${domain}`, () => runAsSystem(() => db.tenant.findUnique({ where: { domain }, select })));
 
 export const findTenantByCode = (code: string) =>
     cached(`code:${code}`, () => runAsSystem(() => db.tenant.findUnique({ where: { code }, select })));
+
+/** A web address: a school's own domain, or <code>.<PLATFORM_DOMAIN>. */
+export const findTenantByHost = async (host: string, platformDomain?: string) => {
+    const own = await findTenantByDomain(host);
+    if (own) return own;
+    const base = platformDomain?.trim().toLowerCase().replace(/^\.+/, '');
+    if (!base || !host.endsWith(`.${base}`)) return null;
+    const code = host.slice(0, -(base.length + 1));
+    return /^[a-z0-9][a-z0-9-]{1,39}$/.test(code) ? findTenantByCode(code) : null;
+};
 
 export const findTenantById = (id: string) =>
     cached(`id:${id}`, () => runAsSystem(() => db.tenant.findUnique({ where: { id }, select })));

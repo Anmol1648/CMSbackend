@@ -41,6 +41,7 @@ import { accountsRoutes } from './modules/accounts/accounts.routes';
 import { hostelRoutes } from './modules/hostel/hostel.routes';
 import { messRoutes } from './modules/mess/mess.routes';
 import { assistantRoutes } from './modules/assistant/assistant.routes';
+import { platformInfoRoutes, platformRoutes } from './modules/platform/platform.routes';
 import { alertRoutes } from './modules/alerts/alerts.routes';
 import { homeworkRoutes } from './modules/homework/homework.routes';
 import { aiRoutes } from './modules/ai/ai.routes';
@@ -80,7 +81,7 @@ const corsOptions: CorsOptions = {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-School'],
     exposedHeaders: ['X-Request-Id'],
 };
 app.use(cors(corsOptions));
@@ -140,6 +141,8 @@ app.use('/api/accounts', accountsRoutes);
 app.use('/api/hostel', hostelRoutes);
 app.use('/api/mess', messRoutes);
 app.use('/api/assistant', assistantRoutes);
+app.use('/api/platform', platformRoutes);
+app.use('/api/platform-info', platformInfoRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/homework', homeworkRoutes);
 app.use('/api/ai', aiRoutes);

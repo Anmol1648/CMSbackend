@@ -20,7 +20,7 @@ if (PRIVATE_KEY.length === 0) {
 
 const PUBLIC_KEY = PRIVATE_KEY.length > 0 ? crypto.createPublicKey(PRIVATE_KEY) : null;
 
-type TokenUse = 'access' | 'mfa_challenge';
+type TokenUse = 'access' | 'mfa_challenge' | 'platform' | 'platform_mfa';
 
 interface Claims {
     token_use: TokenUse;
@@ -67,3 +67,13 @@ export const verifyMfaChallengeToken = (token: string): { userId: string; tenant
     const p = verify(token, 'mfa_challenge');
     return { userId: p.uid, tenantId: p.tid, rememberMe: p.rm === true };
 };
+
+/**
+ * The platform console (Klytos staff, not a school): its own token kinds, never accepted as a school
+ * sign-in (and school tokens are never accepted by the console). `tid` is "platform".
+ */
+export const generatePlatformToken = (platformUserId: string, expiresInSeconds = 8 * 3600): string => sign({ token_use: 'platform', uid: platformUserId, tid: 'platform' }, expiresInSeconds);
+export const verifyPlatformToken = (token: string) => verify(token, 'platform').uid;
+/** Between "password OK" and "authenticator code OK" (or setting the authenticator up). */
+export const generatePlatformMfaToken = (platformUserId: string): string => sign({ token_use: 'platform_mfa', uid: platformUserId, tid: 'platform' }, 10 * 60);
+export const verifyPlatformMfaToken = (token: string) => verify(token, 'platform_mfa').uid;

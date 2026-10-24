@@ -16,6 +16,7 @@ import { checkPlacement, enrolmentSchema, renumberSection, saveEnrolment } from 
 import { guardianSchema, createGuardians } from './family.service';
 import type { studentFilters } from './students.schemas';
 import { assertConvertible, markConverted, type Viewer as EnquiryViewer } from '../admissions/enquiries.service';
+import { checkStudentLimit } from '../platform/limits';
 
 /** Student records, admission and the student list. */
 
@@ -466,6 +467,7 @@ export const createStudentLogin = async (studentId: string, client: typeof db | 
 
 /** `enquiry`: who converts the enquiry in `input.enquiryId` (the route checks enquiry.convert). */
 export const admitStudent = async (input: AdmissionInput, viewer: Viewer, enquiry?: EnquiryViewer) => {
+    await checkStudentLimit();
     if (input.enquiryId) await assertConvertible(input.enquiryId, enquiry ?? { userId: viewer.userId, scope: 'all' });
     const s = await getSettings({
         required: STUDENTS.requiredFields,

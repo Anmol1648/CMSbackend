@@ -6,6 +6,7 @@ import { AppError, badRequest, notFound } from '../errors';
 import { ErrorCode } from '../auth.types';
 import { defineSetting, getSetting } from '../settings';
 import { storage, storageFor } from './storage';
+import { checkStorageLimit } from '../../modules/platform/limits';
 
 /**
  * Uploaded files. Every upload is checked by its content (not its name or the browser's claim),
@@ -88,6 +89,7 @@ export const saveUpload = async (input: SaveUploadInput) => {
     const maxMb = await getSetting(UPLOADS.maxFileMb);
     if (input.data.length > maxMb * 1024 * 1024) throw new AppError(`The file is larger than ${maxMb} MB`, 413, ErrorCode.PAYLOAD_TOO_LARGE);
     if (!input.data.length) throw badRequest('The file is empty');
+    await checkStorageLimit(input.data.length);
     const kind = detectKind(input.data);
     if (!kind || !input.allowed.includes(kind)) {
         throw badRequest(`This file type is not accepted here. Use ${input.allowed.map((k) => KINDS[k].ext.toUpperCase()).join(', ')}.`);

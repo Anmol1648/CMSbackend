@@ -9,6 +9,7 @@ import { getSettings, setSetting } from '../../core/settings';
 import { logger } from '../../core/logger';
 import { todayIST } from '../attendance/attendance.settings';
 import { AI } from './ai.settings';
+import { aiMonthlyCap } from '../platform/limits';
 
 /**
  * The AI layer: one way to ask, whatever the provider (Gemini today; others are a new entry in
@@ -113,6 +114,8 @@ export const askAi = async (feature: string, userId: string | null, r: AiRequest
     if (!key) throw new AiUnavailableError('AI isn’t set up yet: enter the key on Learning → AI Setup');
     if (userId && (await db.aiUsage.count({ where: { userId, createdAt: { gte: dayStart() }, ok: true } })) >= s.daily) throw new AiUnavailableError(`You have used today’s ${s.daily} AI requests. Try again tomorrow.`);
     if (s.monthly > 0 && (await db.aiUsage.count({ where: { createdAt: { gte: monthStart() }, ok: true } })) >= s.monthly) throw new AiUnavailableError('The school has used this month’s AI requests (System Settings → AI).');
+    const cap = await aiMonthlyCap();
+    if (cap > 0 && (await db.aiUsage.count({ where: { createdAt: { gte: monthStart() }, ok: true } })) >= cap) throw new AiUnavailableError(`Your plan allows ${cap} AI requests a month and they are used up. Ask Klytos to raise the limit.`);
     const call = PROVIDERS[s.provider];
     const base = { tenantId: getTenantId()!, userId, feature, provider: s.provider, model: s.model };
     try {

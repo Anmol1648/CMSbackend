@@ -1,18 +1,19 @@
 import type { NextFunction, Request, Response } from 'express';
 import { env } from '../config/env';
 import { setTenant } from '../core/context';
-import { findTenantByCode, findTenantByDomain, TenantRef } from '../modules/tenants';
+import { findTenantByCode, findTenantByHost, TenantRef } from '../modules/tenants';
 
 /**
  * Before sign-in, works out the school from the address of the page calling the API (the browser's
- * Origin header, else the Host) matched against tenants.domain, falling back to DEFAULT_TENANT_CODE.
+ * Origin header, else the Host): the school's own domain, or <code>.<PLATFORM_DOMAIN>; on a shared
+ * address, the school code the login page asks for once (header X-School); else DEFAULT_TENANT_CODE.
  * After sign-in the school always comes from the access token (authenticate); a token for another
  * school than a matched domain is rejected there.
  */
 
 export interface HostTenant extends TenantRef {
-    /** 'domain' = the address matched this school; 'default' = DEFAULT_TENANT_CODE fallback. */
-    source: 'domain' | 'default';
+    /** 'domain' = the address matched this school; 'code' = the X-School header; 'default' = DEFAULT_TENANT_CODE fallback. */
+    source: 'domain' | 'code' | 'default';
 }
 
 const candidateHosts = (req: Request): string[] => {
@@ -31,8 +32,13 @@ const candidateHosts = (req: Request): string[] => {
 
 export const resolveRequestTenant = async (req: Request): Promise<HostTenant | null> => {
     for (const host of candidateHosts(req)) {
-        const tenant = await findTenantByDomain(host);
+        const tenant = await findTenantByHost(host, env.PLATFORM_DOMAIN);
         if (tenant) return { ...tenant, source: 'domain' };
+    }
+    const code = req.header('x-school')?.trim().toLowerCase();
+    if (code && /^[a-z0-9][a-z0-9-]{1,39}$/.test(code)) {
+        const tenant = await findTenantByCode(code);
+        if (tenant) return { ...tenant, source: 'code' };
     }
     if (env.DEFAULT_TENANT_CODE) {
         const tenant = await findTenantByCode(env.DEFAULT_TENANT_CODE);
