@@ -16,6 +16,7 @@ import { clearTenantCache, createTenant, SUPER_ADMIN_SLUG } from '../tenants';
 import { moduleKeys, PRODUCT_MODULES } from './catalogue';
 import { setupProgress } from './onboarding';
 import { platformLog } from './platform-log';
+import { exportMenu, menuSaveSchema, saveMenu } from '../settings/menu-setup.service';
 
 /**
  * The platform console's work: schools (add, change, plans and modules, limits, suspend, help the
@@ -326,6 +327,43 @@ export const deletePlan = async (id: string, by: string, ip?: string) => {
     await sys(() => db.platformPlan.delete({ where: { id } }));
     await platformLog(by, 'plan_deleted', { details: { name: p.name }, ip });
     return listPlans();
+};
+
+// ─── Menu templates ──────────────────────────────────────────────────────────
+
+export const listMenuTemplates = () => sys(() => db.platformMenuTemplate.findMany({ orderBy: { name: 'asc' } }));
+
+export const templateFromSchoolSchema = z.strictObject({ name: z.string().trim().min(2).max(60), description: z.string().trim().max(300).default('') });
+/** Saves a school's current menu names and places as a template. */
+export const templateFromSchool = async (schoolId: string, input: z.infer<typeof templateFromSchoolSchema>, by: string, ip?: string) => {
+    const t = await findSchool(schoolId);
+    const menu = await runAsTenant(schoolId, exportMenu);
+    if (!menu.items.length && !menu.groups.length) throw badRequest(`${t.name} uses the built-in menu: there is nothing to save`);
+    const existing = await sys(() => db.platformMenuTemplate.findUnique({ where: { name: input.name } }));
+    const data = { name: input.name, description: input.description, items: menu.items as Prisma.InputJsonValue, groups: menu.groups as Prisma.InputJsonValue };
+    if (existing) await sys(() => db.platformMenuTemplate.update({ where: { id: existing.id }, data }));
+    else await sys(() => db.platformMenuTemplate.create({ data }));
+    await platformLog(by, 'menu_template_saved', { tenantId: schoolId, schoolName: t.name, details: { name: input.name, items: menu.items.length, groups: menu.groups.length }, ip });
+    return listMenuTemplates();
+};
+
+/** Applies a template to a school (its menu set-up is replaced; the school can change it afterwards). */
+export const applyMenuTemplate = async (schoolId: string, templateId: string | null, by: string, ip?: string) => {
+    const t = await findSchool(schoolId);
+    const tpl = templateId ? await sys(() => db.platformMenuTemplate.findUnique({ where: { id: templateId } })) : null;
+    if (templateId && !tpl) throw notFound('Template not found');
+    const input = menuSaveSchema.parse({ groups: (tpl?.groups ?? []) as unknown[], items: (tpl?.items ?? []) as unknown[] });
+    await runAsTenant(schoolId, () => saveMenu(input, null));
+    await platformLog(by, tpl ? 'menu_template_applied' : 'menu_reset', { tenantId: schoolId, schoolName: t.name, details: { template: tpl?.name ?? 'built-in' }, ip });
+    return { ok: true };
+};
+
+export const deleteMenuTemplate = async (id: string, by: string, ip?: string) => {
+    const tpl = await sys(() => db.platformMenuTemplate.findUnique({ where: { id } }));
+    if (!tpl) throw notFound('Template not found');
+    await sys(() => db.platformMenuTemplate.delete({ where: { id } }));
+    await platformLog(by, 'menu_template_deleted', { details: { name: tpl.name }, ip });
+    return listMenuTemplates();
 };
 
 // ─── Platform staff ──────────────────────────────────────────────────────────

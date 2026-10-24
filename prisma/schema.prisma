@@ -51,54 +51,55 @@ model Tenant {
   /// Set when deletion is requested: everything is removed after this date (the school stays suspended until then).
   deleteAfter     DateTime?    @map("delete_after") @db.Timestamptz(6)
 
-  profile               SchoolProfile?
-  users                 User[]
-  roles                 Role[]
-  settings              TenantSetting[]
-  emailTemplates        EmailTemplate[]
-  masterValues          MasterValue[]
-  academicYears         AcademicYear[]
-  classes               SchoolClass[]
-  sections              Section[]
-  subjects              Subject[]
-  classSubjects         ClassSubject[]
-  numberSequences       NumberSequence[]
-  families              Family[]
-  guardians             Guardian[]
-  students              Student[]
-  enrolments            Enrolment[]
-  studentDocuments      StudentDocument[]
-  staff                 Staff[]
-  staffQualifications   StaffQualification[]
-  staffExperience       StaffExperience[]
-  staffDocuments        StaffDocument[]
-  teachingAssignments   TeachingAssignment[]
-  enquiries             Enquiry[]
-  enquiryFollowUps      EnquiryFollowUp[]
-  feeInstalments        FeeInstalment[]
-  feeStructureLines     FeeStructureLine[]
-  feeConcessions        FeeConcession[]
-  feeConcessionLines    FeeConcessionLine[]
-  studentFeeConcessions StudentFeeConcession[]
-  feeAdjustments        FeeAdjustment[]
-  feeReceipts           FeeReceipt[]
-  feeReceiptLines       FeeReceiptLine[]
-  paymentGateway        PaymentGateway?
-  onlinePayments        OnlinePayment[]
-  ttSchedules           TtSchedule[]
-  ttSlots               TtSlot[]
-  ttDays                TtDay[]
-  ttLoads               TtLoad[]
-  ttTeacherRules        TtTeacherRule[]
-  timetables            Timetable[]
-  ttEntries             TtEntry[]
-  ttSubstitutions       TtSubstitution[]
-  menuCustomizations    MenuCustomization[]
-  files                 File[]
-  documentTemplates     DocumentTemplate[]
-  reportDesigns         ReportDesign[]
-  reportSettings        ReportSetting[]
-  customReports         CustomReport[]
+  profile                 SchoolProfile?
+  users                   User[]
+  roles                   Role[]
+  settings                TenantSetting[]
+  emailTemplates          EmailTemplate[]
+  masterValues            MasterValue[]
+  academicYears           AcademicYear[]
+  classes                 SchoolClass[]
+  sections                Section[]
+  subjects                Subject[]
+  classSubjects           ClassSubject[]
+  numberSequences         NumberSequence[]
+  families                Family[]
+  guardians               Guardian[]
+  students                Student[]
+  enrolments              Enrolment[]
+  studentDocuments        StudentDocument[]
+  staff                   Staff[]
+  staffQualifications     StaffQualification[]
+  staffExperience         StaffExperience[]
+  staffDocuments          StaffDocument[]
+  teachingAssignments     TeachingAssignment[]
+  enquiries               Enquiry[]
+  enquiryFollowUps        EnquiryFollowUp[]
+  feeInstalments          FeeInstalment[]
+  feeStructureLines       FeeStructureLine[]
+  feeConcessions          FeeConcession[]
+  feeConcessionLines      FeeConcessionLine[]
+  studentFeeConcessions   StudentFeeConcession[]
+  feeAdjustments          FeeAdjustment[]
+  feeReceipts             FeeReceipt[]
+  feeReceiptLines         FeeReceiptLine[]
+  paymentGateway          PaymentGateway?
+  onlinePayments          OnlinePayment[]
+  ttSchedules             TtSchedule[]
+  ttSlots                 TtSlot[]
+  ttDays                  TtDay[]
+  ttLoads                 TtLoad[]
+  ttTeacherRules          TtTeacherRule[]
+  timetables              Timetable[]
+  ttEntries               TtEntry[]
+  ttSubstitutions         TtSubstitution[]
+  menuCustomizations      MenuCustomization[]
+  menuGroupCustomizations MenuGroupCustomization[]
+  files                   File[]
+  documentTemplates       DocumentTemplate[]
+  reportDesigns           ReportDesign[]
+  reportSettings          ReportSetting[]
+  customReports           CustomReport[]
 
   holidays         Holiday[]
   attendanceSheets AttendanceSheet[]
@@ -544,6 +545,10 @@ model MenuCustomization {
   label     String?
   sortOrder Int?     @map("sort_order")
   hidden    Boolean  @default(false)
+  /// The group it is shown under instead of its own (Menu Setup)
+  groupKey  String?  @map("group_key")
+  /// A Material Symbols icon name instead of its own
+  icon      String?
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy String?  @map("updated_by") @db.Uuid
 
@@ -551,6 +556,22 @@ model MenuCustomization {
 
   @@id([tenantId, menuKey])
   @@map("menu_customizations")
+}
+
+/// A school's own name, place and visibility for a sidebar group (Menu Setup).
+model MenuGroupCustomization {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  groupKey  String   @map("group_key")
+  label     String?
+  sortOrder Int?     @map("sort_order")
+  hidden    Boolean  @default(false)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, groupKey])
+  @@map("menu_group_customizations")
 }
 
 // ─── Settings & audit ───────────────────────────────────────────────────────
@@ -5916,4 +5937,19 @@ model PlatformNotice {
 
   @@index([kind, startsAt])
   @@map("platform_notices")
+}
+
+/// A set of menu names and places (Platform console), applied to schools in one go; each school can change its own afterwards.
+model PlatformMenuTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique
+  description String   @default("")
+  /// [{ key, label?, sortOrder?, hidden?, groupKey?, icon? }]
+  items       Json     @default("[]")
+  /// [{ key, label?, sortOrder?, hidden? }]
+  groups      Json     @default("[]")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_menu_templates")
 }

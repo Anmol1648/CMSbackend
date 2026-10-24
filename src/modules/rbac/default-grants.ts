@@ -168,6 +168,7 @@ export const DEFAULT_GRANTS: Record<string, { key: string; scope?: DataScope }[]
         { key: 'mess.mine' },
         { key: 'dashboard.build' },
         { key: 'ai.chat' },
+        { key: 'menu.customize' },
         { key: 'payroll.mine' },
         { key: 'accounts.setup' },
         { key: 'accounts.entry' },

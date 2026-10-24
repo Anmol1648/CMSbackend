@@ -49,6 +49,12 @@ platformRoutes.get('/schools/:id/export', owner, asyncHandler(async (req: Reques
     res.send(data);
 }));
 
+// Menu templates.
+platformRoutes.get('/menu-templates', staff, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await p.listMenuTemplates(), 'Templates')));
+platformRoutes.post('/schools/:id/menu-template', owner, asyncHandler(async (req: Request, res: Response) => successResponse(res, await p.templateFromSchool(req.params.id, parse(p.templateFromSchoolSchema, req.body), me(req), req.ip), 'Template saved')));
+platformRoutes.post('/schools/:id/menu', owner, asyncHandler(async (req: Request, res: Response) => successResponse(res, await p.applyMenuTemplate(req.params.id, parse(z.object({ templateId: z.uuid().nullable() }), req.body).templateId, me(req), req.ip), 'Menu applied')));
+platformRoutes.delete('/menu-templates/:id', owner, asyncHandler(async (req: Request, res: Response) => successResponse(res, await p.deleteMenuTemplate(req.params.id, me(req), req.ip), 'Template deleted')));
+
 // Plans.
 platformRoutes.get('/plans', staff, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await p.listPlans(), 'Plans')));
 platformRoutes.post('/plans', owner, asyncHandler(async (req: Request, res: Response) => successResponse(res, await p.savePlan(null, parse(p.planSchema, req.body), me(req), req.ip), 'Plan added', 201)));

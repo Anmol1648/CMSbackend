@@ -5,6 +5,7 @@ import { badRequest, validationError } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
 import { saveSettings, settingsSnapshot } from '../../core/settings';
 import { can } from '../../middlewares/access';
+import * as menu from './menu-setup.service';
 
 /** System Settings: every module's settings in one generated screen. */
 
@@ -31,3 +32,13 @@ settingsRoutes.patch('/', can('settings.update'), asyncHandler(async (req: Reque
     if (Object.keys(diff).length) await recordAudit({ action: 'setting_change', entity: 'settings', changes: diff });
     successResponse(res, await settingsSnapshot(), Object.keys(diff).length ? 'Settings saved' : 'Nothing changed');
 }));
+
+// Menu Setup: the school's own names, order, groups and icons for the sidebar.
+settingsRoutes.get('/menu', can('menu.customize'), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await menu.menuSetup(), 'Menu')));
+settingsRoutes.put('/menu', can('menu.customize'), asyncHandler(async (req: Request, res: Response) => {
+    const r = menu.menuSaveSchema.safeParse(req.body ?? {});
+    if (!r.success) throw validationError(r.error);
+    successResponse(res, await menu.saveMenu(r.data, req.user!.userId), 'Menu saved');
+}));
+settingsRoutes.delete('/menu', can('menu.customize'), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await menu.resetMenu(), 'Back to the built-in menu')));
+settingsRoutes.get('/menu/preview/:roleId', can('menu.customize'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await menu.previewAs(req.params.roleId), 'Preview')));
