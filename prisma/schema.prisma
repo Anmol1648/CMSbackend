@@ -173,6 +173,9 @@ model Tenant {
   pickupPeople   PickupPerson[]
   studentPickups StudentPickup[]
 
+  complaints        Complaint[]
+  complaintMessages ComplaintMessage[]
+
   @@map("tenants")
 }
 
@@ -3956,4 +3959,82 @@ model StudentPickup {
   @@index([tenantId, at])
   @@index([tenantId, studentId])
   @@map("student_pickups")
+}
+
+/// A complaint or grievance: who raised it (or anonymous), about what, who handles it, and where it stands.
+model Complaint {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  ticketNo        String    @map("ticket_no")
+  /// Master "complaint_category".
+  categoryId      String?   @map("category_id") @db.Uuid
+  subject         String
+  details         String
+  /// normal | high | urgent
+  priority        String    @default("normal")
+  /// new | assigned | in_progress | resolved | closed | reopened
+  status          String    @default("new")
+  anonymous       Boolean   @default(false)
+  /// Who raised it (their login), and as what: parent | student | staff | office (for a walk-in / phone call)
+  raisedBy        String?   @map("raised_by") @db.Uuid
+  raisedAs        String    @default("parent") @map("raised_as")
+  /// A complaint taken at the office for someone without a login.
+  contactName     String?   @map("contact_name")
+  contactMobile   String?   @map("contact_mobile")
+  /// What it is about (optional).
+  studentId       String?   @map("student_id") @db.Uuid
+  staffId         String?   @map("staff_id") @db.Uuid
+  routeId         String?   @map("route_id") @db.Uuid
+  /// The handler (a login) and since when.
+  assignedTo      String?   @map("assigned_to") @db.Uuid
+  assignedAt      DateTime? @map("assigned_at") @db.Timestamptz(6)
+  firstResponseAt DateTime? @map("first_response_at") @db.Timestamptz(6)
+  respondBy       DateTime? @map("respond_by") @db.Timestamptz(6)
+  resolveBy       DateTime? @map("resolve_by") @db.Timestamptz(6)
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(6)
+  closedAt        DateTime? @map("closed_at") @db.Timestamptz(6)
+  resolution      String?
+  /// 0 = not escalated; 1, 2… each time it went over its time.
+  escalation      Int       @default(0)
+  escalatedAt     DateTime? @map("escalated_at") @db.Timestamptz(6)
+  reopened        Int       @default(0)
+  rating          Int?
+  ratingNote      String?   @map("rating_note")
+  attachmentIds   String[]  @map("attachment_ids") @db.Uuid
+  isDemo          Boolean   @default(false) @map("is_demo")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages ComplaintMessage[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, ticketNo])
+  @@index([tenantId, status])
+  @@index([tenantId, assignedTo])
+  @@index([tenantId, raisedBy])
+  @@map("complaints")
+}
+
+/// The thread: replies (the complainant sees), internal notes (staff only) and events (assigned, resolved…).
+model ComplaintMessage {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  complaintId   String   @map("complaint_id") @db.Uuid
+  userId        String?  @map("user_id") @db.Uuid
+  authorName    String   @map("author_name")
+  /// reply | note | event
+  kind          String   @default("reply")
+  /// The complainant wrote it (else the school).
+  fromRaiser    Boolean  @default(false) @map("from_raiser")
+  text          String
+  attachmentIds String[] @map("attachment_ids") @db.Uuid
+  isDemo        Boolean  @default(false) @map("is_demo")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  complaint Complaint @relation(fields: [complaintId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, complaintId, createdAt])
+  @@map("complaint_messages")
 }

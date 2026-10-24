@@ -71,6 +71,10 @@ import './ptm/ptm.reports';
 import './visitors/visitors.permissions';
 import './visitors/visitors.alerts';
 import './visitors/visitors.reports';
+import './complaints/complaints.permissions';
+import './complaints/complaints.service';
+import './complaints/complaints.alerts';
+import './complaints/complaints.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

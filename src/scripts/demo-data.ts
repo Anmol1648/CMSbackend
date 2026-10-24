@@ -25,11 +25,12 @@ import { createDemoTransport } from '../modules/transport/demo-transport';
 import { createDemoLibrary } from '../modules/library/demo-library';
 import { createDemoPtm } from '../modules/ptm/demo-ptm';
 import { createDemoVisitors } from '../modules/visitors/demo-visitors';
+import { createDemoComplaints } from '../modules/complaints/demo-complaints';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' }, ptm: { type: 'boolean' }, visitors: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' }, ptm: { type: 'boolean' }, visitors: { type: 'boolean' }, complaints: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -92,6 +93,12 @@ const main = async () => {
         out(`${tenant.name}: ${r.chapters} chapters, ${r.questions} questions.`);
         return;
     }
+    if (values.complaints) {
+        // Only complaints, for a school that already has its demo people.
+        const r = await runAsTenant(tenant.id, createDemoComplaints);
+        out(`${tenant.name}: ${r.complaints} complaints.`);
+        return;
+    }
     if (values.visitors) {
         // Only the gate, for a school that already has its demo staff and students.
         const r = await runAsTenant(tenant.id, createDemoVisitors);
@@ -149,6 +156,7 @@ const main = async () => {
     out(`${tenant.name}: ${r.library.books} library titles, ${r.library.copies} copies, ${r.library.out} books out; librarian login: ${r.library.librarian}.`);
     out(`${tenant.name}: ${r.ptm.ptms} PTMs, ${r.ptm.meetings} PTM meetings / bookings.`);
     out(`${tenant.name}: ${r.visitors.visits} visits, ${r.visitors.pickups} early pickups; security guard login: ${r.visitors.guard}.`);
+    out(`${tenant.name}: ${r.complaints.complaints} complaints.`);
     out(`${tenant.name}: ${r.learn.chats} tutor conversations, ${r.learn.quizzes} practice quizzes.`);
     if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
