@@ -201,6 +201,22 @@ model Tenant {
   idCards         IdCard[]
   idPhotoRequests IdPhotoRequest[]
 
+  invItems          InvItem[]
+  invStock          InvStock[]
+  invBatches        InvBatch[]
+  invMoves          InvMove[]
+  invRequests       InvRequest[]
+  invRequestLines   InvRequestLine[]
+  invPurchaseOrders InvPurchaseOrder[]
+  invPoLines        InvPoLine[]
+  invReceipts       InvReceipt[]
+  invReceiptLines   InvReceiptLine[]
+  invAdjustments    InvAdjustment[]
+  invCounts         InvCount[]
+  invCountLines     InvCountLine[]
+  invSales          InvSale[]
+  invSaleLines      InvSaleLine[]
+
   @@map("tenants")
 }
 
@@ -4612,4 +4628,342 @@ model IdPhotoRequest {
 
   @@index([tenantId, status])
   @@map("id_photo_requests")
+}
+
+/// A consumable item kept in the store (stationery, cleaning, lab chemicals, uniforms…).
+model InvItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  code         String
+  name         String
+  /// Masters "inv_category", "inv_unit".
+  categoryId   String?  @map("category_id") @db.Uuid
+  unitId       String?  @map("unit_id") @db.Uuid
+  /// Below this (all stores together) it shows as low stock.
+  reorderLevel Float    @default(0) @map("reorder_level")
+  /// How much to order when low (a suggestion on the purchase order).
+  reorderQty   Float    @default(0) @map("reorder_qty")
+  barcode      String?
+  /// Sold to students (uniform, diary…) at this price.
+  sellable     Boolean  @default(false)
+  sellPrice    Float?   @map("sell_price")
+  /// Kept in batches with an expiry date (chemicals, medicines).
+  trackExpiry  Boolean  @default(false) @map("track_expiry")
+  gstPct       Float    @default(0) @map("gst_pct")
+  /// Moving average cost of one unit.
+  avgCost      Float    @default(0) @map("avg_cost")
+  isActive     Boolean  @default(true) @map("is_active")
+  isDemo       Boolean  @default(false) @map("is_demo")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stock   InvStock[]
+  batches InvBatch[]
+  moves   InvMove[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, code])
+  @@map("inv_items")
+}
+
+/// How much of an item a store holds.
+model InvStock {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  itemId   String @map("item_id") @db.Uuid
+  /// Master "inv_store".
+  storeId  String @map("store_id") @db.Uuid
+  qty      Float  @default(0)
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  item   InvItem @relation(fields: [itemId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([itemId, storeId])
+  @@map("inv_stock")
+}
+
+/// A batch of an item with an expiry date, in a store.
+model InvBatch {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  itemId    String    @map("item_id") @db.Uuid
+  storeId   String    @map("store_id") @db.Uuid
+  batchNo   String?   @map("batch_no")
+  expiryOn  DateTime? @map("expiry_on") @db.Date
+  qty       Float     @default(0)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  item   InvItem @relation(fields: [itemId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, itemId, storeId])
+  @@map("inv_batches")
+}
+
+/// The stock ledger: every movement in or out of a store.
+model InvMove {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  itemId       String   @map("item_id") @db.Uuid
+  storeId      String   @map("store_id") @db.Uuid
+  /// opening | receive | issue | return | transfer_in | transfer_out | vendor_return | writeoff | adjust | sale | sale_cancel
+  kind         String
+  /// + in, − out.
+  qty          Float
+  rate         Float    @default(0)
+  /// Balance in this store after the movement.
+  balance      Float    @default(0)
+  /// Master "department", or a staff member / student it went to.
+  departmentId String?  @map("department_id") @db.Uuid
+  staffId      String?  @map("staff_id") @db.Uuid
+  studentId    String?  @map("student_id") @db.Uuid
+  /// What it came from: "grn" / "request" / "sale" / "writeoff" / "count" … and its id / number.
+  refType      String?  @map("ref_type")
+  refId        String?  @map("ref_id") @db.Uuid
+  refNo        String?  @map("ref_no")
+  note         String?
+  userId       String?  @map("user_id") @db.Uuid
+  at           DateTime @default(now()) @db.Timestamptz(6)
+  isDemo       Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  item   InvItem @relation(fields: [itemId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, itemId, at])
+  @@index([tenantId, kind, at])
+  @@map("inv_moves")
+}
+
+/// A staff member asks for items from the store (with approval above a value).
+model InvRequest {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  number       String
+  requestedBy  String?   @map("requested_by") @db.Uuid
+  staffId      String?   @map("staff_id") @db.Uuid
+  departmentId String?   @map("department_id") @db.Uuid
+  storeId      String?   @map("store_id") @db.Uuid
+  purpose      String?
+  /// pending (approval) | approved | partly | issued | rejected | cancelled
+  status       String    @default("approved")
+  value        Float     @default(0)
+  answeredBy   String?   @map("answered_by") @db.Uuid
+  answeredAt   DateTime? @map("answered_at") @db.Timestamptz(6)
+  answer       String?
+  isDemo       Boolean   @default(false) @map("is_demo")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lines  InvRequestLine[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status])
+  @@map("inv_requests")
+}
+
+model InvRequestLine {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  itemId    String @map("item_id") @db.Uuid
+  qty       Float
+  issuedQty Float  @default(0) @map("issued_qty")
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  request InvRequest @relation(fields: [requestId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@map("inv_request_lines")
+}
+
+/// An order to a vendor (approval above a value), received in one or more goods receipts.
+model InvPurchaseOrder {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  number     String
+  /// Master "asset_vendor" (shared vendors list).
+  vendorId   String?   @map("vendor_id") @db.Uuid
+  storeId    String?   @map("store_id") @db.Uuid
+  orderDate  DateTime  @map("order_date") @db.Date
+  expectedOn DateTime? @map("expected_on") @db.Date
+  /// draft | pending (approval) | approved | partly | received | cancelled | rejected
+  status     String    @default("draft")
+  total      Float     @default(0)
+  note       String?
+  createdBy  String?   @map("created_by") @db.Uuid
+  approvedBy String?   @map("approved_by") @db.Uuid
+  approvedAt DateTime? @map("approved_at") @db.Timestamptz(6)
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lines  InvPoLine[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status])
+  @@map("inv_purchase_orders")
+}
+
+model InvPoLine {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  poId        String @map("po_id") @db.Uuid
+  itemId      String @map("item_id") @db.Uuid
+  qty         Float
+  rate        Float
+  gstPct      Float  @default(0) @map("gst_pct")
+  receivedQty Float  @default(0) @map("received_qty")
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  po     InvPurchaseOrder @relation(fields: [poId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@map("inv_po_lines")
+}
+
+/// Goods received into a store: against an order, a direct purchase, or a donation.
+model InvReceipt {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  number     String
+  /// po | direct | donation
+  source     String    @default("po")
+  poId       String?   @map("po_id") @db.Uuid
+  vendorId   String?   @map("vendor_id") @db.Uuid
+  storeId    String    @map("store_id") @db.Uuid
+  billNo     String?   @map("bill_no")
+  billDate   DateTime? @map("bill_date") @db.Date
+  billFileId String?   @map("bill_file_id") @db.Uuid
+  total      Float     @default(0)
+  note       String?
+  receivedBy String?   @map("received_by") @db.Uuid
+  at         DateTime  @default(now()) @db.Timestamptz(6)
+  isDemo     Boolean   @default(false) @map("is_demo")
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lines  InvReceiptLine[]
+
+  @@unique([id, tenantId])
+  @@map("inv_receipts")
+}
+
+model InvReceiptLine {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  receiptId String    @map("receipt_id") @db.Uuid
+  itemId    String    @map("item_id") @db.Uuid
+  qty       Float
+  rate      Float
+  gstPct    Float     @default(0) @map("gst_pct")
+  batchNo   String?   @map("batch_no")
+  expiryOn  DateTime? @map("expiry_on") @db.Date
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receipt InvReceipt @relation(fields: [receiptId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@map("inv_receipt_lines")
+}
+
+/// Stock written off (damaged, expired, lost) or a count difference, waiting for / given approval.
+model InvAdjustment {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  /// writeoff | count
+  kind       String
+  itemId     String    @map("item_id") @db.Uuid
+  storeId    String    @map("store_id") @db.Uuid
+  batchId    String?   @map("batch_id") @db.Uuid
+  /// − for a write-off; ± for a count difference.
+  qty        Float
+  /// damaged | expired | lost | count
+  reason     String
+  note       String?
+  countId    String?   @map("count_id") @db.Uuid
+  /// pending | approved | rejected
+  status     String    @default("pending")
+  askedBy    String?   @map("asked_by") @db.Uuid
+  answeredBy String?   @map("answered_by") @db.Uuid
+  answeredAt DateTime? @map("answered_at") @db.Timestamptz(6)
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("inv_adjustments")
+}
+
+/// A physical stock count of a store.
+model InvCount {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  name      String
+  storeId   String    @map("store_id") @db.Uuid
+  /// open | submitted | closed
+  status    String    @default("open")
+  createdBy String?   @map("created_by") @db.Uuid
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  closedAt  DateTime? @map("closed_at") @db.Timestamptz(6)
+  isDemo    Boolean   @default(false) @map("is_demo")
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lines  InvCountLine[]
+
+  @@unique([id, tenantId])
+  @@map("inv_counts")
+}
+
+model InvCountLine {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  countId   String @map("count_id") @db.Uuid
+  itemId    String @map("item_id") @db.Uuid
+  systemQty Float  @map("system_qty")
+  counted   Float?
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  count  InvCount @relation(fields: [countId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([countId, itemId])
+  @@map("inv_count_lines")
+}
+
+/// A sale to a student (uniform, diary…): paid at the counter or added to the fees.
+model InvSale {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  number         String
+  studentId      String   @map("student_id") @db.Uuid
+  academicYearId String?  @map("academic_year_id") @db.Uuid
+  storeId        String   @map("store_id") @db.Uuid
+  /// fees | counter
+  payAt          String   @default("fees") @map("pay_at")
+  /// cash / UPI… for a counter sale.
+  mode           String?
+  total          Float    @default(0)
+  /// active | cancelled
+  status         String   @default("active")
+  soldBy         String?  @map("sold_by") @db.Uuid
+  at             DateTime @default(now()) @db.Timestamptz(6)
+  isDemo         Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lines  InvSaleLine[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, studentId])
+  @@map("inv_sales")
+}
+
+model InvSaleLine {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  saleId   String @map("sale_id") @db.Uuid
+  itemId   String @map("item_id") @db.Uuid
+  qty      Float
+  rate     Float
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sale   InvSale @relation(fields: [saleId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@map("inv_sale_lines")
 }

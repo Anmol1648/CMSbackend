@@ -93,6 +93,12 @@ import './idcards/idcards.permissions';
 import './idcards/idcards.service';
 import './idcards/idcards.alerts';
 import './idcards/idcards.reports';
+import './inventory/inventory.permissions';
+import './inventory/inventory.service';
+import './inventory/purchase.service';
+import './inventory/sales.service';
+import './inventory/inventory.alerts';
+import './inventory/inventory.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

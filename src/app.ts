@@ -51,6 +51,7 @@ import { feedbackRoutes } from './modules/feedback/feedback.routes';
 import { uploadRoutes } from './modules/uploads/uploads.routes';
 import { assetRoutes } from './modules/assets/assets.routes';
 import { idCardRoutes } from './modules/idcards/idcards.routes';
+import { inventoryRoutes } from './modules/inventory/inventory.routes';
 import { admsRoutes, deviceRoutes, deviceWebhookRoutes } from './modules/attendance/devices.routes';
 
 export const app = express();
@@ -143,6 +144,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/shared', uploadRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/idcards', idCardRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());
