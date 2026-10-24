@@ -12,7 +12,7 @@ import { registerFeeSource } from '../fees/dues.service';
 import { raiseLater } from '../alerts/deliver';
 import { holdersOf, usersOf } from '../alerts/recipients';
 import { Part } from './setup.service';
-import { computeResults } from './results.service';
+import { computeResults, mapLimit } from './results.service';
 import { EXAMS2 } from './exams2.settings';
 
 /**
@@ -27,13 +27,14 @@ const DAY = 86_400_000;
 // ─── Supplementary ───────────────────────────────────────────────────────────
 
 /** Students of the session who failed in 1..N subjects of the final result (N from System Settings). */
-export const supplementaryCandidates = async (yearId: string) => {
+export const supplementaryCandidates = async (yearId: string, classId?: string) => {
     const { n } = await getSettings({ n: EXAMS2.supplementarySubjects });
     if (!n) return { limit: 0, sections: [], existing: [] };
-    const sections = await db.section.findMany({ where: { academicYearId: yearId, isActive: true }, orderBy: [{ schoolClass: { sortOrder: 'asc' } }, { sortOrder: 'asc' }], select: { id: true, name: true, classId: true, schoolClass: { select: { name: true, shortName: true } } } });
+    const sections = await db.section.findMany({ where: { academicYearId: yearId, isActive: true, ...(classId ? { classId } : {}) }, orderBy: [{ schoolClass: { sortOrder: 'asc' } }, { sortOrder: 'asc' }], select: { id: true, name: true, classId: true, schoolClass: { select: { name: true, shortName: true } } } });
+    const results = await mapLimit(sections, 3, (sec) => computeResults('final', yearId, sec.id).catch(() => null));
     const out = [];
-    for (const sec of sections) {
-        const r = await computeResults('final', yearId, sec.id).catch(() => null);
+    for (const [k, sec] of sections.entries()) {
+        const r = results[k];
         if (!r) continue;
         const list = r.students
             .map((s) => ({ s, failed: s.subjects.filter((x) => x.passed === false && !x.supplementary) }))

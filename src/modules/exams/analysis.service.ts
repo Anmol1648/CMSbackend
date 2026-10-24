@@ -2,7 +2,7 @@ import { db } from '../../core/db';
 import { forbidden, notFound } from '../../core/errors';
 import { getUserAccess } from '../rbac/access.service';
 import { fullName } from '../students/students.service';
-import { analyse, computeResults, resolveScope, ScopeKind, sectionLimits, seesInFull } from './results.service';
+import { analyse, computeResults, mapLimit, resolveScope, ScopeKind, sectionLimits, seesInFull } from './results.service';
 
 /**
  * Result analysis across sections: each section's pass % and average, subjects across the school,
@@ -32,12 +32,12 @@ export const schoolAnalysis = async (kind: ScopeKind, id: string, classId: strin
     const atRisk: { name: string; section: string; subjects: string[] }[] = [];
     const fell: { name: string; section: string; from: number; to: number }[] = [];
     const toppers: { name: string; section: string; percent: number }[] = [];
-    for (const sec of mine) {
-        const r = await computeResults(kind, id, sec.id).catch(() => null);
+    const computed = await mapLimit(mine, 3, async (sec) => ({ r: await computeResults(kind, id, sec.id).catch(() => null), before: prev && prev.classIds.includes(sec.classId) ? await computeResults('exam', prev.id, sec.id).catch(() => null) : null }));
+    for (const [k, sec] of mine.entries()) {
+        const { r, before } = computed[k];
         if (!r || !r.students.length) continue;
         const an = analyse(r);
         sectionRows.push({ sectionId: sec.id, section: r.section.label, students: an.students, withResult: an.withResult, passPercent: an.passPercent, average: an.average, top: an.toppers[0] ?? null });
-        const before = prev && prev.classIds.includes(sec.classId) ? await computeResults('exam', prev.id, sec.id).catch(() => null) : null;
         for (const st of r.students) {
             if (st.grade) grades[st.grade] = (grades[st.grade] ?? 0) + 1;
             if (st.failedSubjects.length >= 2) atRisk.push({ name: st.student.name, section: r.section.label, subjects: st.failedSubjects });

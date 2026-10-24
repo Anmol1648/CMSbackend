@@ -25,6 +25,19 @@ import { alertResults } from './exams.alerts';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 export type ScopeKind = 'exam' | 'term' | 'final';
+
+/** Runs `fn` over `items`, a few at a time (each section's result is many queries; the pool is small). */
+export const mapLimit = async <T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> => {
+    const out: R[] = new Array(items.length);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (next < items.length) {
+            const i = next++;
+            out[i] = await fn(items[i]);
+        }
+    }));
+    return out;
+};
 export const scopeQuery = z.object({ scope: z.enum(['exam', 'term', 'final']), id: z.uuid(), section: z.uuid().optional(), student: z.uuid().optional() });
 
 /** The exams of a scope (exam, term, session) and what it is called. */

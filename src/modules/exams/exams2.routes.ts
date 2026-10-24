@@ -114,7 +114,7 @@ exam2Routes.post('/remarks/ai', authenticated, needAny(ENTERERS), asyncHandler(a
 }));
 
 // After the result: supplementary, re-checks.
-exam2Routes.get('/supplementary', can('exam.setup'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await after.supplementaryCandidates(parse(z.object({ year: z.uuid() }), req.query).year), 'Candidates')));
+exam2Routes.get('/supplementary', can('exam.setup'), asyncHandler(async (req: Request, res: Response) => { const q = parse(z.object({ year: z.uuid(), class: z.uuid().optional() }), req.query); successResponse(res, await after.supplementaryCandidates(q.year, q.class), 'Candidates'); }));
 exam2Routes.post('/supplementary', can('exam.setup'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await after.createSupplementary(parse(z.object({ year: z.uuid() }), req.query).year, parse(after.supplementarySchema, req.body), uid(req)), 'Created', 201)));
 exam2Routes.get('/rechecks/options', can('exam.mine'), asyncHandler(async (req: Request, res: Response) => {
     const q = parse(z.object({ exam: z.uuid(), student: z.uuid() }), req.query);
