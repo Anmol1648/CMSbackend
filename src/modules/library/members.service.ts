@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { db } from '../../core/db';
 import { notFound } from '../../core/errors';
 import { getSettings } from '../../core/settings';
@@ -154,3 +155,33 @@ export const myMembers = async (userId: string): Promise<{ kind: MemberKind; id:
     ]);
     return [...(staff ? [{ kind: 'staff' as const, id: staff.id, name: fullName(staff) }] : []), ...students.map((s) => ({ kind: 'student' as const, id: s.id, name: fullName(s) }))];
 };
+
+// ─── Library cards ───────────────────────────────────────────────────────────
+
+export const cardsQuery = z.object({ section: z.uuid().optional(), staff: z.enum(['1']).optional(), student: z.uuid().optional(), staffId: z.uuid().optional() });
+
+/** Members for printing library cards: a section's students, all working staff, or one person. */
+export const cards = async (q: z.infer<typeof cardsQuery>) => {
+    const year = await currentYear();
+    const school = await db.schoolProfile.findFirst({ select: { shortName: true, legalName: true, logoFileId: true, phone: true } });
+    const out: { kind: MemberKind; id: string; name: string; code: string; detail: string; type: string; books: number; days: number; hasPhoto: boolean }[] = [];
+    if (q.section || q.student) {
+        const enrol = year ? await db.enrolment.findMany({ where: { academicYearId: year.id, ...(q.section ? { sectionId: q.section } : { studentId: q.student }), student: { status: 'active' } }, orderBy: [{ rollNumber: 'asc' }], select: { rollNumber: true, section: { select: { name: true, schoolClass: { select: { name: true, shortName: true } } } }, student: { select: { id: true, firstName: true, middleName: true, lastName: true, admissionNo: true, photoFileId: true } } } }) : [];
+        for (const e of enrol) {
+            const l = await limitsFor('student', e.section.schoolClass.shortName);
+            out.push({ kind: 'student', id: e.student.id, name: fullName(e.student), code: e.student.admissionNo, detail: `${sectionLabel(e.section)}${e.rollNumber ? ` · roll ${e.rollNumber}` : ''}`, type: l.type, books: l.books, days: l.days, hasPhoto: !!e.student.photoFileId });
+        }
+    }
+    if (q.staff || q.staffId) {
+        const staff = await db.staff.findMany({ where: { status: 'working', ...(q.staffId ? { id: q.staffId } : {}) }, orderBy: { firstName: 'asc' }, select: { id: true, firstName: true, middleName: true, lastName: true, employeeCode: true, photoFileId: true, designationId: true } });
+        const des = new Map((await db.masterValue.findMany({ where: { id: { in: staff.map((s) => s.designationId!).filter(Boolean) } }, select: { id: true, name: true } })).map((d) => [d.id, d.name]));
+        const l = await limitsFor('staff', null);
+        for (const s of staff) out.push({ kind: 'staff', id: s.id, name: fullName(s), code: s.employeeCode, detail: des.get(s.designationId ?? '') ?? 'Staff', type: l.type, books: l.books, days: l.days, hasPhoto: !!s.photoFileId });
+    }
+    return { school: { name: school?.shortName ?? school?.legalName ?? '', fullName: school?.legalName ?? '', phone: school?.phone ?? null, hasLogo: !!school?.logoFileId }, validTill: year ? isoOf(year.endDate) : null, session: year?.name ?? null, cards: out };
+};
+
+/** The photo file of a member (for the card), or null. */
+export const memberPhoto = async (kind: MemberKind, id: string) =>
+    kind === 'staff' ? ((await db.staff.findFirst({ where: { id }, select: { photoFileId: true } }))?.photoFileId ?? null) : ((await db.student.findFirst({ where: { id }, select: { photoFileId: true } }))?.photoFileId ?? null);
+export const schoolLogo = async () => (await db.schoolProfile.findFirst({ select: { logoFileId: true } }))?.logoFileId ?? null;

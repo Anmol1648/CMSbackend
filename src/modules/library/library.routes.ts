@@ -9,7 +9,7 @@ import { getUserAccess } from '../rbac/access.service';
 import * as books from './books.service';
 import * as desk from './circulation.service';
 import * as lib from './library.service';
-import { memberCard, myMembers, searchMembers } from './members.service';
+import { cards, cardsQuery, memberCard, memberPhoto, myMembers, schoolLogo, searchMembers } from './members.service';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -69,6 +69,21 @@ libraryRoutes.get('/members', authenticated, needAny(['library.issue', 'library.
 libraryRoutes.get('/members/:kind/:id', authenticated, needAny(['library.issue', 'library.view', 'library.fines']), asyncHandler(async (req: Request, res: Response) => {
     const m = parse(member, req.params);
     successResponse(res, await memberCard(m.kind, m.id), 'Member');
+}));
+// Library cards (printed with a barcode of the admission no / employee code).
+libraryRoutes.get('/cards', authenticated, needAny(['library.manage', 'library.issue']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await cards(parse(cardsQuery, req.query)), 'Cards')));
+libraryRoutes.get('/cards/logo', authenticated, needAny(['library.manage', 'library.issue']), asyncHandler(async (_req: Request, res: Response) => {
+    const id = await schoolLogo();
+    if (!id) throw badRequest('No logo');
+    const { file, data } = await readFile(id);
+    sendFile(res, file.originalName, file.mimeType, data, { inline: true, cacheSeconds: 3600 });
+}));
+libraryRoutes.get('/members/:kind/:id/photo', authenticated, needAny(['library.manage', 'library.issue']), asyncHandler(async (req: Request, res: Response) => {
+    const m = parse(member, req.params);
+    const id = await memberPhoto(m.kind, m.id);
+    if (!id) throw badRequest('No photo');
+    const { file, data } = await readFile(id);
+    sendFile(res, file.originalName, file.mimeType, data, { inline: true, cacheSeconds: 3600 });
 }));
 libraryRoutes.get('/copies/find', authenticated, staffSide, asyncHandler(async (req: Request, res: Response) => {
     const c = await books.findCopy(parse(z.object({ accession: z.string().min(1).max(30) }), req.query).accession);
