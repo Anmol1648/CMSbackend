@@ -132,3 +132,21 @@ exam2Routes.get('/analysis', authenticated, needAny(['exam.analysis', 'exam.view
     successResponse(res, await analysis.schoolAnalysis(q.scope, q.id, q.class, uid(req)), 'Analysis');
 }));
 exam2Routes.get('/progress/:studentId', can('exam.mine'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await analysis.myProgress(req.params.studentId, uid(req)), 'Progress')));
+
+// The principal's signature on report cards and admit cards (School Profile).
+exam2Routes.get('/signature', authenticated, needAny(['exam.setup', 'exam.admit']), asyncHandler(async (_req: Request, res: Response) => {
+    const p = await db.schoolProfile.findFirst({ select: { signatureFileId: true } });
+    if (!p?.signatureFileId) throw badRequest('No signature yet');
+    const { file, data } = await readFile(p.signatureFileId);
+    sendFile(res, file.originalName, file.mimeType, data, { inline: true });
+}));
+exam2Routes.post('/signature', can('exam.setup'), upload.single('image'), asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('Choose the signature image (PNG or JPG)');
+    const f = await saveUpload({ data: req.file.buffer, originalName: req.file.originalname, purpose: 'document', allowed: ['png', 'jpeg', 'webp'] });
+    await db.schoolProfile.updateMany({ data: { signatureFileId: f.id } });
+    successResponse(res, { fileId: f.id }, 'Saved', 201);
+}));
+exam2Routes.delete('/signature', can('exam.setup'), asyncHandler(async (_req: Request, res: Response) => {
+    await db.schoolProfile.updateMany({ data: { signatureFileId: null } });
+    successResponse(res, { fileId: null }, 'Removed');
+}));

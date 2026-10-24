@@ -32,11 +32,12 @@ import { createDemoUploads } from '../modules/uploads/demo-uploads';
 import { createDemoAssets } from '../modules/assets/demo-assets';
 import { createDemoIdCards } from '../modules/idcards/demo-idcards';
 import { createDemoInventory } from '../modules/inventory/demo-inventory';
+import { createDemoExams2 } from '../modules/exams/demo-exams2';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' }, ptm: { type: 'boolean' }, visitors: { type: 'boolean' }, complaints: { type: 'boolean' }, discipline: { type: 'boolean' }, feedback: { type: 'boolean' }, uploads: { type: 'boolean' }, assets: { type: 'boolean' }, idcards: { type: 'boolean' }, inventory: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' }, ptm: { type: 'boolean' }, visitors: { type: 'boolean' }, complaints: { type: 'boolean' }, discipline: { type: 'boolean' }, feedback: { type: 'boolean' }, uploads: { type: 'boolean' }, assets: { type: 'boolean' }, idcards: { type: 'boolean' }, inventory: { type: 'boolean' }, exams2: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -97,6 +98,12 @@ const main = async () => {
         // Only the syllabus and question bank.
         const r = await runAsTenant(tenant.id, createDemoQuestions);
         out(`${tenant.name}: ${r.chapters} chapters, ${r.questions} questions.`);
+        return;
+    }
+    if (values.exams2) {
+        // Only the Exams v2 demo, for a school that already has its demo exams, rooms and question bank.
+        const r = await runAsTenant(tenant.id, createDemoExams2);
+        out(`${tenant.name}: ${r.exam ?? 'nothing new'}; ${r.seats} seats planned.`);
         return;
     }
     if (values.inventory) {
