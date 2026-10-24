@@ -22,7 +22,7 @@ const write = (level: Level, message: string, fields?: Fields) => {
     const base = { requestId: ctx?.requestId, userId: ctx?.user?.id, ...fields };
 
     if (json) {
-        const out = Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v instanceof Error ? plain(v) : v]));
+        const out = Object.fromEntries(Object.entries(base).map(([k, v]) => [k, (v as unknown) instanceof Error ? plain(v as unknown as Error) : v]));
         const line = JSON.stringify({ time: new Date().toISOString(), level, message, ...out });
         (level === 'error' ? console.error : console.log)(line);
         return;
