@@ -224,6 +224,13 @@ model Tenant {
   studentHealth  StudentHealth[]
   examRechecks   ExamRecheck[]
 
+  salaryStructures   SalaryStructure[]
+  staffSalaries      StaffSalary[]
+  payrollRuns        PayrollRun[]
+  payslips           Payslip[]
+  payrollAdjustments PayrollAdjustment[]
+  staffLoans         StaffLoan[]
+
   @@map("tenants")
 }
 
@@ -5115,4 +5122,155 @@ model ExamRecheck {
 
   @@index([tenantId, status])
   @@map("exam_rechecks")
+}
+
+/// A salary template (TGT, PRT, non-teaching…): pay heads with an amount or a % of basic.
+model SalaryStructure {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  /// [{ "headId": "…", "mode": "fixed" | "pct_basic" | "pct_basic_da", "value": 40 }]
+  lines     Json     @default("[]")
+  isActive  Boolean  @default(true) @map("is_active")
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("salary_structures")
+}
+
+/// A staff member's salary from a date (the latest one on or before a month is used); changes keep history.
+model StaffSalary {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  staffId       String   @map("staff_id") @db.Uuid
+  structureId   String?  @map("structure_id") @db.Uuid
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  /// Monthly basic pay (₹).
+  basic         Float
+  /// The heads with their amount / % (copied from the structure, may be changed).
+  lines         Json     @default("[]")
+  /// Income tax deducted each month (₹), as worked out by the accountant.
+  tdsMonthly    Float    @default(0) @map("tds_monthly")
+  pf            Boolean  @default(true)
+  esi           Boolean  @default(true)
+  esiNumber     String?  @map("esi_number")
+  /// increment | revision | new
+  reason        String   @default("new")
+  note          String?
+  createdBy     String?  @map("created_by") @db.Uuid
+  isDemo        Boolean  @default(false) @map("is_demo")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, staffId, effectiveFrom])
+  @@map("staff_salaries")
+}
+
+/// A month's payroll: prepared from attendance and leave, approved, then finalised (locked).
+model PayrollRun {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  /// YYYY-MM
+  month        String
+  /// prepared | approved | finalised
+  status       String    @default("prepared")
+  /// Days the month's pay is divided by.
+  totalDays    Float     @map("total_days")
+  preparedBy   String?   @map("prepared_by") @db.Uuid
+  preparedAt   DateTime  @default(now()) @map("prepared_at") @db.Timestamptz(6)
+  approvedBy   String?   @map("approved_by") @db.Uuid
+  approvedAt   DateTime? @map("approved_at") @db.Timestamptz(6)
+  finalisedAt  DateTime? @map("finalised_at") @db.Timestamptz(6)
+  reopenReason String?   @map("reopen_reason")
+  isDemo       Boolean   @default(false) @map("is_demo")
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  slips  Payslip[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, month])
+  @@map("payroll_runs")
+}
+
+/// A staff member's pay for a month: days, earnings, deductions, employer contributions, net.
+model Payslip {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  runId      String   @map("run_id") @db.Uuid
+  staffId    String   @map("staff_id") @db.Uuid
+  totalDays  Float    @map("total_days")
+  paidDays   Float    @map("paid_days")
+  /// { present, paidLeave, lwp, absent, lates, latePenalty, notJoined }
+  days       Json     @default("{}")
+  /// [{ "code": "BASIC", "name": "Basic", "full": 30000, "amount": 29000 }]
+  earnings   Json     @default("[]")
+  deductions Json     @default("[]")
+  /// { "pf": 1800, "esi": 0 }
+  employer   Json     @default("{}")
+  gross      Float
+  deducted   Float
+  net        Float
+  /// Bank details when it was made: { bank, accountNo, ifsc }
+  bank       Json     @default("{}")
+  warnings   String[] @default([])
+  isDemo     Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  run    PayrollRun @relation(fields: [runId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([runId, staffId])
+  @@index([tenantId, staffId])
+  @@map("payslips")
+}
+
+/// A one-time addition or deduction for a month (arrears, bonus, fine…), picked up by that month's payroll.
+model PayrollAdjustment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  staffId   String   @map("staff_id") @db.Uuid
+  /// YYYY-MM
+  month     String
+  /// earning | deduction
+  kind      String
+  label     String
+  amount    Float
+  /// arrears (worked out from an increment) | manual
+  source    String   @default("manual")
+  createdBy String?  @map("created_by") @db.Uuid
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, month])
+  @@map("payroll_adjustments")
+}
+
+/// A loan or salary advance to a staff member, recovered by monthly instalments from pay.
+model StaffLoan {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  staffId    String   @map("staff_id") @db.Uuid
+  /// loan | advance
+  kind       String   @default("loan")
+  amount     Float
+  emi        Float
+  /// YYYY-MM of the first instalment.
+  startMonth String   @map("start_month")
+  balance    Float
+  /// active | closed
+  status     String   @default("active")
+  note       String?
+  createdBy  String?  @map("created_by") @db.Uuid
+  isDemo     Boolean  @default(false) @map("is_demo")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, staffId])
+  @@map("staff_loans")
 }

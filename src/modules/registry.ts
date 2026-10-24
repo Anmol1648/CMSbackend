@@ -103,6 +103,11 @@ import './inventory/purchase.service';
 import './inventory/sales.service';
 import './inventory/inventory.alerts';
 import './inventory/inventory.reports';
+import './payroll/payroll.permissions';
+import './payroll/payroll.service';
+import './payroll/payroll.alerts';
+import './payroll/payroll.documents';
+import './payroll/payroll.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.
