@@ -197,6 +197,10 @@ model Tenant {
   assetVerifications AssetVerification[]
   assetFound         AssetFound[]
 
+  idCardDesigns   IdCardDesign[]
+  idCards         IdCard[]
+  idPhotoRequests IdPhotoRequest[]
+
   @@map("tenants")
 }
 
@@ -4517,4 +4521,95 @@ model AssetFound {
 
   @@unique([verificationId, assetId])
   @@map("asset_verification_found")
+}
+
+/// An ID card design: who it is for, the fields on the front and back, colours and the code printed.
+model IdCardDesign {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  name            String
+  /// student | staff
+  kind            String
+  /// portrait | landscape
+  orientation     String   @default("portrait")
+  /// Header colour (#RRGGBB) and the text on it.
+  color           String   @default("#1A365D")
+  textColor       String   @default("#FFFFFF") @map("text_color")
+  /// Field keys on the front, in order (photo, name, class, admissionNo…).
+  fields          String[] @default([])
+  /// qr | barcode | none (of the card number)
+  code            String   @default("qr")
+  /// A back side, its fields and free text ("If found, please return…").
+  back            Boolean  @default(true)
+  backFields      String[] @default([]) @map("back_fields")
+  backText        String?  @map("back_text")
+  signatureFileId String?  @map("signature_file_id") @db.Uuid
+  signatureLabel  String?  @map("signature_label")
+  isDefault       Boolean  @default(false) @map("is_default")
+  isActive        Boolean  @default(true) @map("is_active")
+  isDemo          Boolean  @default(false) @map("is_demo")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       String?  @map("created_by") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cards  IdCard[]
+
+  @@unique([id, tenantId])
+  @@map("id_card_designs")
+}
+
+/// A card given to a student or staff member; a duplicate replaces the previous card.
+model IdCard {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  cardNo         String    @map("card_no")
+  designId       String?   @map("design_id") @db.Uuid
+  /// student | staff
+  holderType     String    @map("holder_type")
+  studentId      String?   @map("student_id") @db.Uuid
+  staffId        String?   @map("staff_id") @db.Uuid
+  academicYearId String?   @map("academic_year_id") @db.Uuid
+  validUntil     DateTime  @map("valid_until") @db.Date
+  /// active | replaced | cancelled
+  status         String    @default("active")
+  /// new | lost | damaged | changed
+  reason         String    @default("new")
+  /// Duplicate fee (added to the student's fees).
+  fee            Int?
+  printCount     Int       @default(0) @map("print_count")
+  lastPrintedAt  DateTime? @map("last_printed_at") @db.Timestamptz(6)
+  issuedBy       String?   @map("issued_by") @db.Uuid
+  replacedAt     DateTime? @map("replaced_at") @db.Timestamptz(6)
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  design IdCardDesign? @relation(fields: [designId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([tenantId, cardNo])
+  @@index([tenantId, studentId])
+  @@index([tenantId, staffId])
+  @@map("id_cards")
+}
+
+/// A photo sent by a parent (or student) for the ID card, approved by the office.
+model IdPhotoRequest {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  studentId  String    @map("student_id") @db.Uuid
+  fileId     String    @map("file_id") @db.Uuid
+  uploadedBy String?   @map("uploaded_by") @db.Uuid
+  /// pending | approved | rejected
+  status     String    @default("pending")
+  note       String?
+  answeredBy String?   @map("answered_by") @db.Uuid
+  answeredAt DateTime? @map("answered_at") @db.Timestamptz(6)
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("id_photo_requests")
 }
