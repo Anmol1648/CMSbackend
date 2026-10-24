@@ -666,9 +666,9 @@ const LEADERSHIP = ['approvals', 'attendance_today', 'staff_today', 'fee_today',
 defineDefaultLayout('school-admin', LEADERSHIP);
 defineDefaultLayout('super-admin', LEADERSHIP);
 defineDefaultLayout('principal', ['approvals', 'attendance_today', 'staff_today', 'exam_last_result', 'exam_entry_progress', 'fee_dues', 'school_strength', 'unmarked_sections', 'staff_on_leave', 'fee_trend', 'low_attendance', 'enquiries', 'admission_funnel', 'notices_latest', 'upcoming_events', 'my_checkin']);
-defineDefaultLayout('office-staff', ['approvals', 'my_checkin', 'attendance_today', 'exam_entry_progress', 'staff_today', 'unmarked_sections', 'staff_on_leave', 'fee_today', 'enquiries', 'notices_latest', 'upcoming_events', 'my_leave']);
+defineDefaultLayout('office-staff', ['approvals', 'visitors_now', 'my_checkin', 'attendance_today', 'exam_entry_progress', 'staff_today', 'unmarked_sections', 'staff_on_leave', 'fee_today', 'enquiries', 'notices_latest', 'upcoming_events', 'my_leave']);
 defineDefaultLayout('accountant', ['fee_today', 'fee_dues', 'fee_by_mode', 'my_checkin', 'fee_trend', 'fee_by_class', 'approvals', 'notices_latest', 'my_leave', 'upcoming_events']);
-defineDefaultLayout('teacher', ['my_checkin', 'my_class_attendance', 'my_day', 'ptm_my_day', 'homework_to_check', 'tests_to_mark', 'approvals', 'my_leave', 'notices_latest', 'upcoming_events']);
-defineDefaultLayout('class-teacher', ['my_checkin', 'my_class_attendance', 'my_day', 'ptm_my_day', 'homework_to_check', 'tests_to_mark', 'approvals', 'my_leave', 'low_attendance', 'notices_latest', 'upcoming_events']);
+defineDefaultLayout('teacher', ['my_visitors', 'my_checkin', 'my_class_attendance', 'my_day', 'ptm_my_day', 'homework_to_check', 'tests_to_mark', 'approvals', 'my_leave', 'notices_latest', 'upcoming_events']);
+defineDefaultLayout('class-teacher', ['my_visitors', 'my_checkin', 'my_class_attendance', 'my_day', 'ptm_my_day', 'homework_to_check', 'tests_to_mark', 'approvals', 'my_leave', 'low_attendance', 'notices_latest', 'upcoming_events']);
 defineDefaultLayout('student', ['homework_due', 'my_tests', 'my_library_books', 'child_attendance', 'child_fees', 'child_results', 'my_day', 'notices_latest', 'upcoming_events']);
 defineDefaultLayout('guardian', ['ptm_next', 'homework_due', 'my_tests', 'my_library_books', 'child_attendance', 'child_fees', 'child_results', 'my_day', 'notices_latest', 'upcoming_events']);

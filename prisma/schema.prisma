@@ -168,6 +168,11 @@ model Tenant {
   ptmTeachers PtmTeacher[]
   ptmMeetings PtmMeeting[]
 
+  visitors       Visitor[]
+  visits         Visit[]
+  pickupPeople   PickupPerson[]
+  studentPickups StudentPickup[]
+
   @@map("tenants")
 }
 
@@ -3834,4 +3839,121 @@ model PtmMeeting {
   @@index([tenantId, studentId])
   @@index([tenantId, ptmId, staffId])
   @@map("ptm_meetings")
+}
+
+/// A person who has visited the school (found again by their mobile number).
+model Visitor {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  name            String
+  mobile          String?
+  photoFileId     String?   @map("photo_file_id") @db.Uuid
+  /// Master "visitor_id_type" (Aadhaar, Driving licence…), and its number.
+  idTypeId        String?   @map("id_type_id") @db.Uuid
+  idNumber        String?   @map("id_number")
+  address         String?
+  blacklisted     Boolean   @default(false)
+  blacklistReason String?   @map("blacklist_reason")
+  lastVisitAt     DateTime? @map("last_visit_at") @db.Timestamptz(6)
+  isDemo          Boolean   @default(false) @map("is_demo")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  visits Visit[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, mobile])
+  @@map("visitors")
+}
+
+/// One visit: whom they came to meet, the pass, in and out (or expected, waiting for approval, turned away).
+model Visit {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  visitorId    String    @map("visitor_id") @db.Uuid
+  passNo       String?   @map("pass_no")
+  day          DateTime  @db.Date
+  /// Master "visit_purpose".
+  purposeId    String?   @map("purpose_id") @db.Uuid
+  /// staff | student (a student's parent / relative) | office
+  hostKind     String    @default("office") @map("host_kind")
+  staffId      String?   @map("staff_id") @db.Uuid
+  studentId    String?   @map("student_id") @db.Uuid
+  people       Int       @default(1)
+  vehicleNo    String?   @map("vehicle_no")
+  note         String?
+  photoFileId  String?   @map("photo_file_id") @db.Uuid
+  /// expected | waiting (host to approve) | in | out | denied | no_show
+  status       String    @default("in")
+  inAt         DateTime? @map("in_at") @db.Timestamptz(6)
+  outAt        DateTime? @map("out_at") @db.Timestamptz(6)
+  answeredBy   String?   @map("answered_by") @db.Uuid
+  answeredAt   DateTime? @map("answered_at") @db.Timestamptz(6)
+  answerNote   String?   @map("answer_note")
+  createdBy    String?   @map("created_by") @db.Uuid
+  checkedOutBy String?   @map("checked_out_by") @db.Uuid
+  isDemo       Boolean   @default(false) @map("is_demo")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  visitor Visitor @relation(fields: [visitorId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@index([tenantId, day, status])
+  @@index([tenantId, staffId])
+  @@index([tenantId, passNo])
+  @@map("visits")
+}
+
+/// Someone besides the parents (from the family record) who may collect a student.
+model PickupPerson {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  studentId   String   @map("student_id") @db.Uuid
+  name        String
+  /// Master "pickup_relation" (Uncle, Grandfather, Driver…).
+  relationId  String?  @map("relation_id") @db.Uuid
+  mobile      String?
+  photoFileId String?  @map("photo_file_id") @db.Uuid
+  note        String?
+  isActive    Boolean  @default(true) @map("is_active")
+  addedBy     String?  @map("added_by") @db.Uuid
+  isDemo      Boolean  @default(false) @map("is_demo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, studentId])
+  @@map("pickup_people")
+}
+
+/// A student collected early (during school hours): by whom, why, and whether they were on the list.
+model StudentPickup {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  /// guardian (family record) | person (pickup list) | other (not on the list)
+  byKind      String    @map("by_kind")
+  guardianId  String?   @map("guardian_id") @db.Uuid
+  personId    String?   @map("person_id") @db.Uuid
+  name        String
+  relation    String?
+  mobile      String?
+  photoFileId String?   @map("photo_file_id") @db.Uuid
+  reason      String?
+  /// done | waiting (office to approve: not on the list) | refused
+  status      String    @default("done")
+  at          DateTime  @default(now()) @db.Timestamptz(6)
+  approvedBy  String?   @map("approved_by") @db.Uuid
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(6)
+  createdBy   String?   @map("created_by") @db.Uuid
+  isDemo      Boolean   @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, at])
+  @@index([tenantId, studentId])
+  @@map("student_pickups")
 }
