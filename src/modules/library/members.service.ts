@@ -128,14 +128,19 @@ export const memberCard = async (kind: MemberKind, id: string) => {
     };
 };
 
-/** Finds members for the counter: by admission no / employee code (exact, what the card's barcode has), or by name. */
+/**
+ * Finds members for the counter: by a school ID card's number (its QR / barcode, or a link ending in
+ * it), by admission no / employee code (exact, what the library card's barcode has), or by name.
+ */
 export const searchMembers = async (q: string) => {
     const text = q.trim();
     if (text.length < 2) return [];
     const year = await currentYear();
+    const last = text.split(/[/=?#]/).filter(Boolean).pop() ?? text;
+    const card = await db.idCard.findFirst({ where: { cardNo: { equals: last, mode: 'insensitive' }, status: { not: 'cancelled' } }, select: { studentId: true, staffId: true } });
     const [students, staff] = await Promise.all([
-        db.student.findMany({ where: { status: 'active', OR: [{ admissionNo: { equals: text, mode: 'insensitive' } }, { admissionNo: { equals: text.replace(/^(\d{4})(\d+)$/, '$1/$2') } }, { firstName: { startsWith: text, mode: 'insensitive' } }, { lastName: { startsWith: text, mode: 'insensitive' } }, { user: { username: { equals: text, mode: 'insensitive' } } }] }, take: 15, select: { id: true, firstName: true, middleName: true, lastName: true, admissionNo: true } }),
-        db.staff.findMany({ where: { status: 'working', OR: [{ employeeCode: { equals: text, mode: 'insensitive' } }, { firstName: { startsWith: text, mode: 'insensitive' } }, { lastName: { startsWith: text, mode: 'insensitive' } }] }, take: 10, select: { id: true, firstName: true, middleName: true, lastName: true, employeeCode: true } }),
+        db.student.findMany({ where: card ? { id: card.studentId ?? '00000000-0000-0000-0000-000000000000' } : { status: 'active', OR: [{ admissionNo: { equals: text, mode: 'insensitive' } }, { admissionNo: { equals: text.replace(/^(\d{4})(\d+)$/, '$1/$2') } }, { firstName: { startsWith: text, mode: 'insensitive' } }, { lastName: { startsWith: text, mode: 'insensitive' } }, { user: { username: { equals: text, mode: 'insensitive' } } }] }, take: 15, select: { id: true, firstName: true, middleName: true, lastName: true, admissionNo: true } }),
+        db.staff.findMany({ where: card ? { id: card.staffId ?? '00000000-0000-0000-0000-000000000000' } : { status: 'working', OR: [{ employeeCode: { equals: text, mode: 'insensitive' } }, { firstName: { startsWith: text, mode: 'insensitive' } }, { lastName: { startsWith: text, mode: 'insensitive' } }] }, take: 10, select: { id: true, firstName: true, middleName: true, lastName: true, employeeCode: true } }),
     ]);
     const enrol = year ? await db.enrolment.findMany({ where: { academicYearId: year.id, studentId: { in: students.map((s) => s.id) } }, select: { studentId: true, section: { select: { name: true, schoolClass: { select: { name: true, shortName: true } } } } } }) : [];
     return [

@@ -53,6 +53,7 @@ hostelRoutes.post('/leave/:id/answer', can('hostel.warden'), asyncHandler(async 
     successResponse(res, await h.answerLeave(req.params.id, b.approve, b.answer || null, uid(req)), b.approve ? 'Approved' : 'Not approved');
 }));
 hostelRoutes.post('/leave/:id/cancel', authenticated, needAny(['warden', 'mine']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await h.cancelLeave(req.params.id, uid(req)), 'Cancelled')));
+hostelRoutes.get('/leave/:id/pass', authenticated, needAny(['warden', 'view', 'mine']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await h.passSlip(req.params.id, uid(req)), 'Pass')));
 hostelRoutes.post('/gate/scan', can('hostel.gate'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await h.scanPass(parse(z.object({ code: z.string().trim().min(4).max(20) }), req.body).code, uid(req)), 'Done')));
 hostelRoutes.get('/gate/out', can('hostel.gate'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await h.listLeaves({ show: 'out' }, uid(req)), 'Out')));
 

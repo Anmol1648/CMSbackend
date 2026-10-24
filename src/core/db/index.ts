@@ -125,6 +125,8 @@ export const scopeArgs = (model: string, operation: string, input: Args): Args =
  * The database address with patient connection limits (unless the URL sets its own): Prisma's
  * defaults (5 s to connect, 10 s to wait for a free connection) are too short for a remote
  * database that is far away or waking up from sleep, and fail requests that would have worked.
+ * The pool is capped (DB_POOL_SIZE, default 5): Prisma's default grows with the CPUs, and a hosted
+ * database allows few connections (Supabase's session pooler: 15 for everything together).
  */
 const withTimeouts = (url: string | undefined) => {
     if (!url) return url;
@@ -132,6 +134,7 @@ const withTimeouts = (url: string | undefined) => {
         const u = new URL(url);
         if (!u.searchParams.has('connect_timeout')) u.searchParams.set('connect_timeout', '20');
         if (!u.searchParams.has('pool_timeout')) u.searchParams.set('pool_timeout', '20');
+        if (!u.searchParams.has('connection_limit')) u.searchParams.set('connection_limit', String(Math.max(1, Number(process.env.DB_POOL_SIZE) || 5)));
         return u.toString();
     } catch {
         return url;

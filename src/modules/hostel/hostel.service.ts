@@ -292,6 +292,24 @@ export const cancelLeave = async (id: string, userId: string) => {
     return { id };
 };
 
+/** What a printed leave pass shows (the warden, or the boarder's own family). */
+export const passSlip = async (id: string, userId: string) => {
+    const l = await db.hostelLeave.findFirst({ where: { id } });
+    if (!l) throw notFound('Leave not found');
+    if (!(await mineIds(userId)).includes(l.studentId)) await assertHostel(userId, l.hostelId);
+    if (!['approved', 'out'].includes(l.status)) throw badRequest('Only an approved leave has a pass');
+    const year = await currentYear();
+    const [[row], a, hostel, school, enrol] = await Promise.all([
+        leaveRows({ id }),
+        db.hostelAllotment.findFirst({ where: { studentId: l.studentId, status: 'active' } }),
+        db.hostel.findFirst({ where: { id: l.hostelId } }),
+        db.schoolProfile.findFirst({ select: { legalName: true, addressLine1: true, city: true, phone: true } }),
+        year ? db.enrolment.findFirst({ where: { academicYearId: year.id, studentId: l.studentId }, select: { section: { select: { name: true, schoolClass: { select: { name: true, shortName: true } } } } } }) : null,
+    ]);
+    const [room, warden] = await Promise.all([a ? db.hostelRoom.findFirst({ where: { id: a.roomId }, select: { number: true } }) : null, hostel?.wardenId ? db.staff.findFirst({ where: { id: hostel.wardenId }, select: { firstName: true, middleName: true, lastName: true } }) : null]);
+    return { ...row, passCode: l.passCode, section: enrol ? sectionLabel(enrol.section) : '', room: room?.number ?? '', bed: a?.bed ?? null, warden: warden ? staffName(warden) : null, hostelPhone: hostel?.phone ?? null, school };
+};
+
 /** The gate: an approved pass goes out, an "out" one comes back (late is flagged). */
 export const scanPass = async (passCode: string, userId: string) => {
     const l = await db.hostelLeave.findFirst({ where: { passCode: passCode.trim().toUpperCase() } });
