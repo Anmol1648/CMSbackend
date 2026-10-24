@@ -231,6 +231,12 @@ model Tenant {
   payrollAdjustments PayrollAdjustment[]
   staffLoans         StaffLoan[]
 
+  accGroups   AccGroup[]
+  accLedgers  AccLedger[]
+  accYears    AccYear[]
+  accVouchers AccVoucher[]
+  accEntries  AccEntry[]
+
   @@map("tenants")
 }
 
@@ -5273,4 +5279,127 @@ model StaffLoan {
 
   @@index([tenantId, staffId])
   @@map("staff_loans")
+}
+
+/// A group of the chart of accounts (Current assets, Fee income, Salaries…).
+model AccGroup {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  /// asset | liability | income | expense
+  nature    String
+  parentId  String?  @map("parent_id") @db.Uuid
+  sortOrder Int      @default(0) @map("sort_order")
+  /// Set for the groups the software uses (fee_income, bank, creditors…).
+  systemKey String?  @map("system_key")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, systemKey])
+  @@map("acc_groups")
+}
+
+/// A ledger (account): cash, a bank account, a fee head's income, an expense, a vendor…
+model AccLedger {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  name      String
+  code      String?
+  /// cash | bank | other
+  kind      String   @default("other")
+  /// Bank: { bank, accountNo, ifsc, branch }
+  details   Json     @default("{}")
+  /// The bank account fees paid other than in cash go into.
+  isDefault Boolean  @default(false) @map("is_default")
+  /// Set for the ledgers the software posts to (cash, fee_head:<id>, salary_expense, vendor:<id>…).
+  systemKey String?  @map("system_key")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entries AccEntry[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, systemKey])
+  @@index([tenantId, groupId])
+  @@map("acc_ledgers")
+}
+
+/// A financial year (April–March by default): open, or closed (locked, balances carried forward).
+model AccYear {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String    @map("tenant_id") @db.Uuid
+  start    DateTime  @db.Date
+  end      DateTime  @db.Date
+  /// open | closed
+  status   String    @default("open")
+  /// Opening balances: { "<ledger id>": amount } (+ debit, − credit)
+  openings Json      @default("{}")
+  /// Budgets: { "<ledger id>": amount }
+  budgets  Json      @default("{}")
+  closedAt DateTime? @map("closed_at") @db.Timestamptz(6)
+  closedBy String?   @map("closed_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, start])
+  @@map("acc_years")
+}
+
+/// A voucher: receipt, payment, contra or journal; made by hand or posted by the software.
+model AccVoucher {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  /// receipt | payment | contra | journal
+  type         String
+  number       String
+  date         DateTime  @db.Date
+  narration    String?
+  /// Cheque / UPI / transfer reference.
+  reference    String?
+  total        Float     @default(0)
+  /// pending (approval) | posted | cancelled
+  status       String    @default("posted")
+  /// manual | fees | payroll | salary_paid | store | loan
+  source       String    @default("manual")
+  /// What it was posted from, so it is never posted twice (fees:2026-10-01, payroll:2026-09, grn:<id>…).
+  sourceKey    String?   @map("source_key")
+  attachmentId String?   @map("attachment_id") @db.Uuid
+  createdBy    String?   @map("created_by") @db.Uuid
+  approvedBy   String?   @map("approved_by") @db.Uuid
+  approvedAt   DateTime? @map("approved_at") @db.Timestamptz(6)
+  cancelReason String?   @map("cancel_reason")
+  isDemo       Boolean   @default(false) @map("is_demo")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entries AccEntry[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, sourceKey])
+  @@index([tenantId, date])
+  @@map("acc_vouchers")
+}
+
+/// A debit or credit line of a voucher; bank lines are ticked off against the bank statement.
+model AccEntry {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  voucherId    String    @map("voucher_id") @db.Uuid
+  ledgerId     String    @map("ledger_id") @db.Uuid
+  dr           Float     @default(0)
+  cr           Float     @default(0)
+  note         String?
+  /// The day it showed in the bank statement (bank reconciliation).
+  reconciledOn DateTime? @map("reconciled_on") @db.Date
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voucher AccVoucher @relation(fields: [voucherId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  ledger  AccLedger  @relation(fields: [ledgerId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, ledgerId])
+  @@index([tenantId, voucherId])
+  @@map("acc_entries")
 }

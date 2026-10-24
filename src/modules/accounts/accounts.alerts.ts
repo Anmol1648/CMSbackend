@@ -1,0 +1,5 @@
+import { defineAlert } from '../alerts/alerts.registry';
+
+/** Accounts alerts (Alerts → Built-in Alerts). The limit is in System Settings → Accounting. */
+
+defineAlert({ key: 'acc_payment_approval', label: 'Payment to approve', description: 'When a payment voucher above the limit is made.', type: 'fees', when: 'instant', recipients: [{ key: 'approvers', label: 'Those who approve payments' }], fields: [{ key: 'number', label: 'Voucher no.', example: 'PV/2026-27/0012' }, { key: 'amount', label: 'Amount (₹)', example: '45000' }, { key: 'narration', label: 'For', example: 'Annual day stage and sound' }, { key: 'by', label: 'Made by', example: 'Sanjay Singh' }], defaults: { enabled: true, channels: ['in_app', 'email'], recipients: ['approvers'], priority: 'important', subject: 'Approve payment {{number}} (₹{{amount}})', body: '{{by}} made payment voucher {{number}} for ₹{{amount}}: {{narration}}. Approve or refuse it on Accounts → Vouchers.', shortText: 'Approve payment ₹{{amount}}: {{narration}}' }, link: '/accounts' });

@@ -37,6 +37,7 @@ import { promotionRoutes, tcRoutes } from './modules/promotion/promotion.routes'
 import { examRoutes } from './modules/exams/exams.routes';
 import { exam2Routes } from './modules/exams/exams2.routes';
 import { payrollRoutes } from './modules/payroll/payroll.routes';
+import { accountsRoutes } from './modules/accounts/accounts.routes';
 import { alertRoutes } from './modules/alerts/alerts.routes';
 import { homeworkRoutes } from './modules/homework/homework.routes';
 import { aiRoutes } from './modules/ai/ai.routes';
@@ -132,6 +133,7 @@ app.use('/api/tc', tcRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/exams2', exam2Routes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/accounts', accountsRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/homework', homeworkRoutes);
 app.use('/api/ai', aiRoutes);
