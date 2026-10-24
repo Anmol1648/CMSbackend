@@ -11,13 +11,19 @@ type Fields = Record<string, unknown>;
 const json = process.env.NODE_ENV === 'production';
 const quiet = process.env.NODE_ENV === 'test';
 
+// Connection strings (with their passwords) never reach the log.
+const scrub = (s: string) => s.replace(/(postgres(ql)?|redis(s)?|mysql|mongodb(\+srv)?):\/\/\S+/gi, '$1://[hidden]');
+/** An Error as plain fields (JSON.stringify of an Error keeps only `name`). */
+const plain = (e: Error & { code?: unknown; errorCode?: unknown }) => ({ name: e.name, message: scrub(e.message ?? ''), code: e.code ?? e.errorCode, stack: e.stack ? scrub(e.stack).split('\n').slice(0, 6).join('\n') : undefined });
+
 const write = (level: Level, message: string, fields?: Fields) => {
     if (quiet && level !== 'error') return;
     const ctx = getContext();
     const base = { requestId: ctx?.requestId, userId: ctx?.user?.id, ...fields };
 
     if (json) {
-        const line = JSON.stringify({ time: new Date().toISOString(), level, message, ...base });
+        const out = Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v instanceof Error ? plain(v) : v]));
+        const line = JSON.stringify({ time: new Date().toISOString(), level, message, ...out });
         (level === 'error' ? console.error : console.log)(line);
         return;
     }
