@@ -254,6 +254,8 @@ model Tenant {
   messServes        MessServe[]
   messRatings       MessRating[]
 
+  userDashboards UserDashboard[]
+
   @@map("tenants")
 }
 
@@ -5741,4 +5743,21 @@ model MessRating {
 
   @@unique([tenantId, date, mealId, userId])
   @@map("mess_ratings")
+}
+
+/// A person's own dashboard (their order, sizes and filters; their quick links). Without one they get their roles' layouts.
+model UserDashboard {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// [{ key, size, filter? }]; null = the roles' layout (only links are their own)
+  widgets   Json?
+  /// [{ label, href }]
+  links     Json     @default("[]")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@map("user_dashboards")
 }

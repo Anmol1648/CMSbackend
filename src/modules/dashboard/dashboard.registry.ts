@@ -40,11 +40,15 @@ export type WidgetData = (StatData | ChartData | DonutData | ListData) & {
     hidden?: boolean;
     /** A line under the title, e.g. "Today · 23 Oct". */
     note?: string;
+    /** A choice on the widget (period, section, hostel…): the one used, and the others. */
+    filter?: { value: string; options: { value: string; label: string }[] };
 };
 
 export interface WidgetContext {
     userId: string;
     permissions: Record<string, string>;
+    /** The person's choice on the widget's filter (empty = its default). */
+    filter?: string;
 }
 
 export interface WidgetDef {
@@ -79,11 +83,49 @@ export const listWidgets = () => [...widgets.values()];
 export const mayUse = (w: WidgetDef, permissions: Record<string, string>) => !w.permissions.length || w.permissions.some((p) => permissions[p]);
 
 /** The layout a role starts with (until the school sets its own), by role slug. */
-export type LayoutItem = { key: string; size: WidgetSize };
-const defaults = new Map<string, LayoutItem[]>();
-export const defineDefaultLayout = (roleSlug: string, items: (string | LayoutItem)[]) =>
-    defaults.set(
-        roleSlug,
-        items.map((i) => (typeof i === 'string' ? { key: i, size: widgets.get(i)?.size ?? 'sm' } : i))
-    );
-export const defaultLayoutOf = (roleSlug: string) => defaults.get(roleSlug) ?? null;
+export type LayoutItem = { key: string; size: WidgetSize; filter?: string };
+const defaults = new Map<string, (string | LayoutItem)[]>();
+const extras = new Map<string, { items: string[]; after?: string }[]>();
+export const defineDefaultLayout = (roleSlug: string, items: (string | LayoutItem)[]) => defaults.set(roleSlug, items);
+/** Adds widgets to a role's built-in layout (after one of its widgets, or at the end), whichever module defines the layout. */
+export const extendDefaultLayout = (roleSlug: string, items: string[], after?: string) => extras.set(roleSlug, [...(extras.get(roleSlug) ?? []), { items, after }]);
+const dropped = new Set<string>();
+/** Leaves a widget out of every built-in layout (it can still be added by hand). */
+export const dropFromDefaultLayouts = (key: string) => dropped.add(key);
+export const defaultLayoutOf = (roleSlug: string): LayoutItem[] | null => {
+    const base = defaults.get(roleSlug);
+    if (!base) return null;
+    const keys = base.map((i) => (typeof i === 'string' ? i : i.key)).filter((k) => !dropped.has(k));
+    for (const e of extras.get(roleSlug) ?? []) {
+        const add = e.items.filter((k) => !keys.includes(k));
+        const at = e.after ? keys.indexOf(e.after) : -1;
+        keys.splice(at >= 0 ? at + 1 : keys.length, 0, ...add);
+    }
+    return keys.map((k) => {
+        const given = base.find((i) => typeof i !== 'string' && i.key === k) as LayoutItem | undefined;
+        return given ?? { key: k, size: widgets.get(k)?.size ?? 'sm' };
+    });
+};
+
+// ─── The action centre: what is waiting for the person ───────────────────────
+
+export interface ActionDef {
+    key: string;
+    /** What is waiting, e.g. "Staff leave to approve". */
+    label: string;
+    icon: string;
+    href: string;
+    /** Any one of these lets a person see it. */
+    permissions: string[];
+    /** How many are waiting for this person (0 = not shown), or a number with its own text. */
+    count(ctx: WidgetContext): Promise<number | { count: number; label?: string; value?: string }>;
+    /** bad = late / overdue. */
+    tone?: 'warn' | 'bad';
+    order?: number;
+}
+const actions = new Map<string, ActionDef>();
+export const defineAction = (def: ActionDef) => {
+    if (actions.has(def.key)) throw new Error(`Action "${def.key}" is defined twice`);
+    actions.set(def.key, def);
+};
+export const listActions = () => [...actions.values()].sort((a, b) => (a.order ?? 50) - (b.order ?? 50));
