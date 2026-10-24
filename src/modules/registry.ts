@@ -85,6 +85,10 @@ import './feedback/feedback.reports';
 import './uploads/uploads.permissions';
 import './uploads/uploads.service';
 import './uploads/uploads.alerts';
+import './assets/assets.permissions';
+import './assets/assets.service';
+import './assets/assets.alerts';
+import './assets/assets.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

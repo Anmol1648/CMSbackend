@@ -190,6 +190,13 @@ model Tenant {
   uploadVersions UploadVersion[]
   uploadViews    UploadView[]
 
+  assets             Asset[]
+  assetEvents        AssetEvent[]
+  assetIssues        AssetIssue[]
+  assetDisposals     AssetDisposal[]
+  assetVerifications AssetVerification[]
+  assetFound         AssetFound[]
+
   @@map("tenants")
 }
 
@@ -4352,4 +4359,162 @@ model UploadView {
 
   @@unique([itemId, userId])
   @@map("upload_views")
+}
+
+/// An asset of the school (or a group of the same items, with a quantity): where it is, who has it, its value and care.
+model Asset {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  code              String
+  name              String
+  /// Masters "asset_category", "asset_condition", "asset_vendor", "room".
+  categoryId        String?   @map("category_id") @db.Uuid
+  conditionId       String?   @map("condition_id") @db.Uuid
+  vendorId          String?   @map("vendor_id") @db.Uuid
+  roomId            String?   @map("room_id") @db.Uuid
+  /// The staff member it is given to (a laptop…), if any.
+  staffId           String?   @map("staff_id") @db.Uuid
+  make              String?
+  model             String?
+  serialNo          String?   @map("serial_no")
+  quantity          Int       @default(1)
+  purchasedOn       DateTime? @map("purchased_on") @db.Date
+  billNo            String?   @map("bill_no")
+  /// Cost of the whole entry (all its quantity), in rupees.
+  cost              Int?
+  warrantyUntil     DateTime? @map("warranty_until") @db.Date
+  amcUntil          DateTime? @map("amc_until") @db.Date
+  /// Maintenance every N months (0 / empty = none) and when it is next due.
+  maintainEvery     Int?      @map("maintain_every")
+  nextMaintenanceOn DateTime? @map("next_maintenance_on") @db.Date
+  photoFileId       String?   @map("photo_file_id") @db.Uuid
+  billFileId        String?   @map("bill_file_id") @db.Uuid
+  /// in_use | in_repair | disposed | lost
+  status            String    @default("in_use")
+  disposedOn        DateTime? @map("disposed_on") @db.Date
+  notes             String?
+  isDemo            Boolean   @default(false) @map("is_demo")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy         String?   @map("created_by") @db.Uuid
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  history   AssetEvent[]
+  issues    AssetIssue[]
+  disposals AssetDisposal[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, code])
+  @@index([tenantId, roomId])
+  @@index([tenantId, staffId])
+  @@map("assets")
+}
+
+/// What happened to an asset: moved, given / taken back, condition changed, maintained, disposed.
+model AssetEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  assetId     String   @map("asset_id") @db.Uuid
+  /// added | moved | assigned | returned | condition | maintained | repaired | disposed | verified
+  kind        String
+  fromRoomId  String?  @map("from_room_id") @db.Uuid
+  toRoomId    String?  @map("to_room_id") @db.Uuid
+  fromStaffId String?  @map("from_staff_id") @db.Uuid
+  toStaffId   String?  @map("to_staff_id") @db.Uuid
+  cost        Int?
+  note        String?
+  userId      String?  @map("user_id") @db.Uuid
+  at          DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset  Asset  @relation(fields: [assetId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, assetId, at])
+  @@map("asset_events")
+}
+
+/// A problem reported with an asset, and its repair.
+model AssetIssue {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  assetId     String    @map("asset_id") @db.Uuid
+  title       String
+  details     String?
+  photoFileId String?   @map("photo_file_id") @db.Uuid
+  reportedBy  String?   @map("reported_by") @db.Uuid
+  /// open | in_repair | fixed | written_off
+  status      String    @default("open")
+  assignedTo  String?   @map("assigned_to") @db.Uuid
+  vendorId    String?   @map("vendor_id") @db.Uuid
+  cost        Int?
+  resolution  String?
+  fixedAt     DateTime? @map("fixed_at") @db.Timestamptz(6)
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset  Asset  @relation(fields: [assetId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("asset_issues")
+}
+
+/// A request to write an asset off (sold, scrapped, lost, donated), approved or refused.
+model AssetDisposal {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  assetId    String    @map("asset_id") @db.Uuid
+  /// sold | scrapped | lost | donated
+  reason     String
+  note       String?
+  amount     Int?
+  /// pending | approved | rejected
+  status     String    @default("pending")
+  askedBy    String?   @map("asked_by") @db.Uuid
+  answeredBy String?   @map("answered_by") @db.Uuid
+  answeredAt DateTime? @map("answered_at") @db.Timestamptz(6)
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset  Asset  @relation(fields: [assetId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("asset_disposals")
+}
+
+/// A physical verification: assets found (scanned / ticked) room by room; the rest are missing.
+model AssetVerification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  name      String
+  /// open | closed
+  status    String    @default("open")
+  createdBy String?   @map("created_by") @db.Uuid
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  closedAt  DateTime? @map("closed_at") @db.Timestamptz(6)
+  isDemo    Boolean   @default(false) @map("is_demo")
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  found  AssetFound[]
+
+  @@unique([id, tenantId])
+  @@map("asset_verifications")
+}
+
+model AssetFound {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  verificationId String   @map("verification_id") @db.Uuid
+  assetId        String   @map("asset_id") @db.Uuid
+  /// The room it was found in (different from the register = misplaced).
+  roomId         String?  @map("room_id") @db.Uuid
+  at             DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  verification AssetVerification @relation(fields: [verificationId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([verificationId, assetId])
+  @@map("asset_verification_found")
 }
