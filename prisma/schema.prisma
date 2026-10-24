@@ -217,6 +217,13 @@ model Tenant {
   invSales          InvSale[]
   invSaleLines      InvSaleLine[]
 
+  examSheetLocks ExamSheetLock[]
+  examSeats      ExamSeat[]
+  examDuties     ExamDuty[]
+  examPapers     ExamPaper[]
+  studentHealth  StudentHealth[]
+  examRechecks   ExamRecheck[]
+
   @@map("tenants")
 }
 
@@ -226,6 +233,8 @@ model SchoolProfile {
   legalName              String   @map("legal_name")
   shortName              String?  @map("short_name")
   logoFileId             String?  @map("logo_file_id") @db.Uuid
+  /// The principal's signature on report cards and admit cards.
+  signatureFileId        String?  @map("signature_file_id") @db.Uuid
   addressLine1           String?  @map("address_line1")
   addressLine2           String?  @map("address_line2")
   city                   String?
@@ -2641,6 +2650,8 @@ model ResultRule {
   graceSubjects  Int      @default(0) @map("grace_subjects")
   showRank       Boolean  @default(false) @map("show_rank")
   showAttendance Boolean  @default(true) @map("show_attendance")
+  /// standard | cbse | cbse_senior | state | preprimary (which report card design)
+  cardFormat     String   @default("standard") @map("card_format")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy      String?  @map("created_by") @db.Uuid
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -2690,6 +2701,12 @@ model Exam {
   /// Share of the term / final result (e.g. 10 for a periodic test, 30 for half-yearly).
   weightage         Float     @default(0)
   countsInResult    Boolean   @default(true) @map("counts_in_result")
+  /// regular | supplementary (for students who failed in a few subjects of the final result)
+  kind              String    @default("regular")
+  /// Supplementary: { "<student id>": ["<subject id>", …] }
+  candidates        Json      @default("{}")
+  /// Students given their admit card although fees are due.
+  admitReleased     String[]  @default([]) @map("admit_released") @db.Uuid
   /// draft | open (marks being entered) | locked | published
   status            String    @default("draft")
   entryDeadline     DateTime? @map("entry_deadline") @db.Date
@@ -4966,4 +4983,136 @@ model InvSaleLine {
   sale   InvSale @relation(fields: [saleId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   @@map("inv_sale_lines")
+}
+
+/// A subject teacher's "marks submitted" for a section in an exam subject (entry locked until unlocked).
+model ExamSheetLock {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  examSubjectId String   @map("exam_subject_id") @db.Uuid
+  sectionId     String   @map("section_id") @db.Uuid
+  submittedBy   String?  @map("submitted_by") @db.Uuid
+  submittedAt   DateTime @default(now()) @map("submitted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([examSubjectId, sectionId])
+  @@map("exam_sheet_locks")
+}
+
+/// Where a student sits for a paper (exam, date, start time): room and seat.
+model ExamSeat {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  examId    String   @map("exam_id") @db.Uuid
+  date      DateTime @db.Date
+  startTime String   @default("") @map("start_time")
+  /// Master "room".
+  roomId    String   @map("room_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  seatNo    Int      @map("seat_no")
+  isDemo    Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, date, startTime, studentId])
+  @@index([tenantId, examId, date])
+  @@map("exam_seats")
+}
+
+/// A teacher's invigilation duty: a room for a paper session.
+model ExamDuty {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  examId    String   @map("exam_id") @db.Uuid
+  date      DateTime @db.Date
+  startTime String   @default("") @map("start_time")
+  endTime   String?  @map("end_time")
+  roomId    String   @map("room_id") @db.Uuid
+  staffId   String   @map("staff_id") @db.Uuid
+  isDemo    Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, examId, date])
+  @@index([tenantId, staffId, date])
+  @@map("exam_duties")
+}
+
+/// A question paper of an exam subject: built from the question bank, or an uploaded file.
+model ExamPaper {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  examId       String   @map("exam_id") @db.Uuid
+  classId      String   @map("class_id") @db.Uuid
+  subjectId    String   @map("subject_id") @db.Uuid
+  title        String
+  instructions String?
+  durationMins Int      @default(180) @map("duration_mins")
+  /// [{ "section": "A", "questionId": "…", "marks": 1 }] (bank questions, in order)
+  questions    Json     @default("[]")
+  fileId       String?  @map("file_id") @db.Uuid
+  /// draft | final
+  status       String   @default("draft")
+  createdBy    String?  @map("created_by") @db.Uuid
+  isDemo       Boolean  @default(false) @map("is_demo")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, classId, subjectId])
+  @@map("exam_papers")
+}
+
+/// Height, weight, vision and activities of a student in a term (or the session), for the report card.
+model StudentHealth {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  /// The term's id, or "year".
+  termKey        String   @default("year") @map("term_key")
+  studentId      String   @map("student_id") @db.Uuid
+  heightCm       Float?   @map("height_cm")
+  weightKg       Float?   @map("weight_kg")
+  vision         String?
+  activities     String?
+  enteredBy      String?  @map("entered_by") @db.Uuid
+  isDemo         Boolean  @default(false) @map("is_demo")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([academicYearId, termKey, studentId])
+  @@map("student_health")
+}
+
+/// A parent's request to re-check a subject's marks: reviewed, then approved (marks changed) or refused.
+model ExamRecheck {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  examId         String    @map("exam_id") @db.Uuid
+  examSubjectId  String    @map("exam_subject_id") @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  requestedBy    String?   @map("requested_by") @db.Uuid
+  reason         String?
+  fee            Int?
+  /// pending | reviewed | approved | rejected
+  status         String    @default("pending")
+  oldMarks       Json      @default("{}") @map("old_marks")
+  oldTotal       Float?    @map("old_total")
+  newMarks       Json?     @map("new_marks")
+  newTotal       Float?    @map("new_total")
+  reviewNote     String?   @map("review_note")
+  reviewedBy     String?   @map("reviewed_by") @db.Uuid
+  decidedBy      String?   @map("decided_by") @db.Uuid
+  decidedAt      DateTime? @map("decided_at") @db.Timestamptz(6)
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("exam_rechecks")
 }

@@ -112,6 +112,7 @@ export const ruleSchema = z.strictObject({
     graceSubjects: z.number().int().min(0).max(5),
     showRank: z.boolean(),
     showAttendance: z.boolean(),
+    cardFormat: z.enum(['standard', 'cbse', 'cbse_senior', 'state', 'preprimary']).default('standard'),
 });
 
 export const saveRule = async (id: string | null, input: z.infer<typeof ruleSchema>) => {

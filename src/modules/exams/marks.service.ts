@@ -38,6 +38,17 @@ export const takers = async (yearId: string, sectionId: string, subjectId: strin
     return rows.filter((r) => r.student.status === 'active' && (!forSection?.isOptional || r.optionalSubjectIds.includes(subjectId)));
 };
 
+/** Who takes a paper: the section's takers of the subject; for a supplementary exam, only its candidates in that subject. */
+const sheetTakers = async (exam: { academicYearId: string; kind: string; candidates: unknown }, sectionId: string, subjectId: string) => {
+    const all = await takers(exam.academicYearId, sectionId, subjectId);
+    if (exam.kind !== 'supplementary') return all;
+    const c = (exam.candidates ?? {}) as Record<string, string[]>;
+    return all.filter((r) => (c[r.student.id] ?? []).includes(subjectId));
+};
+
+/** The "marks submitted" lock of a sheet, if any. */
+const lockOf = (examSubjectId: string, sectionId: string) => db.examSheetLock.findFirst({ where: { examSubjectId, sectionId } });
+
 const editState = (exam: { status: string; entryDeadline: Date | null }, p: { moderate: boolean }) => {
     if (exam.status === 'published') return { can: false, why: 'The results are published. They must be unpublished to change marks.' };
     const late = !!exam.entryDeadline && isoOf(exam.entryDeadline) < todayIST();
@@ -62,12 +73,16 @@ export const mySheets = async (examId: string, userId: string) => {
     if (p.ownClass && p.staffId) for (const sec of sections.filter((s) => s.classTeacherId === p.staffId)) for (const sub of subjects.filter((x) => x.classId === sec.classId)) mine.add(`${sec.id}|${sub.subjectId}`);
     const names = new Map((await db.subject.findMany({ where: { id: { in: subjects.map((s) => s.subjectId) } }, select: { id: true, name: true } })).map((s) => [s.id, s.name]));
     const counts = await db.examMark.groupBy({ by: ['examSubjectId'], where: { examSubject: { examId } }, _count: { _all: true } });
+    const locks = new Set((await db.examSheetLock.findMany({ where: { examSubjectId: { in: subjects.map((s) => s.id) } }, select: { examSubjectId: true, sectionId: true } })).map((l) => `${l.examSubjectId}|${l.sectionId}`));
+    const cands = exam.kind === 'supplementary' ? ((exam.candidates ?? {}) as Record<string, string[]>) : null;
+    const candSubjects = cands ? new Set(Object.values(cands).flat()) : null;
     const done = new Map(counts.map((c) => [c.examSubjectId, c._count._all]));
     const out = [];
     for (const sec of sections)
         for (const sub of subjects.filter((x) => x.classId === sec.classId)) {
             if (!p.any && !mine.has(`${sec.id}|${sub.subjectId}`)) continue;
-            out.push({ examSubjectId: sub.id, sectionId: sec.id, section: sectionLabel(sec), subject: names.get(sub.subjectId) ?? '—', max: (sub.components as Part[]).reduce((a, c) => a + c.max, 0), mine: mine.has(`${sec.id}|${sub.subjectId}`), entered: done.get(sub.id) ?? 0 });
+            if (candSubjects && !candSubjects.has(sub.subjectId)) continue;
+            out.push({ examSubjectId: sub.id, sectionId: sec.id, section: sectionLabel(sec), subject: names.get(sub.subjectId) ?? '—', max: (sub.components as Part[]).reduce((a, c) => a + c.max, 0), mine: mine.has(`${sec.id}|${sub.subjectId}`), entered: done.get(sub.id) ?? 0, submitted: locks.has(`${sub.id}|${sec.id}`) });
         }
     // Sections they are class teacher of: co-scholastic grades and remarks.
     const classOf = sections.filter((s) => p.any || (p.staffId && s.classTeacherId === p.staffId)).map((s) => ({ sectionId: s.id, section: sectionLabel(s) }));
@@ -102,7 +117,10 @@ const loadSheet = async (examSubjectId: string, sectionId: string, userId: strin
 
 export const getSheet = async (examSubjectId: string, sectionId: string, userId: string) => {
     const { es, section, p } = await loadSheet(examSubjectId, sectionId, userId);
-    const [students, rule, subject] = await Promise.all([takers(es.exam.academicYearId, sectionId, es.subjectId), ruleFor(es.classId), db.subject.findUnique({ where: { id: es.subjectId }, select: { name: true } })]);
+    const [students, rule, subject, lock] = await Promise.all([sheetTakers(es.exam, sectionId, es.subjectId), ruleFor(es.classId), db.subject.findUnique({ where: { id: es.subjectId }, select: { name: true } }), lockOf(examSubjectId, sectionId)]);
+    const lockedBy = lock?.submittedBy ? ((await db.user.findFirst({ where: { id: lock.submittedBy }, select: { displayName: true } }))?.displayName ?? '') : '';
+    const baseEdit = editState(es.exam, p);
+    const canUnlock = p.any || p.moderate || (await isClassTeacher(sectionId, p.staffId));
     const marks = new Map((await db.examMark.findMany({ where: { examSubjectId, studentId: { in: students.map((s) => s.student.id) } } })).map((m) => [m.studentId, m]));
     const parts = es.components as Part[];
     return {
@@ -114,7 +132,8 @@ export const getSheet = async (examSubjectId: string, sectionId: string, userId:
         descriptive: rule.descriptive,
         grades: rule.descriptive ? rule.scale.bands.map((b: Band) => b.grade) : [],
         passPercent: rule.passPercent,
-        edit: editState(es.exam, p),
+        edit: lock && baseEdit.can && !canUnlock ? { can: false, why: 'You submitted these marks. Ask the class teacher or the office to unlock them to change.' } : baseEdit,
+        lock: lock ? { by: lockedBy, at: lock.submittedAt, canUnlock } : null,
         students: students.map((s) => {
             const m = marks.get(s.student.id);
             return { id: s.student.id, name: fullName(s.student), admissionNo: s.student.admissionNo, roll: s.rollNumber, status: m?.status ?? 'P', marks: (m?.marks ?? {}) as Record<string, number | string | null>, total: m?.total ?? null, entered: !!m };
@@ -138,7 +157,8 @@ export const saveSheet = async (examSubjectId: string, sectionId: string, input:
     const { es, p } = await loadSheet(examSubjectId, sectionId, userId);
     const state = editState(es.exam, p);
     if (!state.can) throw forbidden(state.why ?? 'Marks can’t be changed now');
-    const [students, rule] = await Promise.all([takers(es.exam.academicYearId, sectionId, es.subjectId), ruleFor(es.classId)]);
+    if ((await lockOf(examSubjectId, sectionId)) && !(p.any || p.moderate || (await isClassTeacher(sectionId, p.staffId)))) throw forbidden('These marks are submitted. Ask the class teacher or the office to unlock them.');
+    const [students, rule] = await Promise.all([sheetTakers(es.exam, sectionId, es.subjectId), ruleFor(es.classId)]);
     const allowed = new Set(students.map((s) => s.student.id));
     const parts = es.components as Part[];
     const grades = new Set(rule.scale.bands.map((b: Band) => b.grade));
@@ -197,6 +217,27 @@ export const saveSheet = async (examSubjectId: string, sectionId: string, input:
         });
         if (changed.length) await recordAudit({ action: 'marks_moderated', entity: 'exam', entityId: es.examId, changes: { subject: es.subjectId, section: sectionId, students: changed.length, changes: changed.map((c) => ({ student: c.studentId, from: before.get(c.studentId)?.marks ?? null, to: c.marks, status: c.status })) } });
     }
+    return getSheet(examSubjectId, sectionId, userId);
+};
+
+const isClassTeacher = async (sectionId: string, staffId: string | null) => !!staffId && !!(await db.section.findFirst({ where: { id: sectionId, classTeacherId: staffId }, select: { id: true } }));
+
+/** The teacher is done: the sheet is locked (blanks must be filled or marked absent first). */
+export const submitSheet = async (examSubjectId: string, sectionId: string, userId: string) => {
+    const { es } = await loadSheet(examSubjectId, sectionId, userId);
+    const students = await sheetTakers(es.exam, sectionId, es.subjectId);
+    const entered = await db.examMark.count({ where: { examSubjectId, studentId: { in: students.map((s) => s.student.id) } } });
+    if (entered < students.length) throw badRequest(`${students.length - entered} student(s) have no marks yet: enter them, or mark them absent (AB) / not taking (NA)`);
+    await db.examSheetLock.upsert({ where: { examSubjectId_sectionId: { examSubjectId, sectionId } }, create: { tenantId: getTenantId()!, examSubjectId, sectionId, submittedBy: userId }, update: { submittedBy: userId, submittedAt: new Date() } });
+    return getSheet(examSubjectId, sectionId, userId);
+};
+
+/** Opens a submitted sheet again (class teacher of the section, the office, or who may moderate). */
+export const unlockSheet = async (examSubjectId: string, sectionId: string, userId: string) => {
+    const { p } = await loadSheet(examSubjectId, sectionId, userId);
+    if (!(p.any || p.moderate || (await isClassTeacher(sectionId, p.staffId)))) throw forbidden('Only the class teacher or the office can unlock it');
+    await db.examSheetLock.deleteMany({ where: { examSubjectId, sectionId } });
+    await recordAudit({ action: 'marks_unlocked', entity: 'exam_subject', entityId: examSubjectId, changes: { section: sectionId } });
     return getSheet(examSubjectId, sectionId, userId);
 };
 

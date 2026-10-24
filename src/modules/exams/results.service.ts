@@ -37,13 +37,13 @@ export const resolveScope = async (kind: ScopeKind, id: string) => {
     if (kind === 'term') {
         const t = await db.examTerm.findFirst({ where: { id } });
         if (!t) throw notFound('Term not found');
-        const exams = await db.exam.findMany({ where: { termId: id, countsInResult: true }, orderBy: [{ sortOrder: 'asc' }] });
+        const exams = await db.exam.findMany({ where: { termId: id, countsInResult: true, kind: 'regular' }, orderBy: [{ sortOrder: 'asc' }] });
         const pub = await db.resultPublication.findFirst({ where: { academicYearId: t.academicYearId, scope: 'term', termId: id } });
         return { yearId: t.academicYearId, label: t.name, exams, term: t, published: !!pub };
     }
     const y = await db.academicYear.findFirst({ where: { id } });
     if (!y) throw notFound('Session not found');
-    const exams = await db.exam.findMany({ where: { academicYearId: id, countsInResult: true }, orderBy: [{ sortOrder: 'asc' }] });
+    const exams = await db.exam.findMany({ where: { academicYearId: id, countsInResult: true, kind: 'regular' }, orderBy: [{ sortOrder: 'asc' }] });
     const pub = await db.resultPublication.findFirst({ where: { academicYearId: id, scope: 'final' } });
     const { finalName } = await getSettings({ finalName: EXAMS.finalName });
     return { yearId: id, label: `${finalName} ${y.name}`, exams, term: null, published: !!pub };
@@ -58,6 +58,8 @@ type SubjectResult = {
     point: number | null;
     passed: boolean | null;
     grace: number;
+    /** The final result uses the supplementary exam's marks for this subject. */
+    supplementary?: boolean;
 };
 
 /** Results of the students of a section (or of one student) for a scope. */
@@ -97,6 +99,21 @@ export const computeResults = async (kind: ScopeKind, id: string, sectionId: str
     const countsOf = new Map((await markStatuses()).map((s) => [s.code, s.counts]));
     const nextYear = kind === 'final' ? await nextYearOf(scope.yearId) : null;
     const nextClass = nextYear ? await nextClassIn(section.classId, nextYear.id) : null;
+    // Supplementary exams (final result only): a candidate's mark in a subject replaces that subject's result.
+    const supp = new Map<string, number>();
+    if (kind === 'final') {
+        const sx = await db.exam.findMany({ where: { academicYearId: scope.yearId, kind: 'supplementary', classIds: { has: section.classId } } });
+        if (sx.length) {
+            const ses = await db.examSubject.findMany({ where: { examId: { in: sx.map((e) => e.id) }, classId: section.classId } });
+            const sm = await db.examMark.findMany({ where: { examSubjectId: { in: ses.map((x) => x.id) }, studentId: { in: ids }, status: 'P' } });
+            for (const m of sm) {
+                const es = ses.find((x) => x.id === m.examSubjectId)!;
+                const max = (es.components as Part[]).reduce((a, c) => a + c.max, 0);
+                const cand = ((sx.find((e) => e.id === es.examId)?.candidates ?? {}) as Record<string, string[]>)[m.studentId] ?? [];
+                if (m.total != null && max && cand.includes(es.subjectId)) supp.set(`${m.studentId}|${es.subjectId}`, round1((m.total / max) * 100));
+            }
+        }
+    }
 
     const students = enrol.map((e) => {
         const sid = e.student.id;
@@ -147,6 +164,13 @@ export const computeResults = async (kind: ScopeKind, id: string, sectionId: str
             return { subjectId: s.id, subject: s.name, exams: per.map(({ exam: _e, components: _c, average: _a, ...x }) => x), percent, grade: g?.grade ?? null, point: g?.point ?? null, passed, grace: 0 };
         });
 
+        if (!rule.descriptive)
+            for (const s of subj) {
+                const pct = supp.get(`${sid}|${s.subjectId}`);
+                if (pct === undefined) continue;
+                const g2 = gradeOf(bands, pct);
+                Object.assign(s, { percent: pct, passed: pct >= rule.passPercent, grade: g2?.grade ?? null, point: g2?.point ?? null, supplementary: true });
+            }
         // Overall: one exam = total of marks; several = the average of the subjects' %.
         let totalObtained: number | null = null;
         let totalMax: number | null = null;
@@ -191,6 +215,7 @@ export const computeResults = async (kind: ScopeKind, id: string, sectionId: str
             result,
             failedSubjects,
             graced: subj.filter((s) => s.grace > 0).map((s) => `${s.subject} (+${s.grace})`),
+            afterSupplementary: subj.filter((s) => s.supplementary).map((s) => s.subject),
             rank: null as number | null,
             promotedTo: kind === 'final' && result === 'Passed' ? (nextClass?.name ?? null) : null,
             co: areas.map((a) => ({ area: a.name, grade: co[a.id] ?? null })),
@@ -213,7 +238,7 @@ export const computeResults = async (kind: ScopeKind, id: string, sectionId: str
         scope: { kind, id, label: scope.label, published: scope.published },
         year: year!.name,
         section: { id: section.id, label: sectionLabel(section), className: section.schoolClass.name, classTeacher: section.classTeacher ? fullName(section.classTeacher) : null },
-        rule: { descriptive: rule.descriptive, passPercent: rule.passPercent, showRank: rule.showRank, showAttendance: rule.showAttendance, bands, coBands: rule.co },
+        rule: { descriptive: rule.descriptive, passPercent: rule.passPercent, showRank: rule.showRank, showAttendance: rule.showAttendance, bands, coBands: rule.co, cardFormat: rule.cardFormat },
         exams: exams.map((x) => ({ id: x.id, name: x.name, shortName: x.shortName ?? x.name, weightage: x.weightage })),
         subjects: subjects.map((s) => ({ id: s.id, name: s.name })),
         areas: areas.map((a) => a.name),
@@ -237,7 +262,7 @@ export const limitResults = (r: Computed, subjectIds: string[] | null): Computed
         areas: [],
         students: r.students.map((st) => {
             const subs = st.subjects.filter((x) => keep.has(x.subjectId));
-            return { ...st, subjects: subs, totalObtained: null, totalMax: null, percent: null, grade: null, result: null, failedSubjects: subs.filter((x) => x.passed === false).map((x) => x.subject), graced: [], rank: null, promotedTo: null, co: [], discipline: null, remark: null, attendance: null };
+            return { ...st, subjects: subs, totalObtained: null, totalMax: null, percent: null, grade: null, result: null, failedSubjects: subs.filter((x) => x.passed === false).map((x) => x.subject), graced: [], afterSupplementary: [], rank: null, promotedTo: null, co: [], discipline: null, remark: null, attendance: null };
         }),
     };
 };

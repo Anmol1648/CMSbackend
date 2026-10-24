@@ -117,6 +117,7 @@ defineMaster({
     order: 20,
     code: 'none',
     ordering: 'manual',
+    fields: [{ key: 'band', label: 'Suggested for', type: 'select', options: [{ value: 'high', label: 'High scorers (75%+)' }, { value: 'mid', label: 'Middle (50–75%)' }, { value: 'low', label: 'Below 50%' }] }],
     seed: [
         { name: 'Keeps working hard.' },
         { name: 'Is regular and sincere.' },
