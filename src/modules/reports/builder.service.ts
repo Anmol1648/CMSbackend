@@ -28,7 +28,7 @@ export const OPS_FOR: Record<DataField['type'], Op[]> = {
     date: ['eq', 'gt', 'gte', 'lt', 'lte', 'between', 'empty', 'notEmpty'],
     boolean: ['yes', 'no'],
 };
-const NO_VALUE: Op[] = ['empty', 'notEmpty', 'yes', 'no'];
+export const NO_VALUE: Op[] = ['empty', 'notEmpty', 'yes', 'no'];
 
 const fieldKey = z.string().trim().min(1).max(60);
 export const definitionSchema = z.strictObject({
@@ -168,7 +168,7 @@ export const checkDefinition = async (d: Definition, userId: string) => {
 const lower = (v: unknown) => String(v ?? '').toLowerCase();
 const isEmpty = (v: unknown) => v === null || v === undefined || v === '';
 
-const matches = (raw: unknown, f: DataField, op: Op, a: string, b: string) => {
+export const matches = (raw: unknown, f: DataField, op: Op, a: string, b: string) => {
     if (op === 'empty') return isEmpty(raw);
     if (op === 'notEmpty') return !isEmpty(raw);
     if (op === 'yes') return raw === true;
@@ -213,7 +213,7 @@ const compare = (x: unknown, y: unknown, f: DataField) => {
     return String(x).localeCompare(String(y), 'en-IN', { numeric: true, sensitivity: 'base' });
 };
 
-const showValue = (f: DataField, v: unknown) => {
+export const showValue = (f: DataField, v: unknown) => {
     if (isEmpty(v)) return '—';
     if (f.type === 'boolean') return v === true ? 'Yes' : 'No';
     if (f.type === 'money' && typeof v === 'number') return `₹${v.toLocaleString('en-IN')}`;

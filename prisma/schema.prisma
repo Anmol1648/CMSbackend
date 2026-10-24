@@ -255,6 +255,7 @@ model Tenant {
   messRatings       MessRating[]
 
   userDashboards UserDashboard[]
+  customWidgets  CustomWidget[]
 
   @@map("tenants")
 }
@@ -5760,4 +5761,27 @@ model UserDashboard {
 
   @@unique([tenantId, userId])
   @@map("user_dashboards")
+}
+
+/// A dashboard widget made in the Widget Builder: data (a Report Builder source, its inputs and conditions) and how it is shown.
+model CustomWidget {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String   @default("")
+  /// { source, params, filters, display: { type, measure, groupBy, bucket, sort, limit, list, tones, caption } }
+  definition  Json
+  size        String   @default("sm")
+  /// Roles it is offered to (besides its maker and widget builders)
+  roleIds     String[] @default([]) @map("role_ids") @db.Uuid
+  /// Link from its title (a page of the ERP)
+  href        String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("custom_widgets")
 }

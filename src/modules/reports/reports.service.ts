@@ -65,7 +65,7 @@ const UUID = z.uuid();
 const today = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 
 /** The filters as given, with defaults filled in and each one checked. */
-const resolveFilters = async (def: ReportDef, raw: Record<string, unknown>) => {
+export const resolveFilters = async (def: Pick<ReportDef, "filters">, raw: Record<string, unknown>) => {
     const out: Record<string, string> = {};
     let year: Awaited<ReturnType<typeof currentYear>> | undefined;
     const theYear = async () => (year === undefined ? (year = await currentYear()) : year);

@@ -23,6 +23,7 @@ import './staff/staff.datasources';
 import './fees/fee.datasources';
 import './admissions/admission.datasources';
 import './timetable/timetable.datasources';
+import './reports/more.datasources';
 import './attendance/attendance.permissions';
 import './attendance/attendance.reports';
 import './leave/leave.permissions';
