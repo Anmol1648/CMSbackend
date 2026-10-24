@@ -47,6 +47,7 @@ import { ptmRoutes } from './modules/ptm/ptm.routes';
 import { visitorRoutes } from './modules/visitors/visitors.routes';
 import { complaintRoutes } from './modules/complaints/complaints.routes';
 import { disciplineRoutes } from './modules/discipline/discipline.routes';
+import { feedbackRoutes } from './modules/feedback/feedback.routes';
 import { admsRoutes, deviceRoutes, deviceWebhookRoutes } from './modules/attendance/devices.routes';
 
 export const app = express();
@@ -135,6 +136,7 @@ app.use('/api/ptm', ptmRoutes);
 app.use('/api/visitors', visitorRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/discipline', disciplineRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 app.use((req: Request, res: Response) => {
     errorResponse(res, `No route for ${req.method} ${req.path}`, 'NOT_FOUND', 404, undefined, getRequestId());

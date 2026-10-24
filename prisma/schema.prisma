@@ -180,6 +180,11 @@ model Tenant {
   incidentStudents IncidentStudent[]
   incidentActions  IncidentAction[]
 
+  feedbackForms       FeedbackForm[]
+  feedbackRounds      FeedbackRound[]
+  feedbackResponses   FeedbackResponse[]
+  feedbackCompletions FeedbackCompletion[]
+
   @@map("tenants")
 }
 
@@ -4130,4 +4135,100 @@ model IncidentAction {
 
   @@index([tenantId, status])
   @@map("incident_actions")
+}
+
+/// A feedback question set (rating, yes / no and comment questions), for students, parents or both.
+model FeedbackForm {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  /// student | parent | both
+  audience  String   @default("student")
+  /// [{ id, kind: rating | yesno | text, text, required }]
+  questions Json
+  isActive  Boolean  @default(true) @map("is_active")
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rounds FeedbackRound[]
+
+  @@unique([id, tenantId])
+  @@map("feedback_forms")
+}
+
+/// A feedback round: a question set, some sections, open between two dates; results released to teachers after.
+model FeedbackRound {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  formId         String    @map("form_id") @db.Uuid
+  name           String
+  /// student | parent | both
+  audience       String    @default("student")
+  sectionIds     String[]  @map("section_ids") @db.Uuid
+  anonymous      Boolean   @default(true)
+  opensOn        DateTime  @map("opens_on") @db.Date
+  closesOn       DateTime  @map("closes_on") @db.Date
+  /// draft | open | closed | released (teachers can see their results)
+  status         String    @default("draft")
+  releasedAt     DateTime? @map("released_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  form        FeedbackForm         @relation(fields: [formId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  responses   FeedbackResponse[]
+  completions FeedbackCompletion[]
+
+  @@unique([id, tenantId])
+  @@map("feedback_rounds")
+}
+
+/// One filled form about one teacher (not linked to the person when the round is anonymous).
+model FeedbackResponse {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  roundId        String   @map("round_id") @db.Uuid
+  staffId        String   @map("staff_id") @db.Uuid
+  sectionId      String   @map("section_id") @db.Uuid
+  /// student | parent
+  respondentKind String   @map("respondent_kind")
+  /// Only when the round isn't anonymous.
+  userId         String?  @map("user_id") @db.Uuid
+  studentId      String?  @map("student_id") @db.Uuid
+  /// { questionId: 1–5 | true / false | text }
+  answers        Json
+  comment        String?
+  /// shown | pending (to be screened) | hidden
+  commentStatus  String   @default("shown") @map("comment_status")
+  isDemo         Boolean  @default(false) @map("is_demo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  round  FeedbackRound @relation(fields: [roundId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, roundId, staffId])
+  @@map("feedback_responses")
+}
+
+/// Who has filled which teacher's form (to stop doubles and to remind), kept apart from the answers.
+model FeedbackCompletion {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  roundId   String   @map("round_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  staffId   String   @map("staff_id") @db.Uuid
+  at        DateTime @default(now()) @db.Timestamptz(6)
+  isDemo    Boolean  @default(false) @map("is_demo")
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  round  FeedbackRound @relation(fields: [roundId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([roundId, userId, studentId, staffId])
+  @@map("feedback_completions")
 }

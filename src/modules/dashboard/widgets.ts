@@ -670,5 +670,5 @@ defineDefaultLayout('office-staff', ['approvals', 'visitors_now', 'complaints_de
 defineDefaultLayout('accountant', ['fee_today', 'fee_dues', 'fee_by_mode', 'my_checkin', 'fee_trend', 'fee_by_class', 'approvals', 'notices_latest', 'my_leave', 'upcoming_events']);
 defineDefaultLayout('teacher', ['my_visitors', 'my_checkin', 'my_class_attendance', 'my_day', 'ptm_my_day', 'homework_to_check', 'tests_to_mark', 'approvals', 'my_leave', 'notices_latest', 'upcoming_events']);
 defineDefaultLayout('class-teacher', ['my_visitors', 'complaints_desk', 'discipline_week', 'my_checkin', 'my_class_attendance', 'my_day', 'ptm_my_day', 'homework_to_check', 'tests_to_mark', 'approvals', 'my_leave', 'low_attendance', 'notices_latest', 'upcoming_events']);
-defineDefaultLayout('student', ['homework_due', 'my_tests', 'my_library_books', 'child_attendance', 'child_fees', 'child_results', 'my_day', 'notices_latest', 'upcoming_events']);
-defineDefaultLayout('guardian', ['ptm_next', 'my_complaints', 'homework_due', 'my_tests', 'my_library_books', 'child_attendance', 'child_fees', 'child_results', 'my_day', 'notices_latest', 'upcoming_events']);
+defineDefaultLayout('student', ['feedback_to_give', 'homework_due', 'my_tests', 'my_library_books', 'child_attendance', 'child_fees', 'child_results', 'my_day', 'notices_latest', 'upcoming_events']);
+defineDefaultLayout('guardian', ['ptm_next', 'feedback_to_give', 'my_complaints', 'homework_due', 'my_tests', 'my_library_books', 'child_attendance', 'child_fees', 'child_results', 'my_day', 'notices_latest', 'upcoming_events']);

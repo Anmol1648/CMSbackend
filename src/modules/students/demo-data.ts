@@ -28,6 +28,7 @@ import { clearDemoPtm, createDemoPtm } from '../ptm/demo-ptm';
 import { clearDemoVisitors, createDemoVisitors } from '../visitors/demo-visitors';
 import { clearDemoComplaints, createDemoComplaints } from '../complaints/demo-complaints';
 import { clearDemoDiscipline, createDemoDiscipline } from '../discipline/demo-discipline';
+import { clearDemoFeedback, createDemoFeedback } from '../feedback/demo-feedback';
 import { randomUUID } from 'crypto';
 
 /**
@@ -293,9 +294,10 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     const visitors = await createDemoVisitors();
     const complaints = await createDemoComplaints();
     const discipline = await createDemoDiscipline();
+    const feedback = await createDemoFeedback();
 
     await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries, receipts: fees.receipts } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, library, ptm, visitors, complaints, discipline, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, library, ptm, visitors, complaints, discipline, feedback, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -317,6 +319,7 @@ export const clearDemoData = async () => {
     await clearDemoVisitors();
     await clearDemoComplaints();
     await clearDemoDiscipline();
+    await clearDemoFeedback();
     await clearDemoTests();
     await clearDemoQuestions();
     await clearDemoExams();

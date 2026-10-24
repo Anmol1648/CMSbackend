@@ -27,11 +27,12 @@ import { createDemoPtm } from '../modules/ptm/demo-ptm';
 import { createDemoVisitors } from '../modules/visitors/demo-visitors';
 import { createDemoComplaints } from '../modules/complaints/demo-complaints';
 import { createDemoDiscipline } from '../modules/discipline/demo-discipline';
+import { createDemoFeedback } from '../modules/feedback/demo-feedback';
 
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' }, ptm: { type: 'boolean' }, visitors: { type: 'boolean' }, complaints: { type: 'boolean' }, discipline: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' }, ptm: { type: 'boolean' }, visitors: { type: 'boolean' }, complaints: { type: 'boolean' }, discipline: { type: 'boolean' }, feedback: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -92,6 +93,12 @@ const main = async () => {
         // Only the syllabus and question bank.
         const r = await runAsTenant(tenant.id, createDemoQuestions);
         out(`${tenant.name}: ${r.chapters} chapters, ${r.questions} questions.`);
+        return;
+    }
+    if (values.feedback) {
+        // Only teacher feedback, for a school that already has its demo teachers and students.
+        const r = await runAsTenant(tenant.id, createDemoFeedback);
+        out(`${tenant.name}: ${r.rounds} feedback rounds, ${r.responses} responses.`);
         return;
     }
     if (values.discipline) {
@@ -165,6 +172,7 @@ const main = async () => {
     out(`${tenant.name}: ${r.visitors.visits} visits, ${r.visitors.pickups} early pickups; security guard login: ${r.visitors.guard}.`);
     out(`${tenant.name}: ${r.complaints.complaints} complaints.`);
     out(`${tenant.name}: ${r.discipline.incidents} incidents, ${r.discipline.positives} positive notes.`);
+    out(`${tenant.name}: ${r.feedback.rounds} teacher feedback rounds, ${r.feedback.responses} responses.`);
     out(`${tenant.name}: ${r.learn.chats} tutor conversations, ${r.learn.quizzes} practice quizzes.`);
     if (r.timetable.generated) out(`${tenant.name}: timetable published (${r.timetable.placed} of ${r.timetable.wanted} periods placed), ${r.timetable.substitutions} substitution periods today.`);
     out('');
