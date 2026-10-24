@@ -39,7 +39,7 @@ export const UPLOADS = {
     }),
 };
 
-export type FileKind = 'png' | 'jpeg' | 'webp' | 'gif' | 'pdf' | 'xlsx';
+export type FileKind = 'png' | 'jpeg' | 'webp' | 'gif' | 'pdf' | 'xlsx' | 'docx' | 'pptx' | 'mp4';
 
 const KINDS: Record<FileKind, { mime: string; ext: string }> = {
     png: { mime: 'image/png', ext: 'png' },
@@ -48,6 +48,9 @@ const KINDS: Record<FileKind, { mime: string; ext: string }> = {
     gif: { mime: 'image/gif', ext: 'gif' },
     pdf: { mime: 'application/pdf', ext: 'pdf' },
     xlsx: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' },
+    docx: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
+    pptx: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx' },
+    mp4: { mime: 'video/mp4', ext: 'mp4' },
 };
 
 export const IMAGE_KINDS: FileKind[] = ['png', 'jpeg', 'webp'];
@@ -59,8 +62,14 @@ export const detectKind = (b: Buffer): FileKind | null => {
     if (b.length >= 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return 'webp';
     if (b.length >= 6 && /^GIF8[79]a$/.test(b.toString('ascii', 0, 6))) return 'gif';
     if (b.length >= 5 && b.toString('ascii', 0, 5) === '%PDF-') return 'pdf';
-    // xlsx is a zip whose first entry is usually [Content_Types].xml; a plain zip check plus the name list is enough here.
-    if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04 && b.includes(Buffer.from('[Content_Types].xml'))) return 'xlsx';
+    // Office files are zips with [Content_Types].xml; the folder names inside tell Word / PowerPoint / Excel apart.
+    if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04 && b.includes(Buffer.from('[Content_Types].xml'))) {
+        if (b.includes(Buffer.from('word/'))) return 'docx';
+        if (b.includes(Buffer.from('ppt/'))) return 'pptx';
+        return 'xlsx';
+    }
+    // MP4 / M4V: a box of type "ftyp" at byte 4.
+    if (b.length >= 12 && b.toString('ascii', 4, 8) === 'ftyp') return 'mp4';
     return null;
 };
 
@@ -69,7 +78,7 @@ export const mimeOf = (kind: FileKind) => KINDS[kind].mime;
 export interface SaveUploadInput {
     data: Buffer;
     originalName: string;
-    purpose: 'logo' | 'background' | 'avatar' | 'import' | 'document' | 'attendance' | 'face' | 'homework' | 'transport' | 'visitor';
+    purpose: 'logo' | 'background' | 'avatar' | 'import' | 'document' | 'attendance' | 'face' | 'homework' | 'transport' | 'visitor' | 'upload';
     allowed: FileKind[];
 }
 

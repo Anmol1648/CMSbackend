@@ -185,6 +185,11 @@ model Tenant {
   feedbackResponses   FeedbackResponse[]
   feedbackCompletions FeedbackCompletion[]
 
+  uploadFolders  UploadFolder[]
+  uploadItems    UploadItem[]
+  uploadVersions UploadVersion[]
+  uploadViews    UploadView[]
+
   @@map("tenants")
 }
 
@@ -4233,4 +4238,118 @@ model FeedbackCompletion {
 
   @@unique([roundId, userId, studentId, staffId])
   @@map("feedback_completions")
+}
+
+/// A folder of shared files, with who can see what is in it (or the same as its parent).
+model UploadFolder {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  parentId    String?  @map("parent_id") @db.Uuid
+  name        String
+  description String?
+  /// Who can see it: the same as the parent folder (inherit), everyone, staff, or the lists below.
+  inherit     Boolean  @default(true)
+  /// everyone | staff | custom
+  audience    String   @default("everyone")
+  roleSlugs   String[] @map("role_slugs")
+  sectionIds  String[] @map("section_ids") @db.Uuid
+  userIds     String[] @map("user_ids") @db.Uuid
+  /// With sections: their parents see it too.
+  withParents Boolean  @default(true) @map("with_parents")
+  /// Teachers can add files here (for the sections they teach).
+  staffAdd    Boolean  @default(false) @map("staff_add")
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String?  @map("created_by") @db.Uuid
+  isDemo      Boolean  @default(false) @map("is_demo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  UploadItem[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, parentId])
+  @@map("upload_folders")
+}
+
+/// A shared file (or link) in a folder: its current version, who sees it, until when, and whether it must be acknowledged.
+model UploadItem {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  folderId    String    @map("folder_id") @db.Uuid
+  title       String
+  description String?
+  /// Master "upload_tag".
+  tagIds      String[]  @map("tag_ids") @db.Uuid
+  /// file | link
+  kind        String    @default("file")
+  fileId      String?   @map("file_id") @db.Uuid
+  link        String?
+  fileName    String?   @map("file_name")
+  mimeType    String?   @map("mime_type")
+  sizeBytes   Int?      @map("size_bytes")
+  version     Int       @default(1)
+  inherit     Boolean   @default(true)
+  audience    String    @default("everyone")
+  roleSlugs   String[]  @map("role_slugs")
+  sectionIds  String[]  @map("section_ids") @db.Uuid
+  userIds     String[]  @map("user_ids") @db.Uuid
+  withParents Boolean   @default(true) @map("with_parents")
+  validUntil  DateTime? @map("valid_until") @db.Date
+  needsAck    Boolean   @default(false) @map("needs_ack")
+  /// published | pending (waiting for approval)
+  status      String    @default("published")
+  uploadedBy  String?   @map("uploaded_by") @db.Uuid
+  isDemo      Boolean   @default(false) @map("is_demo")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  folder   UploadFolder    @relation(fields: [folderId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  versions UploadVersion[]
+  views    UploadView[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, folderId])
+  @@map("upload_items")
+}
+
+/// Earlier versions of a file.
+model UploadVersion {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  itemId     String   @map("item_id") @db.Uuid
+  version    Int
+  fileId     String?  @map("file_id") @db.Uuid
+  link       String?
+  fileName   String?  @map("file_name")
+  uploadedBy String?  @map("uploaded_by") @db.Uuid
+  at         DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  item   UploadItem @relation(fields: [itemId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, itemId])
+  @@map("upload_versions")
+}
+
+/// Who opened / downloaded a file, and acknowledged it.
+model UploadView {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  itemId         String    @map("item_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  firstAt        DateTime  @default(now()) @map("first_at") @db.Timestamptz(6)
+  lastAt         DateTime  @default(now()) @map("last_at") @db.Timestamptz(6)
+  opens          Int       @default(1)
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  remindedAt     DateTime? @map("reminded_at") @db.Timestamptz(6)
+  isDemo         Boolean   @default(false) @map("is_demo")
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  item   UploadItem @relation(fields: [itemId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([itemId, userId])
+  @@map("upload_views")
 }
