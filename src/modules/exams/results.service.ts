@@ -400,8 +400,9 @@ export const myResults = async (userId: string) => {
                 db.examTerm.findMany({ where: { academicYearId: e.academicYearId }, select: { id: true, name: true } }),
             ]);
             const section = await db.section.findUnique({ where: { id: e.sectionId }, select: { classId: true } });
-            for (const x of exams) if (section && x.classIds.includes(section.classId)) cards.push({ scope: 'exam' as const, id: x.id, label: x.name, year: e.academicYear.name, sectionId: e.sectionId });
-            for (const p of pubs) cards.push(p.scope === 'final' ? { scope: 'final' as const, id: e.academicYearId, label: `Final result`, year: e.academicYear.name, sectionId: e.sectionId } : { scope: 'term' as const, id: p.termId!, label: terms.find((t) => t.id === p.termId)?.name ?? 'Term', year: e.academicYear.name, sectionId: e.sectionId });
+            const cardFormat = section ? (await ruleFor(section.classId)).cardFormat : 'standard';
+            for (const x of exams) if (section && x.classIds.includes(section.classId)) cards.push({ scope: 'exam' as const, id: x.id, label: x.name, year: e.academicYear.name, sectionId: e.sectionId, cardFormat });
+            for (const p of pubs) cards.push(p.scope === 'final' ? { scope: 'final' as const, id: e.academicYearId, label: `Final result`, year: e.academicYear.name, sectionId: e.sectionId, cardFormat } : { scope: 'term' as const, id: p.termId!, label: terms.find((t) => t.id === p.termId)?.name ?? 'Term', year: e.academicYear.name, sectionId: e.sectionId, cardFormat });
         }
         out.push({ student: { id: s.id, name: fullName(s) }, cards });
     }

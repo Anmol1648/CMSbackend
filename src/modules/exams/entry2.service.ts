@@ -139,7 +139,8 @@ export const bankRemarks = async (percent: number | null) => {
     const rows = await db.masterValue.findMany({ where: { master: 'report_remark', isActive: true }, orderBy: { sortOrder: 'asc' }, select: { name: true, extra: true } });
     const band = percent == null ? null : percent >= 75 ? 'high' : percent >= 50 ? 'mid' : 'low';
     const of = (r: (typeof rows)[number]) => ((r.extra ?? {}) as { band?: string }).band ?? '';
-    return [...rows.filter((r) => band && of(r) === band), ...rows.filter((r) => !of(r))].map((r) => r.name);
+    if (!band) return rows.map((r) => r.name);
+    return [...rows.filter((r) => of(r) === band), ...rows.filter((r) => !of(r))].map((r) => r.name);
 };
 
 /** A remark written by the AI from the student's result (the teacher edits it before saving). */
