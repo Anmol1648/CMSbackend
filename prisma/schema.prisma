@@ -4169,6 +4169,8 @@ model FeedbackRound {
   audience       String    @default("student")
   sectionIds     String[]  @map("section_ids") @db.Uuid
   anonymous      Boolean   @default(true)
+  /// Students / parents with forms left can't use the rest of the app until they finish.
+  mustFill       Boolean   @default(false) @map("must_fill")
   opensOn        DateTime  @map("opens_on") @db.Date
   closesOn       DateTime  @map("closes_on") @db.Date
   /// draft | open | closed | released (teachers can see their results)

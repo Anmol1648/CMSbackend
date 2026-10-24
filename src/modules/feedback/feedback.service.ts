@@ -102,14 +102,15 @@ export const roundSchema = z
         audience: z.enum(['student', 'parent', 'both']),
         sectionIds: z.array(z.uuid()).min(1, 'choose at least one section').max(200),
         anonymous: z.boolean(),
+        mustFill: z.boolean().default(false),
         opensOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         closesOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     })
     .refine((r) => r.closesOn >= r.opensOn, { message: 'is before the opening day', path: ['closesOn'] });
 
 export const roundDefaults = async () => {
-    const s = await getSettings({ anon: FEEDBACK.anonymous });
-    return { anonymous: s.anon };
+    const s = await getSettings({ anon: FEEDBACK.anonymous, must: FEEDBACK.mustFill });
+    return { anonymous: s.anon, mustFill: s.must };
 };
 
 /** Rounds with how far along they are (forms filled of those expected). */
@@ -119,7 +120,7 @@ export const listRounds = async () => {
     for (const r of rows) {
         const [who, teachers] = await Promise.all([respondents(r), teachersBySection(r.academicYearId, r.sectionIds)]);
         const expected = who.reduce((a, w) => a + (teachers.get(w.sectionId)?.length ?? 0), 0);
-        out.push({ id: r.id, name: r.name, form: r.form.name, audience: r.audience, sections: r.sectionIds.length, anonymous: r.anonymous, opensOn: isoOf(r.opensOn), closesOn: isoOf(r.closesOn), status: r.status, filled: r._count.completions || r._count.responses, expected, people: new Set(who.map((w) => w.userId)).size });
+        out.push({ id: r.id, name: r.name, form: r.form.name, audience: r.audience, sections: r.sectionIds.length, anonymous: r.anonymous, mustFill: r.mustFill, opensOn: isoOf(r.opensOn), closesOn: isoOf(r.closesOn), status: r.status, filled: r._count.completions || r._count.responses, expected, people: new Set(who.map((w) => w.userId)).size });
     }
     return out;
 };
@@ -157,6 +158,13 @@ export const openRound = async (id: string) => {
     raiseLater('feedback_open', { ...(students.length ? { student: () => studentsOf(students) } : {}), ...(forParents.length ? { parent: () => parentsOf(forParents) } : {}) }, { ...roundVars(r), anonymous: r.anonymous ? 'Your answers are anonymous: no one sees who wrote what.' : '' }, { dedupe: `feedback-open:${id}` });
     await recordAudit({ action: 'feedback_round_opened', entity: 'feedback_round', entityId: id, changes: { people: new Set(who.map((w) => w.userId)).size } });
     return { opened: true };
+};
+
+/** Switches “must be filled before using the app” for a round (also while it is open). */
+export const setMustFill = async (id: string, mustFill: boolean) => {
+    await db.feedbackRound.update({ where: { id }, data: { mustFill } });
+    await recordAudit({ action: 'feedback_must_fill', entity: 'feedback_round', entityId: id, changes: { mustFill } });
+    return { mustFill };
 };
 
 export const closeRound = async (id: string) => {
@@ -215,6 +223,7 @@ export const myFeedback = async (userId: string) => {
             name: r.name,
             closesOn: isoOf(r.closesOn),
             anonymous: r.anonymous,
+            mustFill: r.mustFill,
             questions: questionsOf(r.form.questions),
             children: mine.map((w) => ({
                 studentId: w.studentId,
@@ -226,6 +235,20 @@ export const myFeedback = async (userId: string) => {
         });
     }
     return { rounds: out, scale: Number(scale) };
+};
+
+/** Forms still to fill in rounds that must be finished first (the app sends the person to Teacher Feedback). */
+export const pending = async (userId: string) => {
+    const a = await getUserAccess(userId);
+    if (!a.permissions['feedback.give']) return { blocking: false, left: 0, round: null as string | null };
+    const year = await currentYear();
+    if (!year) return { blocking: false, left: 0, round: null };
+    const today = dayDate(todayIST());
+    if (!(await db.feedbackRound.count({ where: { academicYearId: year.id, status: 'open', mustFill: true, opensOn: { lte: today }, closesOn: { gte: today } } }))) return { blocking: false, left: 0, round: null };
+    const m = await myFeedback(userId);
+    const must = m.rounds.filter((r) => r.mustFill);
+    const left = must.reduce((x, r) => x + r.children.reduce((y, c) => y + c.teachers.filter((t) => !t.done).length, 0), 0);
+    return { blocking: left > 0, left, round: left ? (must.find((r) => r.children.some((c) => c.teachers.some((t) => !t.done)))?.name ?? null) : null };
 };
 
 export const submitSchema = z.strictObject({ roundId: z.uuid(), staffId: z.uuid(), studentId: z.uuid(), answers: z.record(z.string(), z.union([z.number(), z.boolean(), z.string().max(1000)])) });

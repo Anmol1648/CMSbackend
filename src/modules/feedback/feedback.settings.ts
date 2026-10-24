@@ -14,6 +14,7 @@ const num = (key: string, label: string, def: number, min: number, max: number, 
 
 export const FEEDBACK = {
     anonymous: bool('feedback.anonymous', 'New rounds are anonymous (no one sees who wrote what)', true),
+    mustFill: bool('feedback.must_fill', 'New rounds must be filled in before students / parents can use the rest of the app', false, 'Each round can still be set on its own. While a round is open, a student or parent with forms left is taken to Teacher Feedback until every teacher is done.'),
     minResponses: num('feedback.min_responses', 'Show a teacher’s results only when at least this many people answered', 5, 1, 100, 'So no one can guess who wrote what.'),
     teachersSee: bool('feedback.teachers_see', 'Teachers see their own results (after the round is released)', true),
     teachersSeeComments: bool('feedback.teachers_see_comments', 'Teachers see the comments about them (screened ones only)', true),

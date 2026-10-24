@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, successResponse } from '../../core/index';
 import { validationError } from '../../core/errors';
-import { can } from '../../middlewares/access';
+import { authenticated, can } from '../../middlewares/access';
 import * as fb from './feedback.service';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
@@ -25,6 +25,7 @@ feedbackRoutes.post('/rounds', manage, asyncHandler(async (req: Request, res: Re
 feedbackRoutes.put('/rounds/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.saveRound(req.params.id, parse(fb.roundSchema, req.body), uid(req)), 'Saved')));
 feedbackRoutes.delete('/rounds/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.deleteRound(req.params.id), 'Deleted')));
 feedbackRoutes.post('/rounds/:id/open', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.openRound(req.params.id), 'Opened')));
+feedbackRoutes.put('/rounds/:id/must-fill', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.setMustFill(req.params.id, parse(z.object({ mustFill: z.boolean() }), req.body).mustFill), 'Saved')));
 feedbackRoutes.post('/rounds/:id/close', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.closeRound(req.params.id), 'Closed')));
 feedbackRoutes.post('/rounds/:id/release', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.releaseRound(req.params.id), 'Released')));
 feedbackRoutes.get('/rounds/:id/comments', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.pendingComments(req.params.id), 'Comments')));
@@ -38,6 +39,7 @@ feedbackRoutes.get('/rounds/:id/results', can('feedback.results'), asyncHandler(
 feedbackRoutes.get('/mine/rounds', can('feedback.own'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.myRounds(uid(req)), 'Rounds')));
 feedbackRoutes.get('/mine/rounds/:id', can('feedback.own'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.results(req.params.id, uid(req), 'me'), 'My results')));
 
-// Students and parents.
+// Students and parents. Anyone signed in may ask (people who don't give feedback get “nothing pending”).
+feedbackRoutes.get('/pending', authenticated, asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.pending(uid(req)), 'Pending')));
 feedbackRoutes.get('/give', can('feedback.give'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.myFeedback(uid(req)), 'Feedback')));
 feedbackRoutes.post('/give', can('feedback.give'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await fb.submit(parse(fb.submitSchema, req.body), uid(req)), 'Thank you', 201)));
