@@ -75,6 +75,9 @@ import './complaints/complaints.permissions';
 import './complaints/complaints.service';
 import './complaints/complaints.alerts';
 import './complaints/complaints.reports';
+import './discipline/discipline.permissions';
+import './discipline/discipline.alerts';
+import './discipline/discipline.reports';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.

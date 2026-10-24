@@ -176,6 +176,10 @@ model Tenant {
   complaints        Complaint[]
   complaintMessages ComplaintMessage[]
 
+  incidents        Incident[]
+  incidentStudents IncidentStudent[]
+  incidentActions  IncidentAction[]
+
   @@map("tenants")
 }
 
@@ -4037,4 +4041,93 @@ model ComplaintMessage {
 
   @@index([tenantId, complaintId, createdAt])
   @@map("complaint_messages")
+}
+
+/// A discipline incident (or a positive note): what happened, where, how serious, and whether it is settled.
+model Incident {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  /// Master "incident_type" (late coming, fight… or a positive one).
+  typeId         String?   @map("type_id") @db.Uuid
+  positive       Boolean   @default(false)
+  /// minor | moderate | serious (positive notes: minor)
+  severity       String    @default("minor")
+  occurredAt     DateTime  @map("occurred_at") @db.Timestamptz(6)
+  /// Master "incident_place".
+  placeId        String?   @map("place_id") @db.Uuid
+  title          String
+  details        String?
+  attachmentIds  String[]  @map("attachment_ids") @db.Uuid
+  /// open | resolved
+  status         String    @default("open")
+  followUpOn     DateTime? @map("follow_up_on") @db.Date
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy     String?   @map("resolved_by") @db.Uuid
+  recordedBy     String?   @map("recorded_by") @db.Uuid
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  students IncidentStudent[]
+  actions  IncidentAction[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, occurredAt])
+  @@map("incidents")
+}
+
+/// A student in an incident: their part, points, and whether the parents were told and acknowledged.
+model IncidentStudent {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  incidentId     String    @map("incident_id") @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  sectionId      String?   @map("section_id") @db.Uuid
+  /// did | affected | witness (positive notes: did)
+  role           String    @default("did")
+  /// Merit (+) / demerit (−) points, from the type (System Settings → Discipline).
+  points         Int       @default(0)
+  /// none | alert | phone | meeting
+  informedHow    String    @default("none") @map("informed_how")
+  informedAt     DateTime? @map("informed_at") @db.Timestamptz(6)
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  acknowledgedBy String?   @map("acknowledged_by") @db.Uuid
+  parentReply    String?   @map("parent_reply")
+  isDemo         Boolean   @default(false) @map("is_demo")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  incident Incident @relation(fields: [incidentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([incidentId, studentId])
+  @@index([tenantId, studentId])
+  @@map("incident_students")
+}
+
+/// An action taken (warning, detention, suspension…), for one student or all; some wait for approval.
+model IncidentAction {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  incidentId String    @map("incident_id") @db.Uuid
+  studentId  String?   @map("student_id") @db.Uuid
+  /// Master "discipline_action".
+  actionId   String?   @map("action_id") @db.Uuid
+  note       String?
+  fromDate   DateTime? @map("from_date") @db.Date
+  toDate     DateTime? @map("to_date") @db.Date
+  /// done | pending (waiting for approval) | rejected
+  status     String    @default("done")
+  decidedBy  String?   @map("decided_by") @db.Uuid
+  approvedBy String?   @map("approved_by") @db.Uuid
+  approvedAt DateTime? @map("approved_at") @db.Timestamptz(6)
+  answer     String?
+  isDemo     Boolean   @default(false) @map("is_demo")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  incident Incident @relation(fields: [incidentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("incident_actions")
 }
