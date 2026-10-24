@@ -8,7 +8,8 @@ import { authenticated, can, publicRoute } from '../../middlewares/access';
 import { getUserAccess } from '../rbac/access.service';
 import { minutesIST, todayIST } from '../attendance/attendance.settings';
 import { onQueuePass } from '../alerts/queue';
-import { findTenantByCode } from '../tenants';
+import { findTenantByCode, findTenantByHost } from '../tenants';
+import { env } from '../../config/env';
 import * as auth from './platform-auth';
 import * as p from './platform.service';
 import { goLive, setupProgress } from './onboarding';
@@ -76,6 +77,17 @@ platformInfoRoutes.get('/school', publicRoute, asyncHandler(async (req: Request,
     const t = await findTenantByCode(code);
     const name = t?.status === 'active' ? (await runAsSystem(() => db.tenant.findUnique({ where: { id: t.id }, select: { name: true } })))?.name : null;
     successResponse(res, { found: !!name, code, name: name ?? null }, name ? 'School found' : 'No school with that code');
+}));
+/**
+ * Caddy asks before getting an HTTPS certificate for an address: yes for a school's own domain, a
+ * school's <code>.<PLATFORM_DOMAIN>, and the platform's own addresses; no for anything else.
+ */
+platformInfoRoutes.get('/tls-check', publicRoute, asyncHandler(async (req: Request, res: Response) => {
+    const host = String(req.query.domain ?? '').trim().toLowerCase();
+    const base = env.PLATFORM_DOMAIN?.trim().toLowerCase();
+    const own = base && [base, `www.${base}`, `app.${base}`, `console.${base}`].includes(host);
+    const school = !own && /^[a-z0-9.-]{3,253}$/.test(host) ? await findTenantByHost(host, base) : null;
+    res.status(own || school ? 200 : 404).send(own || school ? 'ok' : 'unknown');
 }));
 /** Banners and "What's new" from Klytos (admins and principals also get the ones meant for them). */
 platformInfoRoutes.get('/notices', authenticated, asyncHandler(async (req: Request, res: Response) => {

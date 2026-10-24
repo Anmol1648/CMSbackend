@@ -21,6 +21,7 @@
     "db:studio": "prisma studio",
     "tenant:create": "tsx src/scripts/tenant-create.ts",
     "platform:owner": "tsx src/scripts/platform-owner.ts",
+    "isolation:check": "tsx src/scripts/isolation-check.ts",
     "user:reset-password": "tsx src/scripts/reset-password.ts",
     "roles:apply-defaults": "tsx src/scripts/apply-default-grants.ts",
     "starter:seed": "tsx src/scripts/seed-starter-data.ts",

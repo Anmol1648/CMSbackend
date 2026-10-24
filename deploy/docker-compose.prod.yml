@@ -1,0 +1,114 @@
+# Everything on one Oracle Cloud VM (see deploy/DEPLOY-OCI.md).
+#   cd ~/erp/cmsbackend/deploy && cp .env.example .env  (fill it in)  && docker compose -f docker-compose.prod.yml up -d --build
+# Only Caddy is reachable from the internet (ports 80 / 443); everything else talks inside the network.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: erp
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "max_connections=100", "-c", "shared_buffers=512MB"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp -d erp"]
+      interval: 10s
+      retries: 10
+
+  # Many app connections share a few database connections (session mode: Prisma's prepared statements work).
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: always
+    environment:
+      DB_HOST: postgres
+      DB_USER: erp
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: erp
+      POOL_MODE: session
+      MAX_CLIENT_CONN: 300
+      DEFAULT_POOL_SIZE: 40
+      AUTH_TYPE: scram-sha-256
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: ..
+    restart: always
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      # Through PgBouncer; migrations go straight to Postgres (DIRECT_URL).
+      DATABASE_URL: postgresql://erp:${POSTGRES_PASSWORD}@pgbouncer:5432/erp?connection_limit=10
+      DIRECT_URL: postgresql://erp:${POSTGRES_PASSWORD}@postgres:5432/erp
+      REDIS_URL: redis://redis:6379
+      JASPER_URL: http://jasper:8090
+      TRUST_PROXY: 1
+    volumes:
+      - files:/app/storage
+    depends_on:
+      - pgbouncer
+      - redis
+
+  frontend:
+    build: ../../cmsfrontend
+    restart: always
+    depends_on:
+      - backend
+
+  jasper:
+    build: ../jasper-service
+    restart: always
+    environment:
+      JASPER_TOKEN: ${JASPER_TOKEN:?set JASPER_TOKEN in .env}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:?set PLATFORM_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+  # Nightly database backup at 01:30 (India time), copied off the machine (deploy/backup.sh).
+  backup:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      TZ: Asia/Kolkata
+      RCLONE_REMOTE: ${BACKUP_REMOTE:-}
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - backups:/backups
+      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
+    entrypoint: ["sh", "-c", "apk add --no-cache rclone tzdata >/dev/null && echo '30 1 * * * sh /backup.sh >> /backups/backup.log 2>&1' | crontab - && crond -f"]
+    depends_on:
+      - postgres
+
+volumes:
+  pg_data:
+  redis_data:
+  files:
+  backups:
+  caddy_data:
+  caddy_config:

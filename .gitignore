@@ -34,3 +34,7 @@ Thumbs.db
 
 # Machine-specific certificates (e.g. antivirus mail shield root)
 /certs/
+
+# Production secrets on the server
+deploy/.env
+deploy/rclone.conf

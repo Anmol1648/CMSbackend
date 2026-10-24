@@ -1,0 +1,8 @@
+node_modules
+dist
+.dist-check
+storage
+.env
+*.log
+test
+jasper-service/target
