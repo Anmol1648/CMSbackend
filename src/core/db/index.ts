@@ -217,11 +217,13 @@ export const db = base.$extends({
     query: {
         $allModels: {
             async $allOperations({ model, operation, args, query }) {
-                const scoped = scopeArgs(model, operation, args as Args) as typeof args;
-                if (!audited.has(model) || !['create', 'update', 'delete'].includes(operation)) return query(scoped);
+                // Through a plain function type: `typeof args` is a union over every model, too big for the type checker.
+                const run = query as unknown as (a: Args) => Promise<unknown>;
+                const scoped = scopeArgs(model, operation, args as Args);
+                if (!audited.has(model) || !['create', 'update', 'delete'].includes(operation)) return run(scoped);
 
-                const before = operation === 'create' ? null : await delegate(model).findFirst({ where: (scoped as Args).where });
-                const result = (await query(scoped)) as Args;
+                const before = operation === 'create' ? null : await delegate(model).findFirst({ where: scoped.where });
+                const result = (await run(scoped)) as Args;
                 await writeHistory(model, operation, before, operation === 'delete' ? null : result);
                 return result;
             },

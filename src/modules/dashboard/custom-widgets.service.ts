@@ -165,24 +165,34 @@ const bucketLabel = (k: string, b: 'day' | 'week' | 'month' | null) => {
     return b === 'week' ? `wk ${s}` : s;
 };
 
-/** A widget's data, worked out on the viewer's own data. */
-export const computeWidget = async (d: WidgetDefinition, userId: string): Promise<WidgetData> => {
-    const src = findDataSource(d.source);
-    if (!src) return { items: [], empty: 'The data this widget was made from is no longer available.' };
+/** The viewer's rows of a source, with the source's inputs and the conditions applied (null: no such data / not allowed). */
+const loadRows = async (source: string, given0: Record<string, string>, filters: WidgetDefinition['filters'], userId: string) => {
+    const src = findDataSource(source);
+    if (!src) return null;
     const access = await getUserAccess(userId);
-    if (!mayUseSource(src, access)) return { hidden: true, items: [], empty: '' };
+    if (!mayUseSource(src, access)) return null;
     const sensitive = access.isSuperAdmin || !!(src.sensitivePermission && access.permissions[src.sensitivePermission]);
     const byKey = new Map(src.fields.map((f) => [f.key, f]));
     const given: Record<string, string> = {};
-    for (const p of src.params) if (d.params[p.key]) given[p.key] = p.type === 'date' ? await relativeDate(d.params[p.key]) : d.params[p.key];
+    for (const p of src.params) if (given0[p.key]) given[p.key] = p.type === 'date' ? await relativeDate(given0[p.key]) : given0[p.key];
     const params = await resolveFilters({ filters: src.params }, given);
     let rows = await src.load(params, { userId, sensitive });
-    for (const x of d.filters) {
+    for (const x of filters) {
         const f = byKey.get(x.field);
-        if (!f) continue;
+        if (!f || (f.sensitive && !sensitive)) continue;
         const [a, b] = f.type === 'date' ? [await relativeDate(x.value), await relativeDate(x.value2)] : [x.value, x.value2];
         rows = rows.filter((r) => matches(r[f.key], f, x.op, a, b));
     }
+    return { src, byKey, sensitive, rows, params };
+};
+
+/** A widget's data, worked out on the viewer's own data. */
+export const computeWidget = async (d: WidgetDefinition, userId: string): Promise<WidgetData> => {
+    if (!findDataSource(d.source)) return { items: [], empty: 'The data this widget was made from is no longer available.' };
+    const loaded = await loadRows(d.source, d.params, d.filters, userId);
+    if (!loaded) return { hidden: true, items: [], empty: '' };
+    const { byKey, sensitive } = loaded;
+    let rows = loaded.rows;
     const ds = d.display;
     const mf = ds.measure.field ? byKey.get(ds.measure.field) : undefined;
     const money = ds.measure.fn !== 'count' && ds.measure.fn !== 'distinct' && mf?.type === 'money';
@@ -246,6 +256,87 @@ export const computeWidget = async (d: WidgetDefinition, userId: string): Promis
         return showValue(f as DataField, r[f.key]);
     };
     return { items: rows.slice(0, ds.limit).map((r) => ({ title: show(ds.list.title, r) ?? '—', sub: show(ds.list.sub, r), meta: show(ds.list.meta, r) })), empty: 'Nothing to show.', more: rows.length > ds.limit ? { label: `${rows.length} in all`, href: '/reports' } : undefined, note: caption };
+};
+
+// ─── Looking data up for the AI assistant ────────────────────────────────────
+
+const flt = z.strictObject({ field, op: z.enum(OPS), value: z.coerce.string().trim().max(300).default(''), value2: z.coerce.string().trim().max(300).default('') });
+export const querySchema = z.object({
+    source: field,
+    params: z.record(z.string(), z.coerce.string().trim().max(40)).default({}),
+    filters: z.array(flt).max(10).default([]),
+    /** total: one number; groups: a number per value of groupBy; rows: the records themselves. */
+    mode: z.enum(['total', 'groups', 'rows']).default('total'),
+    fn: z.enum(['count', 'sum', 'avg', 'min', 'max', 'distinct']).default('count'),
+    field: field.nullable().optional(),
+    groupBy: field.nullable().optional(),
+    bucket: z.enum(['day', 'week', 'month']).nullable().optional(),
+    fields: z.array(field).max(8).default([]),
+    sortBy: field.nullable().optional(),
+    dir: z.enum(['asc', 'desc']).default('desc'),
+    limit: z.number().int().min(1).max(30).default(10),
+});
+
+/** One lookup over the person's own data. Throws a message the assistant can act on when the question doesn't fit the data. */
+export const runQuery = async (q: z.infer<typeof querySchema>, userId: string) => {
+    const src = findDataSource(q.source);
+    if (!src) throw badRequest(`There is no data source “${q.source}”`);
+    const loaded = await loadRows(q.source, q.params, q.filters, userId);
+    if (!loaded) throw forbidden(`This person may not see ${src.label}`);
+    const { byKey, sensitive, rows } = loaded;
+    const get = (k: string | null | undefined, what: string) => {
+        if (!k) return undefined;
+        const f = byKey.get(k);
+        if (!f) throw badRequest(`“${k}” is not a field of ${src.label} (${what})`);
+        if (f.sensitive && !sensitive) throw forbidden(`${f.label} is private for this person`);
+        return f;
+    };
+    for (const x of q.filters) get(x.field, 'condition');
+    const mf = get(q.field, 'what to add up');
+    if (q.fn !== 'count' && !mf) throw badRequest(`Give the field to ${q.fn}`);
+    const money = mf?.type === 'money' && q.fn !== 'count' && q.fn !== 'distinct';
+    const total = round(aggregate(rows, q.fn, q.field ?? null));
+    const what = q.fn === 'count' ? 'records' : `${q.fn} of ${mf!.label}${money ? ' (₹)' : ''}`;
+    if (q.mode === 'total') return { data: src.label, matched: rows.length, measure: what, value: total };
+    if (q.mode === 'groups') {
+        const g = get(q.groupBy, 'group by');
+        if (!g) throw badRequest('Give groupBy for groups');
+        const m = new Map<string, Record<string, unknown>[]>();
+        for (const r of rows) {
+            const raw = r[g.key];
+            const k = raw === null || raw === undefined || raw === '' ? '—' : g.type === 'date' ? (q.bucket ? bucketOf(String(raw), q.bucket) : String(raw).slice(0, 10)) : showValue(g, raw);
+            m.set(k, [...(m.get(k) ?? []), r]);
+        }
+        const groups = [...m.entries()].map(([k, rs]) => ({ [g.label]: g.type === 'date' && q.bucket && k !== '—' ? bucketLabel(k, q.bucket) : k, value: round(aggregate(rs, q.fn, q.field ?? null)), records: rs.length }));
+        groups.sort((a, b) => (q.dir === 'asc' ? a.value - b.value : b.value - a.value));
+        return { data: src.label, matched: rows.length, measure: what, total, groups: groups.slice(0, q.limit), moreGroups: Math.max(0, groups.length - q.limit) };
+    }
+    const fields = (q.fields.length ? q.fields : src.fields.filter((f) => !f.sensitive).slice(0, 5).map((f) => f.key)).map((k) => get(k, 'fields')!).filter((f) => !f.sensitive || sensitive);
+    const sf = get(q.sortBy, 'sort');
+    let list = rows;
+    if (sf) {
+        const dir = q.dir === 'asc' ? 1 : -1;
+        list = [...rows].sort((x, y) => {
+            const a = x[sf.key];
+            const b = y[sf.key];
+            if (a === b) return 0;
+            if (a === null || a === undefined || a === '') return 1;
+            if (b === null || b === undefined || b === '') return -1;
+            return (sf.type === 'number' || sf.type === 'money' ? Number(a) - Number(b) : String(a).localeCompare(String(b), 'en-IN', { numeric: true })) * dir;
+        });
+    }
+    return { data: src.label, matched: rows.length, rows: list.slice(0, q.limit).map((r) => Object.fromEntries(fields.map((f) => [f.label, showValue(f as DataField, r[f.key])]))), moreRows: Math.max(0, rows.length - q.limit) };
+};
+
+/** The data sources a person may ask about, in a few words each (for the assistant's instructions). */
+export const sourcesFor = async (userId: string) => {
+    const a = await getUserAccess(userId);
+    return listDataSources()
+        .filter((s) => mayUseSource(s, a))
+        .map((s) => {
+            const sensitive = a.isSuperAdmin || !!(s.sensitivePermission && a.permissions[s.sensitivePermission]);
+            return { key: s.key, label: s.label, description: s.description, params: s.params.map((p) => ({ key: p.key, label: p.label, type: p.type, default: p.default ?? null })), fields: s.fields.filter((f) => !f.sensitive || sensitive).map((f) => ({ key: f.key, label: f.label, type: f.type })) };
+        });
 };
 
 // ─── As dashboard widgets ────────────────────────────────────────────────────

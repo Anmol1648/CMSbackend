@@ -256,6 +256,8 @@ model Tenant {
 
   userDashboards UserDashboard[]
   customWidgets  CustomWidget[]
+  aiChats        AiChat[]
+  aiChatMessages AiChatMessage[]
 
   @@map("tenants")
 }
@@ -5784,4 +5786,44 @@ model CustomWidget {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("custom_widgets")
+}
+
+/// A conversation with the AI assistant (each person sees only their own).
+model AiChat {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  title     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages AiChatMessage[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, userId, updatedAt])
+  @@map("ai_chats")
+}
+
+/// One message of a conversation: the person's question, or the assistant's answer (with the look-ups it made).
+model AiChatMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  chatId    String   @map("chat_id") @db.Uuid
+  /// user | assistant
+  role      String
+  text      String
+  /// [{ label, href }] pages the answer points to
+  links     Json     @default("[]")
+  /// The look-ups made for the answer: [{ tool, args, ok, error? }]
+  steps     Json     @default("[]")
+  /// up | down (the person's rating of an answer)
+  feedback  String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chat   AiChat @relation(fields: [chatId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, chatId, createdAt])
+  @@map("ai_chat_messages")
 }

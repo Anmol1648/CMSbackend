@@ -121,6 +121,8 @@ import './mess/mess.permissions';
 import './mess/mess.service';
 import './mess/mess.alerts';
 import './mess/mess.reports';
+import './assistant/assistant.permissions';
+import './assistant/assistant.service';
 import { registerMasterImports } from './masters/masters.permissions';
 
 // Last: one Excel import per master list, once every module above has declared its lists.
