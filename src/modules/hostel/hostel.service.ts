@@ -30,7 +30,8 @@ const staffName = (s: { firstName: string; middleName?: string | null; lastName?
 /** The hostels a person may run ('all', or those they are warden of). */
 export const hostelScope = async (userId: string): Promise<'all' | string[]> => {
     const a = await getUserAccess(userId);
-    if (a.permissions['hostel.setup'] || a.permissions['hostel.allot'] || a.permissions['hostel.view'] || a.permissions['hostel.warden'] === 'all') return 'all';
+    // The gate checks passes of every hostel.
+    if (a.permissions['hostel.setup'] || a.permissions['hostel.allot'] || a.permissions['hostel.view'] || a.permissions['hostel.gate'] || a.permissions['hostel.warden'] === 'all') return 'all';
     const staff = await db.staff.findFirst({ where: { userId }, select: { id: true } });
     if (!staff) return [];
     return (await db.hostel.findMany({ where: { wardenId: staff.id }, select: { id: true } })).map((h) => h.id);
