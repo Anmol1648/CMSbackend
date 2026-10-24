@@ -90,6 +90,10 @@ export const enter = async (input: z.infer<typeof entrySchema>, userId: string) 
     const s = await getSettings({ photo: VISITORS.photoRequired, id: VISITORS.idRequired, approval: VISITORS.approval });
     if (s.photo && !input.photoFileId) throw badRequest('Take the visitor’s photo first', [{ field: 'photoFileId', message: 'is required' }]);
     if (s.id && (!input.idTypeId || !input.idNumber)) throw badRequest('Note the ID proof and its number', [{ field: 'idNumber', message: 'is required' }]);
+    // An expected visitor meets whom the staff member said (the form's choice doesn't matter).
+    const expected = input.expectedVisitId ? await db.visit.findFirst({ where: { id: input.expectedVisitId, status: 'expected' } }) : null;
+    if (input.expectedVisitId && !expected) throw badRequest('This expected visit was already used or removed');
+    if (expected) Object.assign(input, { hostKind: expected.hostKind as 'staff' | 'student' | 'office', staffId: expected.staffId, studentId: expected.studentId });
     if (input.hostKind === 'staff' && !input.staffId) throw badRequest('Choose whom they are meeting', [{ field: 'staffId', message: 'is required' }]);
     if (input.hostKind === 'student' && !input.studentId) throw badRequest('Choose the student', [{ field: 'studentId', message: 'is required' }]);
     const mobile = cleanMobile(input.mobile);
@@ -101,9 +105,8 @@ export const enter = async (input: z.infer<typeof entrySchema>, userId: string) 
     const needsOk = s.approval && input.hostKind === 'staff';
     const now = new Date();
     const data = { visitorId: v.id, day: dayDate(todayIST()), purposeId: input.purposeId ?? null, hostKind: input.hostKind, staffId: input.hostKind === 'staff' ? input.staffId! : null, studentId: input.hostKind === 'student' ? input.studentId! : null, people: input.people, vehicleNo: input.vehicleNo || null, note: input.note || null, photoFileId: input.photoFileId ?? null, status: needsOk ? 'waiting' : 'in', inAt: needsOk ? null : now, passNo: await newPassNo(), createdBy: userId };
-    const expected = input.expectedVisitId ? await db.visit.findFirst({ where: { id: input.expectedVisitId, status: 'expected' } }) : null;
     // An expected visit was already agreed by the staff member: in at once.
-    const visit = expected ? await db.visit.update({ where: { id: expected.id }, data: { ...data, staffId: data.staffId ?? expected.staffId, hostKind: expected.staffId ? 'staff' : data.hostKind, status: 'in', inAt: now } }) : await db.visit.create({ data: { ...data, tenantId: getTenantId()! } });
+    const visit = expected ? await db.visit.update({ where: { id: expected.id }, data: { ...data, status: 'in', inAt: now } }) : await db.visit.create({ data: { ...data, tenantId: getTenantId()! } });
     await db.visitor.update({ where: { id: v.id }, data: { lastVisitAt: now } });
     if (visit.staffId) {
         const purpose = visit.purposeId ? (await db.masterValue.findFirst({ where: { id: visit.purposeId }, select: { name: true } }))?.name : null;
