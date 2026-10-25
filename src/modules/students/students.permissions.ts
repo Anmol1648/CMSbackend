@@ -12,6 +12,7 @@ import './students.settings';
 import './students.masters';
 import { admitStudent } from './students.service';
 import type { GuardianInput } from './family.service';
+import { importExtras } from '../forms/forms.service';
 
 registerPermissions({ key: 'students', label: 'Students', order: 30 }, [
     { resource: 'student', action: 'view', label: 'See students', description: 'Assigned = students of the sections the person is class teacher of. Own = the student themself, or a parent’s children.', scopes: ['all', 'assigned', 'own'] },
@@ -82,6 +83,8 @@ interface StudentImportCtx {
     relations: Map<string, string>;
     families: Map<string, string>;
     userId: string;
+    /** Extra fields of the Form Builder. */
+    extras: Awaited<ReturnType<typeof importExtras>>;
 }
 
 const choicesOf = async (master: string) => (await db.masterValue.findMany({ where: { master, isActive: true }, select: { name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] })).map((m) => m.name);
@@ -97,7 +100,7 @@ registerImport<StudentImportCtx>({
         // One list at a time: many parallel queries can run out of database connections.
         const simple: { header: string; key: string; choices: string[] }[] = [];
         for (const [header, key, master] of LISTS.filter(([, , m]) => !['district', 'city'].includes(m))) simple.push({ header, key, choices: await choicesOf(master) });
-        return [
+        return (await importExtras('student')).adjust([
             { key: 'admissionNo', header: 'Admission no', type: 'text', max: 40, help: 'Empty = given automatically (System Settings → Students).', example: '' },
             { key: 'admissionDate', header: 'Admission date', type: 'date', help: 'Empty = today.' },
             { key: 'firstName', header: 'First name', type: 'text', required: true, max: 80, example: 'Riya' },
@@ -118,7 +121,7 @@ registerImport<StudentImportCtx>({
             { key: 'fatherMobile', header: 'Father mobile', type: 'mobile', help: 'Students with the same father or mother mobile are linked as siblings.', example: '9876543210' },
             { key: 'motherName', header: 'Mother name', type: 'text', max: 120 },
             { key: 'motherMobile', header: 'Mother mobile', type: 'mobile' },
-        ];
+        ]);
     },
     prepare: async (userId) => {
         const year = await currentYear();
@@ -143,6 +146,7 @@ registerImport<StudentImportCtx>({
             relations: new Map(relations.map((r) => [r.name.toLowerCase(), r.id])),
             families: new Map(guardians.map((g) => [g.mobile!, g.familyId])),
             userId,
+            extras: await importExtras('student'),
         };
     },
     check: (row: ParsedRow, ctx) => {
@@ -193,6 +197,7 @@ registerImport<StudentImportCtx>({
                     addressLine: (v.addressLine as string | null) ?? null,
                     pinCode: (v.pinCode as string | null) ?? null,
                     aadhaar: v.aadhaar ? String(v.aadhaar).replace(/[\s-]/g, '') : null,
+                    custom: ctx.extras.toCustom(v),
                 },
                 ...(familyId ? { familyId } : { guardians }),
                 enrolment: {

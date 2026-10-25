@@ -3,9 +3,11 @@ import { db } from '../../core/db';
 import { getTenantId } from '../../core/context';
 import { badRequest, notFound } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
-import { getSettings, setSetting, SettingDef } from '../../core/settings';
+import { getSetting, getSettings, setSetting, SettingDef } from '../../core/settings';
+import { getUserAccess, UserAccess } from '../rbac/access.service';
 import { STUDENTS, STUDENT_FIELDS } from '../students/students.settings';
 import { STAFF, STAFF_FIELDS } from '../staff/staff.settings';
+import type { ImportColumn } from '../../core/excel';
 import { CustomField, customFieldSchema, labelsSchema } from './forms.fields';
 
 /**
@@ -61,6 +63,9 @@ export const FORMS: Record<string, FormDef> = {
     },
 };
 
+/** May this person see (and fill) the field? Super Admin sees every field. */
+const canSee = (c: CustomField, access: UserAccess | null) => !c.visibleTo?.length || !access || access.isSuperAdmin || access.roles.some((r) => c.visibleTo.includes(r.id));
+
 const formOf = (key: string) => {
     const f = FORMS[key];
     if (!f) throw notFound('Form not found');
@@ -86,7 +91,8 @@ export const getForm = async (key: string) => {
         key: f.key,
         label: f.label,
         builtIn: f.builtIn.map((b) => ({ key: b.key, defaultLabel: b.label, label: s.labels[b.key] ?? b.label, locked: !!b.locked, fixedRequired: !!b.fixedRequired, requireOnly: !!b.requireOnly, hidden: !b.locked && s.hidden.includes(b.key), required: !!b.fixedRequired || s.required.includes(b.key) })),
-        custom: s.custom.map((c) => ({ ...c, used: used[c.key] ?? 0 })),
+        custom: s.custom.map((c) => ({ ...c, visibleTo: c.visibleTo ?? [], used: used[c.key] ?? 0 })),
+        roles: await db.role.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     };
 };
 
@@ -133,10 +139,21 @@ export const saveForm = async (key: string, input: z.infer<typeof saveFormSchema
 };
 
 /** What a form needs to draw itself: the school's names for fields and its active extra fields. */
-export const formExtras = async (key: 'student' | 'staff') => {
+export const formExtras = async (key: 'student' | 'staff', userId?: string) => {
     const f = FORMS[key];
     const s = await getSettings({ labels: f.settings.labels, custom: f.settings.custom });
-    return { labels: s.labels, custom: s.custom.filter((c) => c.active) };
+    const access = userId ? await getUserAccess(userId) : null;
+    return { labels: s.labels, custom: s.custom.filter((c) => c.active && canSee(c, access)) };
+};
+
+/** A record's extra field values, without the ones this person may not see. */
+export const visibleValues = async (key: 'student' | 'staff', values: unknown, userId: string) => {
+    const all = values && typeof values === 'object' && !Array.isArray(values) ? (values as Record<string, unknown>) : {};
+    const f = FORMS[key];
+    const custom = await getSetting(f.settings.custom);
+    const access = await getUserAccess(userId);
+    const hidden = new Set(custom.filter((c) => !canSee(c, access)).map((c) => c.key));
+    return Object.fromEntries(Object.entries(all).filter(([k]) => !hidden.has(k)));
 };
 
 const PHONE = /^\+?[0-9][0-9 ()-]{5,19}$/;
@@ -147,8 +164,9 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * with the given ones on top (keys of switched-off fields are kept; unknown keys are dropped).
  * `creating`: every required field must have a value.
  */
-export const checkCustom = async (key: 'student' | 'staff', input: Record<string, unknown> | undefined, existing: unknown, creating: boolean) => {
-    const { custom } = await formExtras(key);
+export const checkCustom = async (key: 'student' | 'staff', input: Record<string, unknown> | undefined, existing: unknown, creating: boolean, userId?: string) => {
+    // Only the fields this person sees can be given (and only those are required of them).
+    const { custom } = await formExtras(key, userId);
     const base = existing && typeof existing === 'object' && !Array.isArray(existing) ? { ...(existing as Record<string, unknown>) } : {};
     if (input === undefined && !creating) return null;
     const given = input ?? {};
@@ -231,12 +249,56 @@ export const customText = (c: CustomField, v: unknown, masterNames?: Map<string,
 };
 
 /** For an Excel export: the school's field names, and a column per extra field of these records. */
-export const exportExtras = async (key: 'student' | 'staff', ids: string[]) => {
-    const { labels, custom } = await formExtras(key);
+export const exportExtras = async (key: 'student' | 'staff', ids: string[], userId?: string) => {
+    const { labels, custom } = await formExtras(key, userId);
     if (!custom.length) return { labels, columns: [] };
     const rows = key === 'student' ? await db.student.findMany({ where: { id: { in: ids } }, select: { id: true, customFields: true } }) : await db.staff.findMany({ where: { id: { in: ids } }, select: { id: true, customFields: true } });
     const byId = new Map(rows.map((r) => [r.id, (r.customFields ?? {}) as Record<string, unknown>]));
     const masterIds = custom.filter((c) => c.type === 'master').flatMap((c) => rows.map((r) => byId.get(r.id)?.[c.key]).filter((v): v is string => typeof v === 'string'));
     const names = masterIds.length ? new Map((await db.masterValue.findMany({ where: { id: { in: masterIds } }, select: { id: true, name: true } })).map((m) => [m.id, m.name])) : new Map<string, string>();
     return { labels, columns: custom.map((c) => ({ header: c.label, width: 18, value: (r: { id: string }) => customText(c, byId.get(r.id)?.[c.key], names) })) };
+};
+
+// ─── Excel import ────────────────────────────────────────────────────────────
+
+const ADDRESS_COLUMNS = ['addressLine', 'stateId', 'districtId', 'cityId', 'pinCode'];
+const fieldOfColumn = (col: string) => (ADDRESS_COLUMNS.includes(col) ? 'address' : col);
+const IMPORT_TYPE: Record<string, ImportColumn['type']> = { text: 'text', textarea: 'text', phone: 'text', email: 'email', number: 'number', date: 'date', boolean: 'choice', select: 'choice', multiselect: 'list', master: 'choice' };
+
+/**
+ * The import template follows the Form Builder: columns of hidden fields are left out, renamed
+ * fields carry the school's name, and each extra field gets a column (prefixed "custom__").
+ * `toCustom` turns a row's values into the extra fields to save.
+ */
+export const importExtras = async (key: 'student' | 'staff') => {
+    const f = FORMS[key];
+    const s = await getSettings({ hidden: f.settings.hidden, labels: f.settings.labels, custom: f.settings.custom });
+    const custom = s.custom.filter((c) => c.active);
+    const masters = new Map<string, { id: string; name: string }[]>();
+    for (const c of custom) if (c.type === 'master' && c.master && !masters.has(c.master)) masters.set(c.master, await db.masterValue.findMany({ where: { master: c.master, isActive: true }, select: { id: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }));
+    const adjust = (columns: ImportColumn[]): ImportColumn[] => [
+        ...columns.filter((c) => !s.hidden.includes(fieldOfColumn(c.key))).map((c) => (s.labels[c.key] ? { ...c, header: s.labels[c.key] } : c)),
+        ...custom.map((c) => ({
+            key: `custom__${c.key}`,
+            header: c.label,
+            type: IMPORT_TYPE[c.type],
+            required: c.required,
+            ...(c.type === 'boolean' ? { choices: ['Yes', 'No'] } : c.type === 'select' || c.type === 'multiselect' ? { choices: c.options } : c.type === 'master' ? { choices: (masters.get(c.master ?? '') ?? []).map((m) => m.name) } : {}),
+            ...(c.type === 'text' ? { max: 200 } : c.type === 'textarea' ? { max: 2000 } : {}),
+            ...(c.help ? { help: c.help } : {}),
+        })),
+    ];
+    const toCustom = (values: Record<string, unknown>) => {
+        const out: Record<string, unknown> = {};
+        for (const c of custom) {
+            const v = values[`custom__${c.key}`];
+            if (v === undefined || v === null || v === '') continue;
+            if (c.type === 'date') out[c.key] = v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+            else if (c.type === 'master') out[c.key] = (masters.get(c.master ?? '') ?? []).find((m) => m.name.toLowerCase() === String(v).toLowerCase())?.id ?? String(v);
+            else if (c.type === 'boolean') out[c.key] = String(v) === 'Yes';
+            else out[c.key] = v;
+        }
+        return out;
+    };
+    return { adjust, toCustom };
 };

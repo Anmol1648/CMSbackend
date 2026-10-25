@@ -9,6 +9,7 @@ import './staff.settings';
 import './staff.masters';
 import { STAFF } from './staff.settings';
 import { createStaff } from './staff.service';
+import { importExtras } from '../forms/forms.service';
 
 registerPermissions({ key: 'staff', label: 'Staff', order: 35 }, [
     { resource: 'staff', action: 'view', label: 'See staff', description: 'Own = only their own record.', scopes: ['all', 'own'] },
@@ -67,6 +68,8 @@ interface Ctx {
     teaching: Set<string>;
     loginDefault: 'teaching' | 'all' | 'none';
     userId: string;
+    /** Extra fields of the Form Builder. */
+    extras: Awaited<ReturnType<typeof importExtras>>;
 }
 
 registerImport<Ctx>({
@@ -79,7 +82,7 @@ registerImport<Ctx>({
             const rows = await db.masterValue.findMany({ where: { master, isActive: true }, select: { name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
             out.push({ key, header, type: 'choice' as const, choices: rows.map((r) => r.name) });
         }
-        return [
+        return (await importExtras('staff')).adjust([
             { key: 'employeeCode', header: 'Employee code', type: 'text', max: 40, help: 'Empty = given automatically (System Settings → Staff).' },
             { key: 'joiningDate', header: 'Joining date', type: 'date', help: 'Empty = today.' },
             { key: 'firstName', header: 'First name', type: 'text', required: true, max: 80, example: 'Anita' },
@@ -90,7 +93,7 @@ registerImport<Ctx>({
             { key: 'email', header: 'Email', type: 'email', unique: true },
             ...out,
             { key: 'canSignIn', header: 'Can sign in', type: 'choice', choices: ['Yes', 'No'], help: 'Empty = by System Settings → Staff (teaching staff only, by default).' },
-        ];
+        ]);
     },
     prepare: async (userId) => {
         const lists = new Map<string, Map<string, string>>();
@@ -100,7 +103,7 @@ registerImport<Ctx>({
         }
         const types = await db.masterValue.findMany({ where: { master: 'staff_type' }, select: { id: true, extra: true } });
         const { loginDefault } = await getSettings({ loginDefault: STAFF.loginDefault });
-        return { lists, teaching: new Set(types.filter((t) => (t.extra as { teaching?: boolean }).teaching).map((t) => t.id)), loginDefault, userId };
+        return { lists, teaching: new Set(types.filter((t) => (t.extra as { teaching?: boolean }).teaching).map((t) => t.id)), loginDefault, userId, extras: await importExtras('staff') };
     },
     check: (row: ParsedRow) => {
         if (!row.values.mobile && !row.values.email && row.values.canSignIn === 'Yes') row.issues.push({ field: 'Can sign in', message: 'needs a mobile or email (to reset the password)' });
@@ -128,6 +131,7 @@ registerImport<Ctx>({
                     staffTypeId,
                     employmentTypeId: pick('employmentTypeId'),
                     teachingPostId: pick('teachingPostId'),
+                    custom: ctx.extras.toCustom(v),
                 },
                 login: { enabled: signIn },
             },

@@ -49,7 +49,7 @@ studentRoutes.get('/export', view, asyncHandler(async (req: Request, res: Respon
         if (r.items.length < 200) break;
     }
     const shown = rows.slice(0, max);
-    const extra = await exportExtras('student', shown.map((s) => s.id));
+    const extra = await exportExtras('student', shown.map((s) => s.id), req.user!.userId);
     const L = (key: string, label: string) => extra.labels[key] ?? label;
     const data = await buildWorkbook('Students', [
         { header: L('admissionNo', 'Admission no'), width: 16, value: (s) => s.admissionNo },
@@ -67,7 +67,7 @@ studentRoutes.get('/export', view, asyncHandler(async (req: Request, res: Respon
     sendFile(res, `students-${new Date().toISOString().slice(0, 10)}.xlsx`, XLSX_MIME, data);
 }));
 
-studentRoutes.get('/form-config', view, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await students.formConfig(), 'Admission form')));
+studentRoutes.get('/form-config', view, asyncHandler(async (req: Request, res: Response) => successResponse(res, await students.formConfig(req.user!.userId), 'Admission form')));
 studentRoutes.get('/next-admission-number', can('student.create'), asyncHandler(async (req: Request, res: Response) => {
     const q = parse(z.object({ section: z.uuid().optional() }), req.query);
     successResponse(res, await students.previewAdmissionNumber(q.section), 'Next admission number');

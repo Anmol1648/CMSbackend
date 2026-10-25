@@ -17,7 +17,7 @@ import { guardianSchema, createGuardians } from './family.service';
 import type { studentFilters } from './students.schemas';
 import { assertConvertible, markConverted, type Viewer as EnquiryViewer } from '../admissions/enquiries.service';
 import { checkStudentLimit } from '../platform/limits';
-import { checkCustom, formExtras } from '../forms/forms.service';
+import { checkCustom, formExtras, visibleValues } from '../forms/forms.service';
 
 /** Student records, admission and the student list. */
 
@@ -344,7 +344,9 @@ export const getStudent = async (id: string, viewer: Viewer) => {
     await assertVisible(id, viewer);
     const s = await db.student.findUnique({ where: { id }, include: studentInclude });
     if (!s) throw notFound('Student not found');
-    return present(s, viewer);
+    // Extra fields this person may not see are left out (Setup → Form Builder).
+    const view = present(s, viewer);
+    return { ...view, custom: await visibleValues('student', s.customFields, viewer.userId) };
 };
 
 type Filters = ListQuery<typeof studentFilters>['filters'];
@@ -483,7 +485,7 @@ export const admitStudent = async (input: AdmissionInput, viewer: Viewer, enquir
     });
     const fields = withoutHidden(input.student, s.hidden);
     await checkFields(fields, s.required);
-    const customFields = (await checkCustom('student', input.student.custom, null, true)) ?? {};
+    const customFields = (await checkCustom('student', input.student.custom, null, true, viewer.userId)) ?? {};
     if (s.required.includes('guardian') && !input.familyId && !input.guardians?.length) {
         throw badRequest('Add at least one parent or guardian (or link a sibling)', [{ field: 'guardians', message: 'add at least one parent or guardian' }]);
     }
@@ -555,7 +557,7 @@ export const updateStudent = async (id: string, input: StudentFields, viewer: Vi
     const merged = { ...current, dateOfBirth: dayOf(current.dateOfBirth), admissionDate: dayOf(current.admissionDate) ?? undefined, ...fields } as unknown as StudentFields;
     await checkFields(merged, s.required);
     await uniqueChecks(fields, id);
-    const customFields = await checkCustom('student', input.custom, current.customFields, false);
+    const customFields = await checkCustom('student', input.custom, current.customFields, false, viewer.userId);
     // Sensitive fields are only changed by people who may see them.
     if (!viewer.sensitive) {
         delete fields.aadhaar;
@@ -607,7 +609,7 @@ export const addStudentLogin = async (id: string, viewer: Viewer) => {
 };
 
 /** What the admission form needs to know (fields to show, numbering, logins). */
-export const formConfig = async () => {
+export const formConfig = async (userId?: string) => {
     const s = await getSettings({
         required: STUDENTS.requiredFields,
         hidden: STUDENTS.hiddenFields,
@@ -618,5 +620,5 @@ export const formConfig = async () => {
         houses: ACADEMIC.housesEnabled,
         capacity: STUDENTS.capacityCheck,
     });
-    return { ...s, ...(await formExtras('student')) };
+    return { ...s, ...(await formExtras('student', userId)) };
 };

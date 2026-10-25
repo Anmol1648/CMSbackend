@@ -13,7 +13,7 @@ import { normalizeMobile } from '../auth/identity';
 import { currentYear } from '../academic/years.service';
 import { STAFF, StaffField, SelfEditField } from './staff.settings';
 import type { staffFilters } from './staff.schemas';
-import { checkCustom, formExtras } from '../forms/forms.service';
+import { checkCustom, formExtras, visibleValues } from '../forms/forms.service';
 
 /** Staff records, their logins, qualifications and experience. */
 
@@ -280,7 +280,7 @@ const present = async (s: Row, viewer: Viewer) => {
         teachingPost: s.teachingPost,
         reportsTo: s.reportsTo ? { id: s.reportsTo.id, name: staffName(s.reportsTo), code: s.reportsTo.employeeCode } : null,
         teachableSubjectIds: s.teachableSubjectIds,
-        custom: (s.customFields ?? {}) as Record<string, unknown>,
+        custom: await visibleValues('staff', s.customFields, viewer.userId),
         bank: s.bank,
         bankAccountNo: mask(s.bankAccountNo, show),
         ifsc: s.ifsc,
@@ -460,7 +460,7 @@ export const createStaff = async (input: z.infer<typeof createStaffSchema>, view
     const s = await getSettings({ required: STAFF.requiredFields, hidden: STAFF.hiddenFields, editable: STAFF.codeEditable });
     const fields = withoutHidden(input.staff, s.hidden);
     await checkFields(fields, s.required);
-    const customFields = (await checkCustom('staff', input.staff.custom, null, true)) ?? {};
+    const customFields = (await checkCustom('staff', input.staff.custom, null, true, viewer.userId)) ?? {};
     if (fields.employeeCode && !s.editable) throw badRequest('Employee codes are given automatically', [{ field: 'employeeCode', message: 'is given automatically' }]);
     await uniqueChecks(fields);
     const joiningDate = fields.joiningDate ? toDate(fields.joiningDate) : toDate(new Date().toISOString().slice(0, 10));
@@ -497,7 +497,7 @@ export const updateStaff = async (id: string, input: StaffFields, viewer: Viewer
     const merged = { ...current, dateOfBirth: dayOf(current.dateOfBirth), joiningDate: dayOf(current.joiningDate) ?? undefined, ...fields } as unknown as StaffFields;
     await checkFields(merged, s.required, id);
     await uniqueChecks(fields, id);
-    const customFields = await checkCustom('staff', input.custom, current.customFields, false);
+    const customFields = await checkCustom('staff', input.custom, current.customFields, false, viewer.userId);
     await db.staff.update({ where: { id }, data: { ...dbFields(fields), ...(customFields ? { customFields: customFields as Prisma.InputJsonValue } : {}) } as Prisma.StaffUpdateInput });
     return getStaff(id, viewer);
 };
@@ -547,6 +547,7 @@ const SELF_COLUMNS: Record<SelfEditField, string[]> = {
     emergency: ['emergencyName', 'emergencyPhone'],
     bank: ['bankId', 'bankAccountNo', 'ifsc'],
     qualifications: [],
+    custom: ['custom'],
 };
 
 export const myStaff = async (userId: string) => {
@@ -573,7 +574,7 @@ export const updateMyStaff = async (userId: string, input: StaffFields & { quali
     return myStaff(userId);
 };
 
-export const formConfig = async () => ({
+export const formConfig = async (userId?: string) => ({
     ...(await getSettings({ required: STAFF.requiredFields, hidden: STAFF.hiddenFields, editable: STAFF.codeEditable, loginDefault: STAFF.loginDefault, selfEdit: STAFF.selfEdit })),
-    ...(await formExtras('staff')),
+    ...(await formExtras('staff', userId)),
 });

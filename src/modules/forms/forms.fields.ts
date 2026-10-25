@@ -23,6 +23,8 @@ export const customFieldSchema = z.strictObject({
     section: z.string().trim().max(60).nullable().default(null),
     /** Switched off: hidden from forms, values kept. */
     active: z.boolean().default(true),
+    /** Only these roles see and fill it (empty = everyone who sees the record). */
+    visibleTo: z.array(z.uuid()).max(50).default([]),
 });
 export type CustomField = z.infer<typeof customFieldSchema>;
 

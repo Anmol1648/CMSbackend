@@ -38,6 +38,7 @@ export const SELF_EDIT = [
     { value: 'emergency', label: 'Emergency contact' },
     { value: 'qualifications', label: 'Qualifications and experience' },
     { value: 'bank', label: 'Bank account' },
+    { value: 'custom', label: 'The school’s own extra fields (Setup → Form Builder)' },
 ] as const;
 export type SelfEditField = (typeof SELF_EDIT)[number]['value'];
 

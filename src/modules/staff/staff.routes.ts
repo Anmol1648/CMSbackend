@@ -36,7 +36,7 @@ staffRoutes.get('/export', view, asyncHandler(async (req: Request, res: Response
     const max = await getSetting(UPLOADS.maxExportRows);
     const q = parseListQuery({ ...req.query, page: '1', pageSize: String(Math.min(200, max)) }, staffListSpec);
     const rows = (await staff.listStaff(q, await viewer(req))).items;
-    const extra = await exportExtras('staff', rows.map((s) => s.id));
+    const extra = await exportExtras('staff', rows.map((s) => s.id), req.user!.userId);
     const L = (key: string, label: string) => extra.labels[key] ?? label;
     const data = await buildWorkbook('Staff', [
         { header: L('employeeCode', 'Employee code'), width: 16, value: (s) => s.employeeCode },
@@ -51,7 +51,7 @@ staffRoutes.get('/export', view, asyncHandler(async (req: Request, res: Response
     ], rows);
     sendFile(res, `staff-${new Date().toISOString().slice(0, 10)}.xlsx`, XLSX_MIME, data);
 }));
-staffRoutes.get('/form-config', view, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await staff.formConfig(), 'Staff form')));
+staffRoutes.get('/form-config', view, asyncHandler(async (req: Request, res: Response) => successResponse(res, await staff.formConfig(req.user!.userId), 'Staff form')));
 staffRoutes.get('/next-code', can('staff.create'), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await staff.previewEmployeeCode(), 'Next employee code')));
 /** Working staff for dropdowns (class teacher, subject teacher, reports to). */
 staffRoutes.get('/options', authenticated, asyncHandler(async (req: Request, res: Response) => {
