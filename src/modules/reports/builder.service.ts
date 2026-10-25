@@ -4,7 +4,7 @@ import { getTenantId } from '../../core/context';
 import { badRequest, forbidden, notFound } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
 import { getUserAccess } from '../rbac/access.service';
-import { DataField, DataSourceDef, findDataSource, listDataSources } from './datasources.registry';
+import { DataField, DataSourceDef, findDataSource, resolveDataSource, resolveDataSources } from './datasources.registry';
 import type { ReportColumn, ReportDef, ReportFilter } from './reports.registry';
 
 /**
@@ -76,7 +76,7 @@ const accessOf = (userId: string) => getUserAccess(userId);
 const mayUseSource = (src: DataSourceDef, permissions: Record<string, unknown>) => src.permissions.some((p) => permissions[p]);
 
 const sourceFor = async (key: string, userId: string) => {
-    const src = findDataSource(key);
+    const src = await resolveDataSource(key, userId);
     if (!src) throw badRequest('No such data source', [{ field: 'source', message: 'is not a data source' }]);
     const a = await accessOf(userId);
     if (!mayUseSource(src, a.permissions)) throw forbidden('You can’t use this data');
@@ -91,7 +91,7 @@ const needBuild = async (userId: string) => {
 export const listSources = async (userId: string) => {
     await needBuild(userId);
     const a = await accessOf(userId);
-    return listDataSources()
+    return (await resolveDataSources(userId))
         .filter((s) => mayUseSource(s, a.permissions))
         .map((s) => {
             const sensitive = !!(s.sensitivePermission && a.permissions[s.sensitivePermission]);
@@ -232,7 +232,7 @@ const askKeyTo = (i: number) => `q${i}to`;
  * out, the source's inputs and the "ask when running" conditions become its filters.
  */
 export const definitionReport = async (meta: { key: string; label: string; description: string; category: string }, d: Definition, userId: string): Promise<ReportDef> => {
-    const src = findDataSource(d.source);
+    const src = await resolveDataSource(d.source, userId);
     if (!src) throw notFound('The data this report was made from is no longer available');
     const a = await accessOf(userId);
     const sensitive = !!(src.sensitivePermission && a.permissions[src.sensitivePermission]);

@@ -8,6 +8,7 @@ import { getUserAccess, UserAccess } from '../rbac/access.service';
 import { STUDENTS, STUDENT_FIELDS } from '../students/students.settings';
 import { STAFF, STAFF_FIELDS } from '../staff/staff.settings';
 import type { ImportColumn } from '../../core/excel';
+import { DataFieldType, DataSourceExtension, extendDataSource } from '../reports/datasources.registry';
 import { CustomField, customFieldSchema, labelsSchema } from './forms.fields';
 
 /**
@@ -301,4 +302,46 @@ export const importExtras = async (key: 'student' | 'staff') => {
         return out;
     };
     return { adjust, toCustom };
+};
+
+// ─── Report Builder ──────────────────────────────────────────────────────────
+
+const DATA_TYPE: Record<string, DataFieldType> = { number: 'number', date: 'date', boolean: 'boolean' };
+const sourceExtension = (key: 'student' | 'staff'): DataSourceExtension => ({
+    fields: async (userId) => (await formExtras(key, userId)).custom.map((c) => ({ key: `custom__${c.key}`, label: c.label, type: DATA_TYPE[c.type] ?? 'text', group: c.section || 'Other details' })),
+    fill: async (rows, userId) => {
+        const { custom } = await formExtras(key, userId);
+        if (!custom.length || !rows.length) return;
+        const ids = rows.map((r) => r._id).filter((x): x is string => typeof x === 'string');
+        const records = key === 'student' ? await db.student.findMany({ where: { id: { in: ids } }, select: { id: true, customFields: true } }) : await db.staff.findMany({ where: { id: { in: ids } }, select: { id: true, customFields: true } });
+        const byId = new Map(records.map((r) => [r.id, (r.customFields ?? {}) as Record<string, unknown>]));
+        const masterIds = custom.filter((c) => c.type === 'master').flatMap((c) => records.map((r) => byId.get(r.id)?.[c.key]).filter((v): v is string => typeof v === 'string'));
+        const names = masterIds.length ? new Map((await db.masterValue.findMany({ where: { id: { in: masterIds } }, select: { id: true, name: true } })).map((m) => [m.id, m.name])) : new Map<string, string>();
+        for (const r of rows) {
+            const v = byId.get(String(r._id)) ?? {};
+            for (const c of custom) {
+                const raw = v[c.key];
+                r[`custom__${c.key}`] = raw === undefined || raw === null || raw === '' ? null : c.type === 'number' ? Number(raw) : c.type === 'boolean' ? !!raw : c.type === 'date' ? String(raw) : customText(c, raw, names);
+            }
+        }
+    },
+});
+extendDataSource('students', sourceExtension('student'));
+extendDataSource('staff', sourceExtension('staff'));
+
+// ─── Documents and ID cards ──────────────────────────────────────────────────
+
+/** The extra fields a document or ID card design can show (every active one). */
+export const documentFields = async (key: 'student' | 'staff') => (await getSetting(FORMS[key].settings.custom)).filter((c) => c.active).map((c) => ({ key: `custom__${c.key}`, label: c.label }));
+
+/** Records' extra fields as text, for documents: { recordId: { fieldKey: text } }. */
+export const documentValues = async (key: 'student' | 'staff', records: { id: string; customFields: unknown }[]) => {
+    const custom = (await getSetting(FORMS[key].settings.custom)).filter((c) => c.active);
+    const out = new Map<string, Record<string, string>>();
+    if (!custom.length) return out;
+    const val = (r: { customFields: unknown }) => (r.customFields && typeof r.customFields === 'object' ? (r.customFields as Record<string, unknown>) : {});
+    const masterIds = custom.filter((c) => c.type === 'master').flatMap((c) => records.map((r) => val(r)[c.key]).filter((v): v is string => typeof v === 'string'));
+    const names = masterIds.length ? new Map((await db.masterValue.findMany({ where: { id: { in: masterIds } }, select: { id: true, name: true } })).map((m) => [m.id, m.name])) : new Map<string, string>();
+    for (const r of records) out.set(r.id, Object.fromEntries(custom.map((c) => [c.key, customText(c, val(r)[c.key], names)])));
+    return out;
 };

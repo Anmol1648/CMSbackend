@@ -17,6 +17,7 @@ import { registerFeeSource } from '../fees/dues.service';
 import { raiseLater } from '../alerts/deliver';
 import { holdersOf, usersOf } from '../alerts/recipients';
 import { IDCARDS } from './idcards.settings';
+import { documentFields, documentValues } from '../forms/forms.service';
 
 /**
  * ID cards: designs (fields on the front and back), printing for a section or staff (each person
@@ -127,6 +128,8 @@ export const holders = async (type: HolderType, ids: string[]): Promise<Holder[]
     const schoolLine = [sch.address, sch.phone && `Ph ${sch.phone}`].filter(Boolean).join(' · ');
     if (type === 'staff') {
         const rows = await db.staff.findMany({ where: { id: { in: ids } } });
+        const extra = await documentValues('staff', rows);
+        const labels = Object.fromEntries((await documentFields('staff')).map((f) => [f.key, f.label]));
         return ids
             .map((id) => rows.find((r) => r.id === id))
             .filter((s): s is NonNullable<typeof s> => !!s)
@@ -139,7 +142,8 @@ export const holders = async (type: HolderType, ids: string[]): Promise<Holder[]
                     photo: photoPath('staff', s.id, s.photoFileId),
                     sub: mname(s.designationId) || s.employeeCode,
                     card,
-                    values: { name: fullName(s), designation: mname(s.designationId), department: mname(s.departmentId), employeeCode: s.employeeCode, joiningDate: fmt(s.joiningDate), dob: fmt(s.dateOfBirth), bloodGroup: mname(s.bloodGroupId), phone: s.mobile ?? '', address: [s.addressLine, s.pinCode].filter(Boolean).join(' - '), emergency: [s.emergencyName, s.emergencyPhone].filter(Boolean).join(' · '), validUntil: card ? fmt(dayDate(card.validUntil)) : '', cardNo: card?.cardNo ?? '', schoolAddress: schoolLine },
+                    labels,
+                    values: { name: fullName(s), designation: mname(s.designationId), department: mname(s.departmentId), employeeCode: s.employeeCode, joiningDate: fmt(s.joiningDate), dob: fmt(s.dateOfBirth), bloodGroup: mname(s.bloodGroupId), phone: s.mobile ?? '', address: [s.addressLine, s.pinCode].filter(Boolean).join(' - '), emergency: [s.emergencyName, s.emergencyPhone].filter(Boolean).join(' · '), validUntil: card ? fmt(dayDate(card.validUntil)) : '', cardNo: card?.cardNo ?? '', schoolAddress: schoolLine, ...Object.fromEntries(Object.entries(extra.get(s.id) ?? {}).map(([k, v]) => [`custom__${k}`, v])) },
                 };
             });
     }
@@ -151,6 +155,8 @@ export const holders = async (type: HolderType, ids: string[]): Promise<Holder[]
         year ? db.studentTransport.findMany({ where: { academicYearId: year.id, studentId: { in: ids }, fromDate: { lte: today }, OR: [{ toDate: null }, { toDate: { gte: today } }] } }) : [],
     ]);
     const [routes, stops] = await Promise.all([db.transportRoute.findMany({ where: { id: { in: transport.map((t) => t.routeId) } }, select: { id: true, name: true } }), db.transportStop.findMany({ where: { id: { in: transport.map((t) => t.stopId) } }, select: { id: true, name: true } })]);
+    const extra = await documentValues('student', rows);
+    const labels = Object.fromEntries((await documentFields('student')).map((f) => [f.key, f.label]));
     return ids
         .map((id) => rows.find((r) => r.id === id))
         .filter((s): s is NonNullable<typeof s> => !!s)
@@ -168,6 +174,7 @@ export const holders = async (type: HolderType, ids: string[]): Promise<Holder[]
                 photo: photoPath('student', s.id, s.photoFileId),
                 sub: [cls, s.admissionNo].filter(Boolean).join(' · '),
                 card,
+                labels,
                 values: {
                     name: fullName(s),
                     class: cls,
@@ -185,6 +192,7 @@ export const holders = async (type: HolderType, ids: string[]): Promise<Holder[]
                     validUntil: card ? fmt(dayDate(card.validUntil)) : '',
                     cardNo: card?.cardNo ?? '',
                     schoolAddress: schoolLine,
+                    ...Object.fromEntries(Object.entries(extra.get(s.id) ?? {}).map(([k, v]) => [`custom__${k}`, v])),
                 },
             };
         });
@@ -214,7 +222,7 @@ const designOut = <T extends { signatureFileId: string | null; id: string }>(d: 
 export const listDesigns = async () => (await db.idCardDesign.findMany({ orderBy: [{ kind: 'asc' }, { isDefault: 'desc' }, { name: 'asc' }], include: { _count: { select: { cards: true } } } })).map((d) => ({ ...designOut(d), cards: d._count.cards }));
 
 export const saveDesign = async (id: string | null, input: z.infer<typeof designSchema>, userId: string) => {
-    const allowed = new Set(FIELDS[input.kind].map((f) => f.key));
+    const allowed = new Set([...FIELDS[input.kind], ...(await documentFields(input.kind))].map((f) => f.key));
     const data = { ...input, fields: input.fields.filter((f) => allowed.has(f)), backFields: input.backFields.filter((f) => allowed.has(f)), backText: input.backText || null, signatureFileId: input.signatureFileId ?? null, signatureLabel: input.signatureLabel || null };
     if (input.isDefault) await db.idCardDesign.updateMany({ where: { kind: input.kind, ...(id ? { id: { not: id } } : {}) }, data: { isDefault: false } });
     const d = id ? await db.idCardDesign.update({ where: { id }, data }) : await db.idCardDesign.create({ data: { ...data, tenantId: getTenantId()!, createdBy: userId } });
@@ -249,7 +257,8 @@ export const options = async (userId: string) => {
     const [designs, year, a, s, sch] = await Promise.all([listDesigns(), currentYear(), getUserAccess(userId), getSettings({ fee: IDCARDS.duplicateFee }), school()]);
     const sections = year ? await db.section.findMany({ where: { academicYearId: year.id }, orderBy: [{ schoolClass: { sortOrder: 'asc' } }, { sortOrder: 'asc' }], select: { id: true, name: true, schoolClass: { select: { name: true, shortName: true } } } }) : [];
     const [departments, designations] = await Promise.all([db.masterValue.findMany({ where: { master: 'department', isActive: true }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true } }), db.masterValue.findMany({ where: { master: 'designation', isActive: true }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true } })]);
-    return { designs: designs.filter((d) => d.isActive), fields: FIELDS, sections: sections.map((x) => ({ id: x.id, name: sectionLabel(x) })), departments, designations, duplicateFee: s.fee, school: sch, can: { print: !!a.permissions['idcard.print'], design: !!a.permissions['idcard.design'] } };
+    const fields = { student: [...FIELDS.student, ...(await documentFields('student'))], staff: [...FIELDS.staff, ...(await documentFields('staff'))] };
+    return { designs: designs.filter((d) => d.isActive), fields, sections: sections.map((x) => ({ id: x.id, name: sectionLabel(x) })), departments, designations, duplicateFee: s.fee, school: sch, can: { print: !!a.permissions['idcard.print'], design: !!a.permissions['idcard.design'] } };
 };
 
 export const pickSchema = z.strictObject({

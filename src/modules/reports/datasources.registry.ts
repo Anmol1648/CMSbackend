@@ -57,6 +57,36 @@ export const defineDataSource = (def: DataSourceDef) => {
 export const findDataSource = (key: string) => sources.get(key);
 export const listDataSources = () => [...sources.values()];
 
+/**
+ * Fields a school adds to a source (e.g. the extra fields of Setup → Form Builder): listed for the
+ * person and filled in on the loaded rows (each row carries its record's id as `_id`).
+ */
+export interface DataSourceExtension {
+    fields: (userId: string) => Promise<DataField[]>;
+    fill: (rows: Record<string, unknown>[], userId: string) => Promise<void>;
+}
+const extensions = new Map<string, DataSourceExtension>();
+export const extendDataSource = (key: string, ext: DataSourceExtension) => extensions.set(key, ext);
+
+/** The source as this school and person see it: its own fields plus the school's extra ones. */
+export const resolveDataSource = async (key: string, userId: string): Promise<DataSourceDef | undefined> => {
+    const def = sources.get(key);
+    const ext = extensions.get(key);
+    if (!def || !ext) return def;
+    const extra = await ext.fields(userId);
+    if (!extra.length) return def;
+    return {
+        ...def,
+        fields: [...def.fields, ...extra.filter((f) => !def.fields.some((d) => d.key === f.key))],
+        load: async (params, ctx) => {
+            const rows = await def.load(params, ctx);
+            await ext.fill(rows, ctx.userId);
+            return rows;
+        },
+    };
+};
+export const resolveDataSources = async (userId: string) => Promise.all([...sources.keys()].map(async (k) => (await resolveDataSource(k, userId))!));
+
 // ─── Small helpers for the modules' loaders ──────────────────────────────────
 
 export const isoDay = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);

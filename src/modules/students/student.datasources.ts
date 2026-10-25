@@ -93,6 +93,7 @@ defineDataSource({
             const mother = byRelation('mother');
             const main = g.find((x) => x.isPrimary) ?? g[0];
             return {
+                _id: s.id,
                 order: e ? e.section.schoolClass.sortOrder * 1000 + e.section.sortOrder : 1e9,
                 admissionNo: s.admissionNo,
                 name: personName(s),

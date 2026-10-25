@@ -8,6 +8,7 @@ import { defineDocument } from '../documents/documents.registry';
 import { inWords } from '../documents/documents.service';
 import { isoOf } from '../attendance/attendance.settings';
 import { mayPrint } from './tc.service';
+import { documentValues } from '../forms/forms.service';
 
 /** The transfer certificate, and the bonafide and character certificates (Document Templates). */
 
@@ -39,6 +40,7 @@ const studentDetails = async (studentId: string) => {
             dateOfBirth: true,
             status: true,
             statusDate: true,
+            customFields: true,
             gender: { select: { name: true } },
             nationality: { select: { name: true } },
             casteCategory: { select: { name: true } },
@@ -75,6 +77,8 @@ const studentDetails = async (studentId: string) => {
         className: now?.section.schoolClass.name ?? '',
         session: now?.academicYear.name ?? year?.name ?? '',
         status: s.status,
+        /** The school's extra fields (Setup → Form Builder), as text: {{student.custom.<field key>}}. */
+        custom: (await documentValues('student', [s])).get(s.id) ?? {},
     };
 };
 
@@ -85,6 +89,7 @@ const FIELDS = [
     { key: 'student.gender / nationality / category', label: 'Gender, nationality, category' },
     { key: 'student.child / he / his', label: '“son” / “daughter”, “He” / “She”, “his” / “her”' },
     { key: 'student.className / section / session', label: 'Class, section and session now' },
+    { key: 'student.custom.<field key>', label: 'An extra field of the school (Setup → Form Builder; the key is shown there)' },
 ];
 
 const HEAD = `<header class="head">

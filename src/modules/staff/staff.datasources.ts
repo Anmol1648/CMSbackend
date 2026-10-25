@@ -68,6 +68,7 @@ defineDataSource({
             },
         });
         return staff.map((s) => ({
+            _id: s.id,
             employeeCode: s.employeeCode,
             name: personName(s),
             status: titleCase(s.status),

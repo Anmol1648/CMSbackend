@@ -7,7 +7,7 @@ import { cache } from '../../core/cache';
 import { currentYear } from '../academic/years.service';
 import { todayIST } from '../attendance/attendance.settings';
 import { getUserAccess } from '../rbac/access.service';
-import { DataField, DataSourceDef, findDataSource, listDataSources } from '../reports/datasources.registry';
+import { DataField, DataSourceDef, findDataSource, resolveDataSource, resolveDataSources } from '../reports/datasources.registry';
 import { matches, NO_VALUE, OPS, OPS_FOR, showValue } from '../reports/builder.service';
 import { resolveFilters } from '../reports/reports.service';
 import type { WidgetData, WidgetDef, WidgetSize } from './dashboard.registry';
@@ -68,7 +68,7 @@ const needBuild = async (userId: string) => {
 /** The data sources a person may make widgets from, with the fields they may see and the conditions each allows. */
 export const builderSources = async (userId: string) => {
     const a = await needBuild(userId);
-    return listDataSources()
+    return (await resolveDataSources(userId))
         .filter((s) => mayUseSource(s, a))
         .map((s) => {
             const sensitive = a.isSuperAdmin || !!(s.sensitivePermission && a.permissions[s.sensitivePermission]);
@@ -167,7 +167,7 @@ const bucketLabel = (k: string, b: 'day' | 'week' | 'month' | null) => {
 
 /** The viewer's rows of a source, with the source's inputs and the conditions applied (null: no such data / not allowed). */
 const loadRows = async (source: string, given0: Record<string, string>, filters: WidgetDefinition['filters'], userId: string) => {
-    const src = findDataSource(source);
+    const src = await resolveDataSource(source, userId);
     if (!src) return null;
     const access = await getUserAccess(userId);
     if (!mayUseSource(src, access)) return null;
@@ -279,7 +279,7 @@ export const querySchema = z.object({
 
 /** One lookup over the person's own data. Throws a message the assistant can act on when the question doesn't fit the data. */
 export const runQuery = async (q: z.infer<typeof querySchema>, userId: string) => {
-    const src = findDataSource(q.source);
+    const src = await resolveDataSource(q.source, userId);
     if (!src) throw badRequest(`There is no data source “${q.source}”`);
     const loaded = await loadRows(q.source, q.params, q.filters, userId);
     if (!loaded) throw forbidden(`This person may not see ${src.label}`);
@@ -331,7 +331,7 @@ export const runQuery = async (q: z.infer<typeof querySchema>, userId: string) =
 /** The data sources a person may ask about, in a few words each (for the assistant's instructions). */
 export const sourcesFor = async (userId: string) => {
     const a = await getUserAccess(userId);
-    return listDataSources()
+    return (await resolveDataSources(userId))
         .filter((s) => mayUseSource(s, a))
         .map((s) => {
             const sensitive = a.isSuperAdmin || !!(s.sensitivePermission && a.permissions[s.sensitivePermission]);
