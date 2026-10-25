@@ -14,6 +14,8 @@ import * as auth from './platform-auth';
 import * as p from './platform.service';
 import { goLive, setupProgress } from './onboarding';
 import * as leads from './leads';
+import { buildDemoDeck } from './demo-deck';
+import { prerequisitesPdf } from './prerequisites';
 import { createRateLimiter } from '../../middlewares/rate-limit';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
@@ -51,6 +53,18 @@ platformRoutes.get('/schools/:id/export', owner, asyncHandler(async (req: Reques
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(data);
+}));
+
+// The sales kit: what a school must give us to start (PDF), and the demo deck with real screens (PowerPoint).
+platformRoutes.get('/kit/prerequisites', staff, asyncHandler(async (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="school-erp-prerequisites.pdf"');
+    res.send(await prerequisitesPdf());
+}));
+platformRoutes.get('/kit/demo-deck', staff, asyncHandler(async (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    res.setHeader('Content-Disposition', 'attachment; filename="school-erp-demo.pptx"');
+    res.send(await buildDemoDeck());
 }));
 
 // Demo requests from the website.

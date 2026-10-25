@@ -21,6 +21,7 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/package.json ./
 COPY reports ./reports
+COPY assets ./assets
 RUN mkdir -p storage && chown -R node:node /app
 USER node
 EXPOSE 8000
