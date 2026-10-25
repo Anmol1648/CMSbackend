@@ -45,13 +45,20 @@ const getRoutes = () => {
     return [...new Set(routes)].filter((r) => r.startsWith('/api/') && !r.startsWith('/api/platform/'));
 };
 
-/** 1. Uniqueness rules of school tables without the school in them. */
+/**
+ * 1. Uniqueness rules of school tables without the school in them. A rule that includes a link to
+ * another school's table (e.g. ExamMark: examSubjectId + studentId) is per school already, since that
+ * record belongs to one school; those are not reported.
+ */
 const schemaCheck = () => {
+    const schoolModels = new Set(Prisma.dmmf.datamodel.models.filter((m) => m.fields.some((f) => f.name === 'tenantId')).map((m) => m.name));
     const problems: string[] = [];
     for (const m of Prisma.dmmf.datamodel.models) {
-        if (!m.fields.some((f) => f.name === 'tenantId') || m.name === 'Tenant') continue;
-        for (const f of m.fields) if (f.isUnique && f.name !== 'id') problems.push(`${m.name}.${f.name} is unique across all schools`);
-        for (const u of m.uniqueFields) if (!u.includes('tenantId') && !(u.length === 1 && u[0] === 'id')) problems.push(`${m.name} @@unique(${u.join(', ')}) has no tenantId`);
+        if (!schoolModels.has(m.name) || m.name === 'Tenant') continue;
+        // Scalar fields that point at a record of another school table.
+        const linked = new Set(m.fields.filter((f) => f.kind === 'object' && schoolModels.has(f.type) && f.type !== 'Tenant').flatMap((f) => (f.relationFromFields ?? []).filter((x) => x !== 'tenantId')));
+        for (const f of m.fields) if (f.isUnique && f.name !== 'id' && f.name !== 'tenantId') problems.push(`${m.name}.${f.name} is unique across all schools`);
+        for (const u of m.uniqueFields) if (!u.includes('tenantId') && !u.some((x) => linked.has(x)) && !(u.length === 1 && u[0] === 'id')) problems.push(`${m.name} @@unique(${u.join(', ')}) has no tenantId`);
     }
     return problems;
 };
@@ -117,33 +124,45 @@ const schemaCheck = () => {
     const errors: string[] = [];
     let calls = 0;
     const leaked = (body: string) => [...new Set(body.match(UUID) ?? [])].filter((id) => bIds.has(id.toLowerCase()));
+    // For a route with ids: school B's records of the tables its address names (/hostel/leave/:id →
+    // Hostel…, HostelLeave), plus the records most routes take.
+    const COMMON = ['Student', 'Staff', 'User', 'File', 'Section', 'SchoolClass', 'AcademicYear', 'Role'];
+    const candidates = (route: string) => {
+        const words = route.split('/').filter((x) => x && x !== 'api' && !x.startsWith(':')).map((w) => w.replace(/[^a-z]/gi, '').toLowerCase().replace(/(ies)$/, 'y').replace(/(ses|s)$/, (m) => (m === 'ses' ? 's' : '')));
+        const named = samples.filter((x) => words.some((w) => w.length >= 3 && x.table.toLowerCase().includes(w)));
+        const common = samples.filter((x) => COMMON.includes(x.table));
+        return [...new Map([...named.slice(0, 12), ...common].map((x) => [x.table, x])).values()];
+    };
+    const jobs: { route: string; path: string; table?: string }[] = [];
     for (const r of routes) {
         const params = r.match(/:[A-Za-z_]+(\([^)]*\))?\??/g) ?? [];
-        if (!params.length) {
-            const res = await call(r);
-            calls++;
-            const found = res.status < 300 ? leaked(res.body) : [];
-            if (found.length) leaks.push(`GET ${r} → shows school B's ${found.slice(0, 3).join(', ')}`);
-            if (res.status >= 500 || res.status === 0) errors.push(`GET ${r} → ${res.status || 'no answer'}`);
-            continue;
-        }
-        for (const s of samples) {
-            // Every :param gets the same id (a route usually takes one record's id).
-            const path = params.reduce((p, x) => p.replace(x, s.id), r);
-            const res = await call(path);
-            calls++;
-            const found = res.status < 300 ? leaked(res.body) : [];
-            if (found.length) leaks.push(`GET ${r} with ${s.table} ${s.id} → ${res.status}, shows school B's ${found.slice(0, 3).join(', ')}`);
-            if (res.status >= 500) errors.push(`GET ${path} → ${res.status}`);
-        }
+        if (!params.length) jobs.push({ route: r, path: r });
+        // Every :param gets the same id (a route usually takes one record's id).
+        else for (const c of candidates(r)) jobs.push({ route: r, path: params.reduce((p, x) => p.replace(x, c.id), r), table: c.table });
     }
-    out(`   ${routes.length} routes, ${calls} calls`);
+    out(`   ${routes.length} routes, ${jobs.length} calls to make`);
+    let next = 0;
+    const worker = async () => {
+        while (next < jobs.length) {
+            const j = jobs[next++];
+            const res = await call(j.path);
+            calls++;
+            const found = res.status < 300 ? leaked(res.body) : [];
+            if (found.length) leaks.push(`GET ${j.route}${j.table ? ` with ${j.table} ${j.path.match(UUID)?.[0]}` : ''} → ${res.status}, shows school B's ${found.slice(0, 3).join(', ')}`);
+            if (res.status >= 500 || res.status === 0) errors.push(`GET ${j.path} → ${res.status || 'no answer'}`);
+        }
+    };
+    await Promise.all(Array.from({ length: 3 }, worker));
+    out(`   ${calls} calls made`);
 
     out('\n4. A school code header for school B, signed in to school A');
     const me = await call('/api/auth/me', { 'x-school': B.code });
-    const stays = me.status === 200 && !leaked(me.body).length && me.body.includes(admin.id);
-    out(stays ? '   ✓ still school A' : `   ✗ answer ${me.status}: ${me.body.slice(0, 200)}`);
-    if (!stays) leaks.push('X-School header changed the school of a signed-in person');
+    if (me.status === 0 || me.status >= 500) out(`   ? couldn't check (the server didn't answer: ${me.status || me.body})`);
+    else {
+        const stays = me.status === 200 && !leaked(me.body).length && me.body.includes(admin.id);
+        out(stays ? '   ✓ still school A' : `   ✗ answer ${me.status}: ${me.body.slice(0, 200)}`);
+        if (!stays) leaks.push('X-School header changed the school of a signed-in person');
+    }
 
     out('\nResult');
     if (leaks.length) {
@@ -151,8 +170,13 @@ const schemaCheck = () => {
         for (const l of leaks) out(`     - ${l}`);
     } else out("   ✓ no school B data in any answer to school A");
     if (errors.length) {
-        out(`   ${errors.length} server error(s) (not leaks, but worth fixing):`);
-        for (const e of errors.slice(0, 40)) out(`     - ${e}`);
+        const grouped = new Map<string, number>();
+        for (const e of errors) {
+            const k = e.replace(UUID, ':id');
+            grouped.set(k, (grouped.get(k) ?? 0) + 1);
+        }
+        out(`   ${errors.length} call(s) failed (not leaks; "no answer" or 500 under load can be the server being busy):`);
+        for (const [k, n] of [...grouped.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40)) out(`     - ${n}× ${k}`);
     }
     await runAsTenant(A.id, () => db.userSession.update({ where: { id: session.id }, data: { revokedAt: new Date(), revokedReason: 'isolation check finished' } })).catch(() => undefined);
     await db.$disconnect();

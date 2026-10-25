@@ -293,13 +293,12 @@ export const desk = async (q: z.infer<typeof deskQuery>, userId: string) => {
 
 /** People a complaint can be assigned to (holding complaint.handle or .manage). */
 export const handlers = async () => {
-    const users = await db.user.findMany({ where: { status: 'active', kind: 'staff' }, select: { id: true, displayName: true } });
-    const out = [];
-    for (const u of users) {
-        const a = await getUserAccess(u.id);
-        if (a.permissions['complaint.handle'] || a.permissions['complaint.manage']) out.push({ id: u.id, name: u.displayName });
-    }
-    return out.sort((a, b) => a.name.localeCompare(b.name));
+    // One query: staff whose roles can handle or manage complaints (Super Admin can do everything).
+    const users = await db.user.findMany({
+        where: { status: 'active', kind: 'staff', roles: { some: { role: { deletedAt: null, OR: [{ isSystem: true }, { permissions: { some: { permissionKey: { in: ['complaint.handle', 'complaint.manage'] } } } }] } } } },
+        select: { id: true, displayName: true },
+    });
+    return users.map((u) => ({ id: u.id, name: u.displayName })).sort((a, b) => a.name.localeCompare(b.name));
 };
 
 // ─── Working on it ───────────────────────────────────────────────────────────
