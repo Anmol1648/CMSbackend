@@ -13,6 +13,8 @@ import { env } from '../../config/env';
 import * as auth from './platform-auth';
 import * as p from './platform.service';
 import { goLive, setupProgress } from './onboarding';
+import * as leads from './leads';
+import { createRateLimiter } from '../../middlewares/rate-limit';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -49,6 +51,10 @@ platformRoutes.get('/schools/:id/export', owner, asyncHandler(async (req: Reques
     res.send(data);
 }));
 
+// Demo requests from the website.
+platformRoutes.get('/leads', staff, asyncHandler(async (req: Request, res: Response) => successResponse(res, await leads.listLeads(parse(leads.leadsQuery, req.query)), 'Leads')));
+platformRoutes.put('/leads/:id', staff, asyncHandler(async (req: Request, res: Response) => successResponse(res, await leads.updateLead(req.params.id, parse(leads.leadUpdateSchema, req.body), me(req), req.ip), 'Saved')));
+
 // Menu templates.
 platformRoutes.get('/menu-templates', staff, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await p.listMenuTemplates(), 'Templates')));
 platformRoutes.post('/schools/:id/menu-template', owner, asyncHandler(async (req: Request, res: Response) => successResponse(res, await p.templateFromSchool(req.params.id, parse(p.templateFromSchoolSchema, req.body), me(req), req.ip), 'Template saved')));
@@ -77,6 +83,8 @@ platformRoutes.delete('/notices/:id', owner, asyncHandler(async (req: Request, r
 
 export const platformInfoRoutes = Router();
 
+/** The website's "Book a demo" form (five a visitor an hour). */
+platformInfoRoutes.post('/lead', publicRoute, createRateLimiter({ windowInMinutes: 60, maxAttempts: 5, keyPrefix: 'lead' }), asyncHandler(async (req: Request, res: Response) => successResponse(res, await leads.addLead(parse(leads.leadSchema, req.body), req.ip), 'Thank you', 201)));
 /** The login page on a shared address: does this school code exist (its name, to confirm). */
 platformInfoRoutes.get('/school', publicRoute, asyncHandler(async (req: Request, res: Response) => {
     const code = parse(z.object({ code: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,39}$/, 'is not a school code') }), req.query).code;

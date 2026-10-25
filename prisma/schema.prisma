@@ -5953,3 +5953,28 @@ model PlatformMenuTemplate {
 
   @@map("platform_menu_templates")
 }
+
+/// A demo request from the website (Platform console → Leads).
+model PlatformLead {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  school        String
+  city          String?
+  phone         String
+  email         String?
+  students      Int?
+  board         String?
+  preferredTime String?  @map("preferred_time")
+  message       String?
+  /// en | hi: the website's language when they asked
+  language      String   @default("en")
+  /// new | contacted | demo | won | lost
+  status        String   @default("new")
+  notes         String?
+  ip            String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt])
+  @@map("platform_leads")
+}
