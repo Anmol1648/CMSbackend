@@ -3,8 +3,12 @@ import { getTenantId } from '../../core/context';
 import { conflict, notFound } from '../../core/errors';
 import type { UpdateSchoolProfileInput } from './school-profile.schemas';
 import { deleteFile, IMAGE_KINDS, readFile, saveUpload } from '../../core/files';
+import { env } from '../../config/env';
+import type { HostTenant } from '../../middlewares/tenant';
 
-const withTenant = { tenant: { select: { code: true, name: true, status: true } } } as const;
+const withTenant = { tenant: { select: { code: true, name: true, status: true, domain: true } } } as const;
+
+const newAddress = (t: { code: string; domain: string | null }) => (t.domain ? `https://${t.domain}` : env.PLATFORM_DOMAIN ? `https://${t.code}.${env.PLATFORM_DOMAIN}` : null);
 
 /** The current school's profile (scoped automatically). */
 export const getSchoolProfile = async () => {
@@ -29,11 +33,13 @@ export const updateSchoolProfile = async (input: UpdateSchoolProfileInput) => {
 };
 
 /** What the sign-in page may show before anyone signs in. */
-export const getPublicBranding = async () => {
+export const getPublicBranding = async (via?: HostTenant | null) => {
     if (!getTenantId()) throw notFound('No school is set up for this address');
     const p = await getSchoolProfile();
     return {
         code: p.tenant.code,
+        // Reached by a code it had before: the page moves to the new address (or remembers the new code).
+        moved: via?.oldCode ? { from: via.oldCode, address: via.source === 'domain' ? newAddress(p.tenant) : null } : null,
         name: p.shortName ?? p.legalName,
         legalName: p.legalName,
         // Relative to the API base; ?v= changes with the image so browsers don't show an old one.

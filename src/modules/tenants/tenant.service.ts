@@ -58,10 +58,10 @@ export const createTenant = async (input: CreateTenantInput, options: { starterD
 
     const created = await runAsSystem(async () => {
         const clash = await db.tenant.findFirst({
-            where: { OR: [{ code: data.code }, ...(data.domain ? [{ domain: data.domain }] : [])] },
-            select: { code: true },
+            where: { OR: [{ code: data.code }, { oldCodes: { has: data.code } }, ...(data.domain ? [{ domain: data.domain }] : [])] },
+            select: { code: true, oldCodes: true },
         });
-        if (clash) throw conflict(clash.code === data.code ? `School code "${data.code}" is taken` : `Domain "${data.domain}" is taken`);
+        if (clash) throw conflict(clash.code === data.code || clash.oldCodes.includes(data.code) ? `School code "${data.code}" is taken` : `Domain "${data.domain}" is taken`);
 
         return withTransaction(async (tx) => {
             const tenant = await tx.tenant.create({ data: { code: data.code, name: data.name, domain: data.domain } });
@@ -112,6 +112,8 @@ export interface TenantRef {
     /** true = every module; else only `modules` (Platform console). */
     modulesAll: boolean;
     modules: string[];
+    /** Set when it was found by a code it had before (the caller can send people to the new one). */
+    oldCode?: string;
 }
 
 const TTL_MS = 60_000;
@@ -130,8 +132,16 @@ const select = { id: true, code: true, status: true, modulesAll: true, modules: 
 export const findTenantByDomain = (domain: string) =>
     cached(`domain:${domain}`, () => runAsSystem(() => db.tenant.findUnique({ where: { domain }, select })));
 
+/** By its code, or by a code it had before (Change code keeps the old one leading here). */
 export const findTenantByCode = (code: string) =>
-    cached(`code:${code}`, () => runAsSystem(() => db.tenant.findUnique({ where: { code }, select })));
+    cached(`code:${code}`, () =>
+        runAsSystem(async () => {
+            const current = await db.tenant.findUnique({ where: { code }, select });
+            if (current) return current;
+            const moved = await db.tenant.findFirst({ where: { oldCodes: { has: code } }, select });
+            return moved && { ...moved, oldCode: code };
+        })
+    );
 
 /** A web address: a school's own domain, or <code>.<PLATFORM_DOMAIN>. */
 export const findTenantByHost = async (host: string, platformDomain?: string) => {

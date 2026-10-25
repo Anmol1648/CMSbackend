@@ -29,6 +29,8 @@ enum TenantStatus {
 model Tenant {
   id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code            String       @unique
+  /// Codes it had before (Platform console → Change code): the old address and code still lead here.
+  oldCodes        String[]     @default([]) @map("old_codes")
   name            String
   /// Web address that resolves to this school on the login page (e.g. erp.greenvalley.in).
   domain          String?      @unique

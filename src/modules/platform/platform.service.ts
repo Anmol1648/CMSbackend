@@ -161,6 +161,59 @@ export const updateSchool = async (id: string, input: z.infer<typeof updateSchoo
     return getSchool(id);
 };
 
+const codeSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,39}$/, 'use 2–40 lowercase letters, numbers or hyphens');
+export const changeCodeSchema = z.strictObject({ code: codeSchema, keepOld: z.boolean().default(true), notify: z.boolean().default(true) });
+/**
+ * A new school code (and so a new <code>.<PLATFORM_DOMAIN> address). No data changes: every row
+ * points at the school's id. With keepOld, the old code and address keep leading to the school and
+ * the sign-in page moves people to the new ones; the old code stays reserved until removed.
+ */
+export const changeCode = async (id: string, input: z.infer<typeof changeCodeSchema>, by: string, ip?: string) => {
+    const t = await findSchool(id);
+    if (input.code === t.code) throw badRequest('That is already its code');
+    const clash = await sys(() => db.tenant.findFirst({ where: { id: { not: id }, OR: [{ code: input.code }, { oldCodes: { has: input.code } }] }, select: { name: true } }));
+    if (clash) throw conflict(`"${input.code}" is used by ${clash.name}`);
+    const oldCodes = [...t.oldCodes.filter((c) => c !== input.code), ...(input.keepOld ? [t.code] : [])];
+    const saved = await sys(() => db.tenant.update({ where: { id }, data: { code: input.code, oldCodes } }));
+    await refreshSchool(id);
+    await platformLog(by, 'school_code_changed', { tenantId: id, schoolName: t.name, details: { from: t.code, to: saved.code, oldStillWorks: input.keepOld }, ip });
+    let emailed: string | null = null;
+    if (input.notify && t.contactEmail) {
+        const address = schoolAddress(saved);
+        try {
+            await runAsTenant(id, () =>
+                sendMail({
+                    to: t.contactEmail!,
+                    subject: `${t.name}: new ERP school code`,
+                    text: `Hello${t.contactName ? ` ${t.contactName}` : ''},
+
+Your school's ERP code has changed from ${t.code} to ${saved.code}.${address ? `
+New address: ${address}` : ''}
+
+${input.keepOld ? 'The old code and address still work and lead to the new ones.' : 'The old code and address no longer work.'} Nothing else has changed: all your data, users and passwords are the same.
+
+Klytos`,
+                    html: `<p>Hello${t.contactName ? ` ${escapeHtml(t.contactName)}` : ''},</p><p>Your school's ERP code has changed from <b>${escapeHtml(t.code)}</b> to <b>${escapeHtml(saved.code)}</b>.${address ? `<br>New address: <b>${escapeHtml(address)}</b>` : ''}</p><p>${input.keepOld ? 'The old code and address still work and lead to the new ones.' : 'The old code and address no longer work.'} Nothing else has changed: all your data, users and passwords are the same.</p><p>Klytos</p>`,
+                })
+            );
+            emailed = t.contactEmail;
+        } catch (err) {
+            logger.warn('Code change email failed', { error: (err as Error).message });
+        }
+    }
+    return { ...(await getSchool(id)), emailed };
+};
+
+/** Stops an old code (and its address) leading to the school; another school may then take it. */
+export const removeOldCode = async (id: string, code: string, by: string, ip?: string) => {
+    const t = await findSchool(id);
+    if (!t.oldCodes.includes(code)) throw notFound('Not an old code of this school');
+    await sys(() => db.tenant.update({ where: { id }, data: { oldCodes: t.oldCodes.filter((c) => c !== code) } }));
+    await refreshSchool(id);
+    await platformLog(by, 'school_old_code_removed', { tenantId: id, schoolName: t.name, details: { code }, ip });
+    return getSchool(id);
+};
+
 export const statusSchema = z.strictObject({ status: z.enum(['active', 'suspended']), reason: z.string().trim().max(300).nullable().optional() });
 /** Suspends (nobody can sign in; nothing is deleted) or reactivates (also cancels a requested deletion). */
 export const setStatus = async (id: string, input: z.infer<typeof statusSchema>, by: string, ip?: string) => {

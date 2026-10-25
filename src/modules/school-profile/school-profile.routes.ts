@@ -40,8 +40,8 @@ schoolProfileRoutes.delete('/:slot(logo|login-background)', can('school_profile.
 /** Branding for the sign-in page (no login needed). */
 export const publicSchoolRoutes = Router();
 
-publicSchoolRoutes.get('/', publicRoute, asyncHandler(async (_req: Request, res: Response) => {
-    successResponse(res, await service.getPublicBranding(), 'School');
+publicSchoolRoutes.get('/', publicRoute, asyncHandler(async (req: Request, res: Response) => {
+    successResponse(res, await service.getPublicBranding(req.hostTenant), 'School');
 }));
 
 // <img> requests carry no Origin header, so the URL names the school (?school=<code>); these images are public anyway.
