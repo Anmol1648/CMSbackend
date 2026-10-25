@@ -3,13 +3,13 @@ import { db } from '../../core/db';
 import { getTenantId } from '../../core/context';
 import { badRequest, notFound } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
-import { getSetting, getSettings, setSetting, SettingDef } from '../../core/settings';
+import { defineSetting, getSetting, getSettings, setSetting, SettingDef } from '../../core/settings';
 import { getUserAccess, UserAccess } from '../rbac/access.service';
 import { STUDENTS, STUDENT_FIELDS } from '../students/students.settings';
 import { STAFF, STAFF_FIELDS } from '../staff/staff.settings';
 import type { ImportColumn } from '../../core/excel';
 import { DataFieldType, DataSourceExtension, extendDataSource } from '../reports/datasources.registry';
-import { CustomField, customFieldSchema, labelsSchema } from './forms.fields';
+import { CustomField, customFieldSchema, customFieldsSchema, labelsSchema } from './forms.fields';
 
 /**
  * Setup → Form Builder: for each form (student, staff), the school hides the built-in fields it
@@ -29,13 +29,22 @@ interface BuiltIn {
     /** Can only be required (not a field on the form: e.g. "at least one guardian"). */
     requireOnly?: boolean;
 }
+export type FormKey = 'student' | 'staff' | 'enquiry' | 'visitor' | 'complaint' | 'leave';
 interface FormDef {
-    key: 'student' | 'staff';
+    key: FormKey;
     label: string;
-    table: 'students' | 'staff';
+    table: string;
+    /** What the form is for (shown in the builder). */
+    note?: string;
     builtIn: BuiltIn[];
-    settings: { required: SettingDef<string[]>; hidden: SettingDef<string[]>; labels: SettingDef<Record<string, string>>; custom: SettingDef<CustomField[]> };
+    settings: { required?: SettingDef<string[]>; hidden?: SettingDef<string[]>; labels: SettingDef<Record<string, string>>; custom: SettingDef<CustomField[]> };
 }
+
+/** A form with extra fields only (its own fields are fixed): the settings that keep them. */
+const simpleSettings = (key: string, label: string) => ({
+    labels: defineSetting<Record<string, string>>({ key: `forms.${key}.labels`, group: 'Forms', label: `${label}: field names`, type: 'text', hidden: true, default: {}, schema: labelsSchema }),
+    custom: defineSetting<CustomField[]>({ key: `forms.${key}.custom`, group: 'Forms', label: `${label}: extra fields`, type: 'text', hidden: true, default: [], schema: customFieldsSchema }),
+});
 
 export const FORMS: Record<string, FormDef> = {
     student: {
@@ -62,6 +71,10 @@ export const FORMS: Record<string, FormDef> = {
         ],
         settings: { required: STAFF.requiredFields as SettingDef<string[]>, hidden: STAFF.hiddenFields as SettingDef<string[]>, labels: STAFF.fieldLabels, custom: STAFF.customFields },
     },
+    enquiry: { key: 'enquiry', label: 'Admission enquiry', table: 'enquiries', note: 'The office’s enquiry form; fields ticked “on the online form” also appear on the form parents fill on the website.', builtIn: [], settings: simpleSettings('enquiry', 'Admission enquiry') },
+    visitor: { key: 'visitor', label: 'Visitor', table: 'visits', note: 'The gate’s form when a visitor comes in.', builtIn: [], settings: simpleSettings('visitor', 'Visitor') },
+    complaint: { key: 'complaint', label: 'Complaint', table: 'complaints', note: 'The form parents, students and staff raise a complaint with.', builtIn: [], settings: simpleSettings('complaint', 'Complaint') },
+    leave: { key: 'leave', label: 'Staff leave', table: 'staff_leaves', note: 'The staff leave application.', builtIn: [], settings: simpleSettings('leave', 'Staff leave') },
 };
 
 /** May this person see (and fill) the field? Super Admin sees every field. */
@@ -86,11 +99,13 @@ const usage = async (f: FormDef, keys: string[]) => {
 /** The Form Builder screen: every built-in field with its state, and the extra fields. */
 export const getForm = async (key: string) => {
     const f = formOf(key);
-    const s = await getSettings(f.settings);
+    const s = { hidden: [] as string[], required: [] as string[], ...(await getSettings({ labels: f.settings.labels, custom: f.settings.custom })), ...(f.settings.hidden ? { hidden: await getSetting(f.settings.hidden) } : {}), ...(f.settings.required ? { required: await getSetting(f.settings.required) } : {}) };
     const used = await usage(f, s.custom.map((c) => c.key));
     return {
         key: f.key,
         label: f.label,
+        note: f.note ?? null,
+        publicForm: f.key === 'enquiry',
         builtIn: f.builtIn.map((b) => ({ key: b.key, defaultLabel: b.label, label: s.labels[b.key] ?? b.label, locked: !!b.locked, fixedRequired: !!b.fixedRequired, requireOnly: !!b.requireOnly, hidden: !b.locked && s.hidden.includes(b.key), required: !!b.fixedRequired || s.required.includes(b.key) })),
         custom: s.custom.map((c) => ({ ...c, visibleTo: c.visibleTo ?? [], used: used[c.key] ?? 0 })),
         roles: await db.role.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
@@ -106,7 +121,7 @@ export const saveFormSchema = z.strictObject({
 
 export const saveForm = async (key: string, input: z.infer<typeof saveFormSchema>, userId: string) => {
     const f = formOf(key);
-    const before = await getSettings(f.settings);
+    const before = await getSettings({ custom: f.settings.custom });
     const known = new Map(f.builtIn.map((b) => [b.key, b]));
     const hidden: string[] = [];
     const required: string[] = [];
@@ -131,8 +146,8 @@ export const saveForm = async (key: string, input: z.infer<typeof saveFormSchema
     const used = await usage(f, removed.map((c) => c.key));
     const custom: CustomField[] = [...input.custom, ...removed.filter((c) => used[c.key]).map((c) => ({ ...c, active: false }))];
     labelsSchema.parse(labels);
-    await setSetting(f.settings.hidden, hidden, userId);
-    await setSetting(f.settings.required, required, userId);
+    if (f.settings.hidden) await setSetting(f.settings.hidden, hidden, userId);
+    if (f.settings.required) await setSetting(f.settings.required, required, userId);
     await setSetting(f.settings.labels, labels, userId);
     await setSetting(f.settings.custom, custom, userId);
     await recordAudit({ action: 'form_setup', entity: 'form', entityId: null, changes: { form: f.key, hidden: hidden.length, required: required.length, renamed: Object.keys(labels).length, extra: custom.filter((c) => c.active).length } });
@@ -140,7 +155,7 @@ export const saveForm = async (key: string, input: z.infer<typeof saveFormSchema
 };
 
 /** What a form needs to draw itself: the school's names for fields and its active extra fields. */
-export const formExtras = async (key: 'student' | 'staff', userId?: string) => {
+export const formExtras = async (key: FormKey, userId?: string) => {
     const f = FORMS[key];
     const s = await getSettings({ labels: f.settings.labels, custom: f.settings.custom });
     const access = userId ? await getUserAccess(userId) : null;
@@ -148,7 +163,7 @@ export const formExtras = async (key: 'student' | 'staff', userId?: string) => {
 };
 
 /** A record's extra field values, without the ones this person may not see. */
-export const visibleValues = async (key: 'student' | 'staff', values: unknown, userId: string) => {
+export const visibleValues = async (key: FormKey, values: unknown, userId: string) => {
     const all = values && typeof values === 'object' && !Array.isArray(values) ? (values as Record<string, unknown>) : {};
     const f = FORMS[key];
     const custom = await getSetting(f.settings.custom);
@@ -165,9 +180,11 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * with the given ones on top (keys of switched-off fields are kept; unknown keys are dropped).
  * `creating`: every required field must have a value.
  */
-export const checkCustom = async (key: 'student' | 'staff', input: Record<string, unknown> | undefined, existing: unknown, creating: boolean, userId?: string) => {
-    // Only the fields this person sees can be given (and only those are required of them).
-    const { custom } = await formExtras(key, userId);
+export const checkCustom = async (key: FormKey, input: Record<string, unknown> | undefined, existing: unknown, creating: boolean, userId?: string, opts: { publicForm?: boolean } = {}) => {
+    // Only the fields this person sees can be given (and only those are required of them); the
+    // online form takes the fields ticked for it.
+    const all = (await formExtras(key, userId)).custom;
+    const custom = opts.publicForm ? all.filter((c) => c.onPublicForm) : all;
     const base = existing && typeof existing === 'object' && !Array.isArray(existing) ? { ...(existing as Record<string, unknown>) } : {};
     if (input === undefined && !creating) return null;
     const given = input ?? {};
@@ -273,7 +290,7 @@ const IMPORT_TYPE: Record<string, ImportColumn['type']> = { text: 'text', textar
  */
 export const importExtras = async (key: 'student' | 'staff') => {
     const f = FORMS[key];
-    const s = await getSettings({ hidden: f.settings.hidden, labels: f.settings.labels, custom: f.settings.custom });
+    const s = { ...(await getSettings({ labels: f.settings.labels, custom: f.settings.custom })), hidden: f.settings.hidden ? await getSetting(f.settings.hidden) : [] };
     const custom = s.custom.filter((c) => c.active);
     const masters = new Map<string, { id: string; name: string }[]>();
     for (const c of custom) if (c.type === 'master' && c.master && !masters.has(c.master)) masters.set(c.master, await db.masterValue.findMany({ where: { master: c.master, isActive: true }, select: { id: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }));
@@ -345,3 +362,6 @@ export const documentValues = async (key: 'student' | 'staff', records: { id: st
     for (const r of records) out.set(r.id, Object.fromEntries(custom.map((c) => [c.key, customText(c, val(r)[c.key], names)])));
     return out;
 };
+
+/** The fields of the online enquiry form (no login): the ones ticked for it, names only. */
+export const publicFormFields = async () => (await formExtras('enquiry')).custom.filter((c) => c.onPublicForm && !c.visibleTo?.length).map(({ visibleTo: _v, ...c }) => c);

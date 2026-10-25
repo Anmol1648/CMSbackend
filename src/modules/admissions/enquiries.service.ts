@@ -20,6 +20,7 @@ import { currentYear } from '../academic/years.service';
 import { ADMISSIONS } from './admissions.settings';
 import type { enquiryFilters } from './admissions.schemas';
 import { alertEnquiryAssigned } from './admissions.alerts';
+import { checkCustom, publicFormFields, visibleValues } from '../forms/forms.service';
 
 /** Admission enquiries: from first call to admitted (converted into a student) or lost. */
 
@@ -94,6 +95,8 @@ export const enquiryFieldsSchema = z.strictObject({
     assignedToId: id,
     nextFollowUp: day.nullable().optional(),
     remarks: text(1000),
+    /** Extra fields of the school (Setup → Form Builder). */
+    custom: z.record(z.string(), z.unknown()).optional(),
 });
 export const enquiryCreateSchema = enquiryFieldsSchema.extend({ stageId: z.uuid().optional() });
 export const enquiryUpdateSchema = enquiryFieldsSchema.partial();
@@ -305,6 +308,7 @@ export const getEnquiry = async (id: string, viewer: Viewer) => {
     const userName = new Map(users.map((u) => [u.id, u.displayName]));
     return {
         ...presentRow(e),
+        custom: await visibleValues('enquiry', e.customFields, viewer.userId),
         studentFirstName: e.studentFirstName,
         studentLastName: e.studentLastName,
         dateOfBirth: dayOf(e.dateOfBirth),
@@ -396,7 +400,8 @@ export const createEnquiry = async (input: z.infer<typeof enquiryCreateSchema>, 
     if (!assignedToId && viewer.scope !== 'all') assignedToId = (await db.staff.findFirst({ where: { userId: viewer.userId }, select: { id: true } }))?.id ?? null;
 
     const enquiryDate = input.enquiryDate ?? today();
-    const { stageId: _s, ...fields } = input;
+    const customFields = (await checkCustom('enquiry', input.custom, null, true, viewer.userId || undefined, { publicForm: !!opts.online })) ?? {};
+    const { stageId: _s, custom: _c, ...fields } = input;
     const enquiryNo = await allocate('enquiry', toDate(enquiryDate));
     const e = await db.enquiry.create({
         data: {
@@ -411,6 +416,7 @@ export const createEnquiry = async (input: z.infer<typeof enquiryCreateSchema>, 
             assignedToId,
             enquiryNo,
             online: !!opts.online,
+            customFields: customFields as Prisma.InputJsonValue,
         } as Prisma.EnquiryUncheckedCreateInput,
     });
     alertEnquiryAssigned(e.id, viewer.userId);
@@ -427,7 +433,9 @@ export const updateEnquiry = async (id: string, input: EnquiryFields, viewer: Vi
             if (dupes.length) throw conflict(`This mobile number already has an open enquiry for this class: ${dupes.map((d) => d.enquiryNo).join(', ')}`);
         }
     }
-    await db.enquiry.update({ where: { id }, data: dbFields(input) as Prisma.EnquiryUncheckedUpdateInput });
+    const customFields = await checkCustom('enquiry', input.custom, current.customFields, false, viewer.userId);
+    const { custom: _c, ...fields } = input;
+    await db.enquiry.update({ where: { id }, data: { ...dbFields(fields), ...(customFields ? { customFields: customFields as Prisma.InputJsonValue } : {}) } as Prisma.EnquiryUncheckedUpdateInput });
     if (input.assignedToId && input.assignedToId !== current.assignedToId) alertEnquiryAssigned(id, viewer.userId);
     return getEnquiry(id, viewer);
 };
@@ -646,6 +654,7 @@ export const publicEnquirySchema = z.strictObject({
     area: text(120),
     currentSchool: text(150),
     message: text(1000),
+    custom: z.record(z.string(), z.unknown()).optional(),
     /** Left empty by people; bots fill every field. */
     website: z.string().max(200).optional(),
 });
@@ -656,7 +665,7 @@ export const publicFormInfo = async () => {
     const year = await currentYear();
     // Only the classes the session runs with admissions open.
     const classes = (await classesOfYear(year?.id, { admissionsOpen: true })).map((c) => ({ id: c.id, name: c.name }));
-    return { enabled: true, classes, academicYear: year ? { id: year.id, name: year.name } : null };
+    return { enabled: true, classes, academicYear: year ? { id: year.id, name: year.name } : null, fields: await publicFormFields() };
 };
 
 export const submitPublicEnquiry = async (input: z.infer<typeof publicEnquirySchema>) => {

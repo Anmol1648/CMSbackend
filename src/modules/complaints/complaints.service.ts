@@ -17,6 +17,7 @@ import { holdersOf, usersOf } from '../alerts/recipients';
 import { onQueuePass } from '../alerts/queue';
 import { defineDailyJob } from '../alerts/jobs';
 import { COMPLAINTS } from './complaints.settings';
+import { checkCustom, visibleValues } from '../forms/forms.service';
 
 /**
  * Complaints: raised by parents, students, staff (or taken at the office), routed by category to a
@@ -94,6 +95,8 @@ export const raiseSchema = z.strictObject({
     /** At the office, for someone without a login. */
     contactName: z.string().trim().max(100).nullable().optional(),
     contactMobile: z.string().trim().max(15).nullable().optional(),
+    /** Extra fields of the school (Setup → Form Builder). */
+    custom: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const raise = async (input: z.infer<typeof raiseSchema>, userId: string) => {
@@ -112,6 +115,7 @@ export const raise = async (input: z.infer<typeof raiseSchema>, userId: string) 
     const year = todayIST().slice(0, 4);
     const ticketNo = `${s.prefix}${year}-${String(await takeNumbers(`complaint:${year}`, 1)).padStart(4, '0')}`;
     const assignedTo = await pickHandler(rules.handler, studentId);
+    const customFields = (await checkCustom('complaint', input.custom, null, true, userId)) ?? {};
     const c = await db.complaint.create({
         data: {
             tenantId: getTenantId()!,
@@ -134,6 +138,7 @@ export const raise = async (input: z.infer<typeof raiseSchema>, userId: string) 
             respondBy: new Date(now.getTime() + rules.responseHours * HOUR),
             resolveBy: new Date(now.getTime() + rules.resolveHours * HOUR),
             attachmentIds: input.attachmentIds,
+            customFields: customFields as Prisma.InputJsonValue,
         },
     });
     await event(c.id, `Raised${office ? ` at the office for ${input.contactName}` : ''}${assignedTo ? `; assigned to ${await userName(assignedTo)}` : ''}`, userId, office ? 'Office' : input.anonymous ? 'Anonymous' : await userName(userId));
@@ -179,6 +184,7 @@ export const complaintView = async (id: string, userId: string) => {
     const hideName = (m: { userId: string | null; fromRaiser: boolean; authorName: string }) => (c.anonymous && m.fromRaiser && !p.seesWho ? 'Anonymous' : m.authorName);
     return {
         id: c.id,
+        custom: await visibleValues('complaint', c.customFields, userId),
         ticketNo: c.ticketNo,
         category: cat?.name ?? '',
         categoryId: c.categoryId,

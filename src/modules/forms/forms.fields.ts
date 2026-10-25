@@ -25,6 +25,8 @@ export const customFieldSchema = z.strictObject({
     active: z.boolean().default(true),
     /** Only these roles see and fill it (empty = everyone who sees the record). */
     visibleTo: z.array(z.uuid()).max(50).default([]),
+    /** Admission enquiry: also on the online form parents fill. */
+    onPublicForm: z.boolean().default(false),
 });
 export type CustomField = z.infer<typeof customFieldSchema>;
 

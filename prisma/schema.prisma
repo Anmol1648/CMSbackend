@@ -1441,6 +1441,8 @@ model Enquiry {
   studentId           String?   @map("student_id") @db.Uuid
   convertedAt         DateTime? @map("converted_at") @db.Timestamptz(6)
   isDemo              Boolean   @default(false) @map("is_demo")
+  /// The school's own extra fields (Setup → Form Builder).
+  customFields        Json      @default("{}") @map("custom_fields")
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy           String?   @map("created_by") @db.Uuid
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -2463,6 +2465,8 @@ model StaffLeave {
   cancelledBy  String?   @map("cancelled_by") @db.Uuid
   cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(6)
   isDemo       Boolean   @default(false) @map("is_demo")
+  /// The school's own extra fields (Setup → Form Builder).
+  customFields Json      @default("{}") @map("custom_fields")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy    String?   @map("created_by") @db.Uuid
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -4041,6 +4045,8 @@ model Visit {
   createdBy    String?   @map("created_by") @db.Uuid
   checkedOutBy String?   @map("checked_out_by") @db.Uuid
   isDemo       Boolean   @default(false) @map("is_demo")
+  /// The school's own extra fields (Setup → Form Builder).
+  customFields Json      @default("{}") @map("custom_fields")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -4146,6 +4152,8 @@ model Complaint {
   ratingNote      String?   @map("rating_note")
   attachmentIds   String[]  @map("attachment_ids") @db.Uuid
   isDemo          Boolean   @default(false) @map("is_demo")
+  /// The school's own extra fields (Setup → Form Builder).
+  customFields    Json      @default("{}") @map("custom_fields")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 

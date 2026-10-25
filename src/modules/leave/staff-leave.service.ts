@@ -1,4 +1,5 @@
-import type { LeaveType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { LeaveType } from '@prisma/client';
 import { z } from 'zod';
 import { db, withTransaction } from '../../core/db';
 import { getTenantId } from '../../core/context';
@@ -16,6 +17,7 @@ import { LEAVE } from './leave.settings';
 import { eligible, leaveTypeById, leaveTypes } from './leave-types.service';
 import { balanceOf, balancesOf, leaveYearOf } from './balances.service';
 import { alertLeaveDecided, alertLeaveToDecide } from './leave.alerts';
+import { checkCustom, visibleValues } from '../forms/forms.service';
 
 /**
  * Staff leave: a person asks (or the office records it for them), the person they report to and/or
@@ -95,6 +97,8 @@ export const applySchema = z
         half: z.enum(['first', 'second']).nullable().optional(),
         reason: z.string().trim().min(3, 'is too short').max(500),
         attachmentId: z.uuid().nullable().optional(),
+        /** Extra fields of the school (Setup → Form Builder). */
+        custom: z.record(z.string(), z.unknown()).optional(),
     })
     .refine((x) => x.to >= x.from, { message: '“To” is before “from”', path: ['to'] })
     .refine((x) => !x.half || x.from === x.to, { message: 'a half day is one day only', path: ['half'] });
@@ -172,6 +176,7 @@ export const applyLeave = async (input: ApplyInput, userId: string) => {
         const f = await db.file.findFirst({ where: { id: input.attachmentId, uploadedBy: userId, purpose: 'document' }, select: { id: true } });
         if (!f) throw badRequest('Upload the certificate again', [{ field: 'attachmentId', message: 'is not your upload' }]);
     }
+    const customFields = (await checkCustom('leave', input.custom, null, true, userId)) ?? {};
     const row = await db.staffLeave.create({
         data: {
             tenantId: getTenantId()!,
@@ -186,6 +191,7 @@ export const applyLeave = async (input: ApplyInput, userId: string) => {
             attachmentId: input.attachmentId ?? null,
             stage: await firstStage(r.t, s),
             appliedBy: userId,
+            customFields: customFields as Prisma.InputJsonValue,
         },
     });
     await recordAudit({ action: 'staff_leave_asked', entity: 'staff_leave', entityId: row.id, changes: { staff: staffName(s), type: r.t.code, from: input.from, to: input.to, days: r.days } });
@@ -225,6 +231,7 @@ const present = async (rows: LeaveRow[], userId: string) => {
             const manager = r.staff.reportsTo ? staffName(r.staff.reportsTo) : null;
             return {
                 id: r.id,
+                custom: await visibleValues('leave', r.customFields, userId),
                 staff: { id: r.staff.id, name: staffName(r.staff), employeeCode: r.staff.employeeCode, designation: r.staff.designation?.name ?? null, department: r.staff.department?.name ?? null },
                 type: { id: r.leaveType.id, code: r.leaveType.code, name: r.leaveType.name, paid: r.leaveType.paid },
                 from,

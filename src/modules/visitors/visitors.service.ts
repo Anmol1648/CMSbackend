@@ -14,6 +14,7 @@ import { dayDate, isoOf, todayIST } from '../attendance/attendance.settings';
 import { raiseLater } from '../alerts/deliver';
 import { staffOf } from '../alerts/recipients';
 import { VISITORS } from './visitors.settings';
+import { checkCustom, visibleValues } from '../forms/forms.service';
 
 /**
  * The gate: visitors come in (found again by their mobile number), get a pass, meet a staff member,
@@ -76,6 +77,8 @@ export const entrySchema = z.strictObject({
     people: z.number().int().min(1).max(50).default(1),
     vehicleNo: z.string().trim().toUpperCase().max(20).nullable().optional(),
     note: z.string().trim().max(300).nullable().optional(),
+    /** Extra fields of the school (Setup → Form Builder). */
+    custom: z.record(z.string(), z.unknown()).optional(),
 });
 
 /** Saves the visitor (found by mobile, or new) with what was typed at the gate. */
@@ -101,10 +104,11 @@ export const enter = async (input: z.infer<typeof entrySchema>, userId: string) 
         const black = await db.visitor.findFirst({ where: { mobile, blacklisted: true } });
         if (black) throw badRequest(`This visitor is blacklisted${black.blacklistReason ? `: ${black.blacklistReason}` : ''}. Call the office.`);
     }
+    const customFields = (await checkCustom('visitor', input.custom, null, true, userId)) ?? {};
     const v = await saveVisitor(input);
     const needsOk = s.approval && input.hostKind === 'staff';
     const now = new Date();
-    const data = { visitorId: v.id, day: dayDate(todayIST()), purposeId: input.purposeId ?? null, hostKind: input.hostKind, staffId: input.hostKind === 'staff' ? input.staffId! : null, studentId: input.hostKind === 'student' ? input.studentId! : null, people: input.people, vehicleNo: input.vehicleNo || null, note: input.note || null, photoFileId: input.photoFileId ?? null, status: needsOk ? 'waiting' : 'in', inAt: needsOk ? null : now, passNo: await newPassNo(), createdBy: userId };
+    const data = { visitorId: v.id, day: dayDate(todayIST()), purposeId: input.purposeId ?? null, hostKind: input.hostKind, staffId: input.hostKind === 'staff' ? input.staffId! : null, studentId: input.hostKind === 'student' ? input.studentId! : null, people: input.people, vehicleNo: input.vehicleNo || null, note: input.note || null, photoFileId: input.photoFileId ?? null, status: needsOk ? 'waiting' : 'in', inAt: needsOk ? null : now, passNo: await newPassNo(), createdBy: userId, customFields: customFields as Prisma.InputJsonValue };
     // An expected visit was already agreed by the staff member: in at once.
     const visit = expected ? await db.visit.update({ where: { id: expected.id }, data: { ...data, status: 'in', inAt: now } }) : await db.visit.create({ data: { ...data, tenantId: getTenantId()! } });
     await db.visitor.update({ where: { id: v.id }, data: { lastVisitAt: now } });
@@ -113,11 +117,11 @@ export const enter = async (input: z.infer<typeof entrySchema>, userId: string) 
         raiseLater('visitor_arrived', { host: () => staffOf([visit.staffId!]) }, { visitor: v.name, mobile: v.mobile ?? '', purpose: purpose ?? 'a visit', people: String(visit.people), time: clock(now), action: visit.status === 'waiting' ? 'Please allow or refuse on My Visitors.' : 'They are on their way to you.' }, { dedupe: `visitor:${visit.id}` });
     }
     await recordAudit({ action: 'visitor_in', entity: 'visit', entityId: visit.id, changes: { visitor: v.name, pass: visit.passNo, status: visit.status } });
-    return visitView(visit.id);
+    return visitView(visit.id, userId);
 };
 
 /** A visit with the visitor and whom they met (for the gate, the pass and the host). */
-export const visitView = async (id: string) => {
+export const visitView = async (id: string, userId?: string) => {
     const v = await db.visit.findFirst({ where: { id }, include: { visitor: true } });
     if (!v) throw notFound('Visit not found');
     const [purpose, staff, student, idType] = await Promise.all([
@@ -142,6 +146,7 @@ export const visitView = async (id: string) => {
         inAt: v.inAt,
         outAt: v.outAt,
         answerNote: v.answerNote,
+        custom: userId ? await visibleValues('visitor', v.customFields, userId) : {},
     };
 };
 
