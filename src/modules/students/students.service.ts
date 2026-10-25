@@ -17,6 +17,7 @@ import { guardianSchema, createGuardians } from './family.service';
 import type { studentFilters } from './students.schemas';
 import { assertConvertible, markConverted, type Viewer as EnquiryViewer } from '../admissions/enquiries.service';
 import { checkStudentLimit } from '../platform/limits';
+import { checkCustom, formExtras } from '../forms/forms.service';
 
 /** Student records, admission and the student list. */
 
@@ -100,6 +101,8 @@ export const studentFieldsSchema = z.strictObject({
     medicalNotes: text(500),
     emergencyName: text(120),
     emergencyPhone: z.union([z.literal('').transform(() => null), z.string().trim().regex(/^\+?[0-9][0-9 ()-]{5,19}$/, 'is not a valid phone number'), z.null()]).optional(),
+    /** Extra fields of the school (Setup → Form Builder): { key: value }. */
+    custom: z.record(z.string(), z.unknown()).optional(),
 });
 export const studentUpdateSchema = studentFieldsSchema.partial();
 type StudentFields = z.infer<typeof studentUpdateSchema>;
@@ -174,7 +177,7 @@ const withoutHidden = <T extends Record<string, unknown>>(f: T, hidden: StudentF
 };
 
 const toDate = (s: string) => new Date(`${s}T00:00:00.000Z`);
-const dbFields = (f: StudentFields) => ({
+const dbFields = ({ custom: _custom, ...f }: StudentFields) => ({
     ...f,
     ...(f.admissionDate ? { admissionDate: toDate(f.admissionDate) } : {}),
     ...(f.dateOfBirth !== undefined ? { dateOfBirth: f.dateOfBirth ? toDate(f.dateOfBirth) : null } : {}),
@@ -296,6 +299,7 @@ const present = (s: StudentRow, viewer: Viewer) => {
         medicalNotes: show ? s.medicalNotes : s.medicalNotes ? '(hidden)' : null,
         emergencyName: s.emergencyName,
         emergencyPhone: s.emergencyPhone,
+        custom: (s.customFields ?? {}) as Record<string, unknown>,
         photoUrl: s.photoFileId ? `students/${s.id}/photo?v=${s.photoFileId}` : null,
         status: s.status,
         statusDate: dayOf(s.statusDate),
@@ -479,6 +483,7 @@ export const admitStudent = async (input: AdmissionInput, viewer: Viewer, enquir
     });
     const fields = withoutHidden(input.student, s.hidden);
     await checkFields(fields, s.required);
+    const customFields = (await checkCustom('student', input.student.custom, null, true)) ?? {};
     if (s.required.includes('guardian') && !input.familyId && !input.guardians?.length) {
         throw badRequest('Add at least one parent or guardian (or link a sibling)', [{ field: 'guardians', message: 'add at least one parent or guardian' }]);
     }
@@ -500,7 +505,7 @@ export const admitStudent = async (input: AdmissionInput, viewer: Viewer, enquir
         async (tx) => {
             const familyId = input.familyId ?? (await tx.family.create({ data: { tenantId } })).id;
             const guardians = input.guardians?.length ? await createGuardians(familyId, input.guardians, tx) : [];
-            const student = await tx.student.create({ data: { tenantId, ...dbFields({ ...fields, admissionNo }), firstName: fields.firstName, admissionNo, admissionDate, familyId } as Prisma.StudentUncheckedCreateInput });
+            const student = await tx.student.create({ data: { tenantId, ...dbFields({ ...fields, admissionNo }), firstName: fields.firstName, admissionNo, admissionDate, familyId, customFields: customFields as Prisma.InputJsonValue } as Prisma.StudentUncheckedCreateInput });
             const placed = await saveEnrolment(student.id, enrolment, tx);
             if (input.enquiryId) await markConverted(tx, input.enquiryId, student.id);
 
@@ -550,12 +555,13 @@ export const updateStudent = async (id: string, input: StudentFields, viewer: Vi
     const merged = { ...current, dateOfBirth: dayOf(current.dateOfBirth), admissionDate: dayOf(current.admissionDate) ?? undefined, ...fields } as unknown as StudentFields;
     await checkFields(merged, s.required);
     await uniqueChecks(fields, id);
+    const customFields = await checkCustom('student', input.custom, current.customFields, false);
     // Sensitive fields are only changed by people who may see them.
     if (!viewer.sensitive) {
         delete fields.aadhaar;
         delete fields.medicalNotes;
     }
-    await db.student.update({ where: { id }, data: dbFields(fields) as Prisma.StudentUpdateInput });
+    await db.student.update({ where: { id }, data: { ...dbFields(fields), ...(customFields ? { customFields: customFields as Prisma.InputJsonValue } : {}) } as Prisma.StudentUpdateInput });
     return getStudent(id, viewer);
 };
 
@@ -612,5 +618,5 @@ export const formConfig = async () => {
         houses: ACADEMIC.housesEnabled,
         capacity: STUDENTS.capacityCheck,
     });
-    return s;
+    return { ...s, ...(await formExtras('student')) };
 };

@@ -13,6 +13,7 @@ import { normalizeMobile } from '../auth/identity';
 import { currentYear } from '../academic/years.service';
 import { STAFF, StaffField, SelfEditField } from './staff.settings';
 import type { staffFilters } from './staff.schemas';
+import { checkCustom, formExtras } from '../forms/forms.service';
 
 /** Staff records, their logins, qualifications and experience. */
 
@@ -91,6 +92,8 @@ export const staffFieldsSchema = z.strictObject({
     uan: pattern(/^\d{12}$/, 'must be 12 digits'),
     emergencyName: text(120),
     emergencyPhone: phone,
+    /** Extra fields of the school (Setup → Form Builder): { key: value }. */
+    custom: z.record(z.string(), z.unknown()).optional(),
 });
 export const staffUpdateSchema = staffFieldsSchema.partial();
 type StaffFields = z.infer<typeof staffUpdateSchema>;
@@ -168,7 +171,7 @@ const withoutHidden = <T extends Record<string, unknown>>(f: T, hidden: StaffFie
     return out;
 };
 
-const dbFields = (f: StaffFields) => ({
+const dbFields = ({ custom: _custom, ...f }: StaffFields) => ({
     ...f,
     ...(f.mobile ? { mobile: normalizeMobile(f.mobile) } : {}),
     ...(f.joiningDate ? { joiningDate: toDate(f.joiningDate) } : {}),
@@ -277,6 +280,7 @@ const present = async (s: Row, viewer: Viewer) => {
         teachingPost: s.teachingPost,
         reportsTo: s.reportsTo ? { id: s.reportsTo.id, name: staffName(s.reportsTo), code: s.reportsTo.employeeCode } : null,
         teachableSubjectIds: s.teachableSubjectIds,
+        custom: (s.customFields ?? {}) as Record<string, unknown>,
         bank: s.bank,
         bankAccountNo: mask(s.bankAccountNo, show),
         ifsc: s.ifsc,
@@ -456,6 +460,7 @@ export const createStaff = async (input: z.infer<typeof createStaffSchema>, view
     const s = await getSettings({ required: STAFF.requiredFields, hidden: STAFF.hiddenFields, editable: STAFF.codeEditable });
     const fields = withoutHidden(input.staff, s.hidden);
     await checkFields(fields, s.required);
+    const customFields = (await checkCustom('staff', input.staff.custom, null, true)) ?? {};
     if (fields.employeeCode && !s.editable) throw badRequest('Employee codes are given automatically', [{ field: 'employeeCode', message: 'is given automatically' }]);
     await uniqueChecks(fields);
     const joiningDate = fields.joiningDate ? toDate(fields.joiningDate) : toDate(new Date().toISOString().slice(0, 10));
@@ -464,7 +469,7 @@ export const createStaff = async (input: z.infer<typeof createStaffSchema>, view
     let welcome: Awaited<ReturnType<typeof loginFor>> | null = null;
     const created = await withTransaction(
         async (tx) => {
-            const row = await tx.staff.create({ data: { tenantId, ...dbFields(fields), firstName: fields.firstName, employeeCode, joiningDate } as Prisma.StaffUncheckedCreateInput });
+            const row = await tx.staff.create({ data: { tenantId, ...dbFields(fields), firstName: fields.firstName, employeeCode, joiningDate, customFields: customFields as Prisma.InputJsonValue } as Prisma.StaffUncheckedCreateInput });
             if (input.qualifications?.length) await saveQualifications(row.id, input.qualifications, tx);
             if (input.experience?.length) await saveExperience(row.id, input.experience, tx);
             if (input.login?.enabled) welcome = await loginFor(row.id, input.login.roleIds, tx);
@@ -492,7 +497,8 @@ export const updateStaff = async (id: string, input: StaffFields, viewer: Viewer
     const merged = { ...current, dateOfBirth: dayOf(current.dateOfBirth), joiningDate: dayOf(current.joiningDate) ?? undefined, ...fields } as unknown as StaffFields;
     await checkFields(merged, s.required, id);
     await uniqueChecks(fields, id);
-    await db.staff.update({ where: { id }, data: dbFields(fields) as Prisma.StaffUpdateInput });
+    const customFields = await checkCustom('staff', input.custom, current.customFields, false);
+    await db.staff.update({ where: { id }, data: { ...dbFields(fields), ...(customFields ? { customFields: customFields as Prisma.InputJsonValue } : {}) } as Prisma.StaffUpdateInput });
     return getStaff(id, viewer);
 };
 
@@ -567,5 +573,7 @@ export const updateMyStaff = async (userId: string, input: StaffFields & { quali
     return myStaff(userId);
 };
 
-export const formConfig = () =>
-    getSettings({ required: STAFF.requiredFields, hidden: STAFF.hiddenFields, editable: STAFF.codeEditable, loginDefault: STAFF.loginDefault, selfEdit: STAFF.selfEdit });
+export const formConfig = async () => ({
+    ...(await getSettings({ required: STAFF.requiredFields, hidden: STAFF.hiddenFields, editable: STAFF.codeEditable, loginDefault: STAFF.loginDefault, selfEdit: STAFF.selfEdit })),
+    ...(await formExtras('staff')),
+});

@@ -15,6 +15,7 @@ import * as files from './student-files.service';
 import { enrolmentSchema, placeStudent, renumberSection } from './enrolment.service';
 import { studentListSpec } from './students.schemas';
 import { enquiryViewer } from '../admissions/admissions.routes';
+import { exportExtras } from '../forms/forms.service';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -47,18 +48,22 @@ studentRoutes.get('/export', view, asyncHandler(async (req: Request, res: Respon
         rows.push(...r.items);
         if (r.items.length < 200) break;
     }
+    const shown = rows.slice(0, max);
+    const extra = await exportExtras('student', shown.map((s) => s.id));
+    const L = (key: string, label: string) => extra.labels[key] ?? label;
     const data = await buildWorkbook('Students', [
-        { header: 'Admission no', width: 16, value: (s) => s.admissionNo },
+        { header: L('admissionNo', 'Admission no'), width: 16, value: (s) => s.admissionNo },
         { header: 'Name', width: 28, value: (s) => s.name },
         { header: 'Class', width: 16, value: (s) => s.section.label },
         { header: 'Roll no', value: (s) => s.rollNumber },
-        { header: 'Gender', value: (s) => s.gender?.name },
-        { header: 'Date of birth', width: 14, type: 'date', value: (s) => s.dateOfBirth },
+        { header: L('genderId', 'Gender'), value: (s) => s.gender?.name },
+        { header: L('dateOfBirth', 'Date of birth'), width: 14, type: 'date', value: (s) => s.dateOfBirth },
         { header: 'House', value: (s) => s.house?.name },
         { header: 'Parent / guardian', width: 24, value: (s) => s.contact?.name },
         { header: 'Mobile', width: 16, value: (s) => s.contact?.mobile },
         { header: 'Status', value: (s) => s.status },
-    ], rows.slice(0, max));
+        ...extra.columns,
+    ], shown);
     sendFile(res, `students-${new Date().toISOString().slice(0, 10)}.xlsx`, XLSX_MIME, data);
 }));
 

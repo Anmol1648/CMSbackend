@@ -13,6 +13,7 @@ import * as staff from './staff.service';
 import * as files from './staff-files.service';
 import * as teaching from './teaching.service';
 import { staffListSpec } from './staff.schemas';
+import { exportExtras } from '../forms/forms.service';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -35,15 +36,18 @@ staffRoutes.get('/export', view, asyncHandler(async (req: Request, res: Response
     const max = await getSetting(UPLOADS.maxExportRows);
     const q = parseListQuery({ ...req.query, page: '1', pageSize: String(Math.min(200, max)) }, staffListSpec);
     const rows = (await staff.listStaff(q, await viewer(req))).items;
+    const extra = await exportExtras('staff', rows.map((s) => s.id));
+    const L = (key: string, label: string) => extra.labels[key] ?? label;
     const data = await buildWorkbook('Staff', [
-        { header: 'Employee code', width: 16, value: (s) => s.employeeCode },
+        { header: L('employeeCode', 'Employee code'), width: 16, value: (s) => s.employeeCode },
         { header: 'Name', width: 28, value: (s) => s.name },
-        { header: 'Department', width: 20, value: (s) => s.department?.name },
-        { header: 'Designation', width: 22, value: (s) => s.designation?.name },
+        { header: L('departmentId', 'Department'), width: 20, value: (s) => s.department?.name },
+        { header: L('designationId', 'Designation'), width: 22, value: (s) => s.designation?.name },
         { header: 'Staff type', value: (s) => s.staffType?.name },
-        { header: 'Mobile', width: 16, value: (s) => s.mobile },
+        { header: L('mobile', 'Mobile'), width: 16, value: (s) => s.mobile },
         { header: 'Can sign in', value: (s) => (s.canSignIn ? 'Yes' : 'No') },
         { header: 'Status', value: (s) => s.status },
+        ...extra.columns,
     ], rows);
     sendFile(res, `staff-${new Date().toISOString().slice(0, 10)}.xlsx`, XLSX_MIME, data);
 }));

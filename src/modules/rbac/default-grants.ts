@@ -213,6 +213,8 @@ const COCURRICULAR_GRANTS: Record<string, { key: string; scope?: DataScope }[]> 
     student: [{ key: 'cocurricular.mine' }],
     guardian: [{ key: 'cocurricular.mine' }],
 };
+// The Form Builder is the school admin's (Super Admin has everything).
+COCURRICULAR_GRANTS['school-admin'].push({ key: 'forms.manage' });
 for (const [role, grants] of Object.entries(COCURRICULAR_GRANTS)) DEFAULT_GRANTS[role] = [...(DEFAULT_GRANTS[role] ?? []), ...grants];
 
 /**

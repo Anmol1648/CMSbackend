@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineSetting } from '../../core/settings';
+import { CustomField, customFieldsSchema, labelsSchema } from '../forms/forms.fields';
 
 /** System Settings → Staff. */
 
@@ -101,6 +102,7 @@ export const STAFF = {
     requiredFields: defineSetting<StaffField[]>({
         key: 'staff.required_fields',
         group: G,
+        hidden: true,
         label: 'Required when adding staff',
         type: 'multiselect',
         default: ['genderId', 'mobile', 'designationId'],
@@ -110,6 +112,7 @@ export const STAFF = {
     hiddenFields: defineSetting<StaffField[]>({
         key: 'staff.hidden_fields',
         group: G,
+        hidden: true,
         label: 'Not used by the school (hidden on forms)',
         type: 'multiselect',
         default: [],
@@ -125,4 +128,8 @@ export const STAFF = {
         schema: z.array(z.enum(SELF_EDIT.map((f) => f.value) as [SelfEditField, ...SelfEditField[]])),
         options: [...SELF_EDIT],
     }),
+    /** Setup → Form Builder: the school's names for built-in fields ({ field: label }). */
+    fieldLabels: defineSetting<Record<string, string>>({ key: 'staff.field_labels', group: G, label: 'Field names', type: 'text', hidden: true, default: {}, schema: labelsSchema }),
+    /** Setup → Form Builder: the school's own extra fields. */
+    customFields: defineSetting<CustomField[]>({ key: 'staff.custom_fields', group: G, label: 'Extra fields', type: 'text', hidden: true, default: [], schema: customFieldsSchema }),
 };

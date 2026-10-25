@@ -1101,6 +1101,8 @@ model Student {
   leavingReasonId String?       @map("leaving_reason_id") @db.Uuid
   statusNote      String?       @map("status_note")
   isDemo          Boolean       @default(false) @map("is_demo")
+  /// The school's own extra fields (Setup → Form Builder): { "<field key>": value }.
+  customFields    Json          @default("{}") @map("custom_fields")
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy       String?       @map("created_by") @db.Uuid
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1255,6 +1257,8 @@ model Staff {
   relievingReasonId   String?     @map("relieving_reason_id") @db.Uuid
   statusNote          String?     @map("status_note")
   isDemo              Boolean     @default(false) @map("is_demo")
+  /// The school's own extra fields (Setup → Form Builder): { "<field key>": value }.
+  customFields        Json        @default("{}") @map("custom_fields")
   createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy           String?     @map("created_by") @db.Uuid
   updatedAt           DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)

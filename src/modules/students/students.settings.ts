@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineSetting } from '../../core/settings';
+import { CustomField, customFieldsSchema, labelsSchema } from '../forms/forms.fields';
 
 /** System Settings → Students. */
 
@@ -165,6 +166,7 @@ export const STUDENTS = {
     requiredFields: defineSetting<StudentField[]>({
         key: 'students.required_fields',
         group: G,
+        hidden: true,
         label: 'Required at admission',
         type: 'multiselect',
         default: ['dateOfBirth', 'genderId', 'guardian'],
@@ -174,10 +176,15 @@ export const STUDENTS = {
     hiddenFields: defineSetting<StudentField[]>({
         key: 'students.hidden_fields',
         group: G,
+        hidden: true,
         label: 'Not used by the school (hidden on forms)',
         type: 'multiselect',
         default: [],
         schema: z.array(fieldEnum),
         options: STUDENT_FIELDS.filter((f) => f.value !== 'guardian'),
     }),
+    /** Setup → Form Builder: the school's names for built-in fields ({ field: label }). */
+    fieldLabels: defineSetting<Record<string, string>>({ key: 'students.field_labels', group: G, label: 'Field names', type: 'text', hidden: true, default: {}, schema: labelsSchema }),
+    /** Setup → Form Builder: the school's own extra fields. */
+    customFields: defineSetting<CustomField[]>({ key: 'students.custom_fields', group: G, label: 'Extra fields', type: 'text', hidden: true, default: [], schema: customFieldsSchema }),
 };
