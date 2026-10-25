@@ -25,6 +25,8 @@ walk(src);
 
 fs.rmSync(out, { recursive: true, force: true });
 esbuild
-    .build({ entryPoints: files, outdir: out, outbase: src, bundle: false, platform: 'node', format: 'cjs', target: 'node20', sourcemap: true, logLevel: 'warning' })
+    // dynamic-import off: `await import('./x')` becomes require('./x') (as tsc makes it). Left as a real
+    // import(), Node resolves it as ESM, which needs the ".js" extension, and the lazy imports fail.
+    .build({ entryPoints: files, outdir: out, outbase: src, bundle: false, platform: 'node', format: 'cjs', target: 'node20', sourcemap: true, logLevel: 'warning', supported: { 'dynamic-import': false } })
     .then(() => process.stdout.write(`Built ${files.length} files into ${path.relative(root, out)}\n`))
     .catch(() => process.exit(1));
