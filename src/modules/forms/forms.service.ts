@@ -365,3 +365,27 @@ export const documentValues = async (key: 'student' | 'staff', records: { id: st
 
 /** The fields of the online enquiry form (no login): the ones ticked for it, names only. */
 export const publicFormFields = async () => (await formExtras('enquiry')).custom.filter((c) => c.onPublicForm && !c.visibleTo?.length).map(({ visibleTo: _v, ...c }) => c);
+
+// ─── The school's words (app-wide) ───────────────────────────────────────────
+
+/** Words a school can change across the app ("Section" → "Division"), each with its default. */
+export const TERM_WORDS = [
+    { key: 'Class', plural: 'Classes' },
+    { key: 'Section', plural: 'Sections' },
+    { key: 'Roll no.', plural: null },
+    { key: 'House', plural: 'Houses' },
+    { key: 'Session', plural: 'Sessions' },
+    { key: 'Period', plural: 'Periods' },
+] as const;
+const termsSchema = z.record(z.string().max(30), z.string().trim().min(1).max(30));
+export const TERMS = defineSetting<Record<string, string>>({ key: 'forms.terms', group: 'Forms', label: 'The school’s words', type: 'text', hidden: true, default: {}, schema: termsSchema });
+
+export const getTerms = async () => ({ words: TERM_WORDS.map((w) => ({ ...w })), terms: await getSetting(TERMS) });
+export const saveTermsSchema = z.strictObject({ terms: termsSchema });
+export const saveTerms = async (input: z.infer<typeof saveTermsSchema>, userId: string) => {
+    const allowed = new Set<string>(TERM_WORDS.flatMap((w) => (w.plural ? [w.key, w.plural] : [w.key])));
+    const terms = Object.fromEntries(Object.entries(input.terms).filter(([k, v]) => allowed.has(k) && v && v !== k));
+    await setSetting(TERMS, terms, userId);
+    await recordAudit({ action: 'terms_set', entity: 'form', entityId: null, changes: terms });
+    return getTerms();
+};
