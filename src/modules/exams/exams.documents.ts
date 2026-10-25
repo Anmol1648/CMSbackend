@@ -57,6 +57,25 @@ const cardsOf = (r: Awaited<ReturnType<typeof computeResults>>, gradesOnly = fal
         gradeKey: r.rule.descriptive ? r.rule.bands.map((b) => b.grade).join(' · ') : r.rule.bands.map((b) => `${b.grade} ${b.min}+`).join(' · '),
     }));
 
+/** Clubs and places won in the session (Co-curricular), printed under the co-scholastic areas. */
+const withActivities = async <T extends { student: { id: string } }>(cards: T[], yearId: string) => {
+    const ids = cards.map((c) => c.student.id);
+    const [clubs, entries, outside] = await Promise.all([
+        db.clubMember.findMany({ where: { academicYearId: yearId, studentId: { in: ids }, status: 'active' }, select: { studentId: true, role: true, grade: true, club: { select: { name: true } } } }),
+        db.competitionEntry.findMany({ where: { studentIds: { hasSome: ids }, position: { not: null }, competition: { academicYearId: yearId, status: 'done', resultsOut: true } }, select: { studentIds: true, position: true, award: true, competition: { select: { name: true } } } }),
+        db.achievement.findMany({ where: { academicYearId: yearId, studentId: { in: ids } }, select: { studentId: true, title: true, result: true } }),
+    ]);
+    const place = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+    return cards.map((c) => ({
+        ...c,
+        clubs: clubs.filter((m) => m.studentId === c.student.id).map((m) => `${m.club.name}${m.role !== 'member' ? ` (${m.role})` : ''}${m.grade ? `: ${m.grade}` : ''}`).join(', '),
+        achievements: [
+            ...entries.filter((e) => e.studentIds.includes(c.student.id)).map((e) => `${e.competition.name}: ${place(e.position!)}${e.award ? ` (${e.award})` : ''}`),
+            ...outside.filter((a) => a.studentId === c.student.id).map((a) => `${a.title}${a.result ? `: ${a.result}` : ''}`),
+        ],
+    }));
+};
+
 const HTML = `<header class="head">
   {{#if school.logo}}<img class="logo" src="{{school.logo}}" alt="">{{/if}}
   <div>
@@ -84,6 +103,8 @@ const HTML = `<header class="head">
 <h3>Co-scholastic areas</h3>
 <table class="marks co"><tbody>{{#each co}}<tr><td class="l">{{area}}</td><td><b>{{#if grade}}{{grade}}{{else}}—{{/if}}</b></td></tr>{{/each}}{{#if discipline}}<tr><td class="l">Discipline</td><td><b>{{discipline}}</b></td></tr>{{/if}}</tbody></table>
 {{/if}}
+{{#if clubs}}<p class="act"><b>Clubs:</b> {{clubs}}</p>{{/if}}
+{{#if achievements.length}}<p class="act"><b>Achievements:</b> {{#each achievements}}{{this}}{{#unless @last}} · {{/unless}}{{/each}}</p>{{/if}}
 <div class="result">
   <p><b>Result:</b> {{result}}{{#if failedSubjects}} ({{failedSubjects}}){{/if}}{{#if rank}} · <b>Rank:</b> {{rank}}{{/if}}{{#if graced}} · Grace: {{graced}}{{/if}}</p>
   {{#if promotedTo}}<p><b>Promoted to:</b> {{promotedTo}}</p>{{/if}}
@@ -108,6 +129,7 @@ table.marks td.l, table.marks th.l { text-align: left; }
 table.marks tr.fail td { color: #c53030; }
 table.marks tr.sum td { font-weight: 700; background: #EEF2F7; }
 table.co { width: 55%; }
+.act { margin: 6px 0 0; line-height: 1.5; }
 .result { margin-top: 10px; line-height: 1.6; }
 .key { font-size: 9px; color: #666; margin-top: 6px; }
 .sign { display: flex; justify-content: space-between; margin-top: 46px; font-size: 11px; }
@@ -124,6 +146,7 @@ defineDocument({
         { key: '#each rows → subject, #each cells → text, percent, grade, failed, grace', label: 'Rows: the subjects' },
         { key: 'total / percent / grade / rank / result / failedSubjects / graced / promotedTo', label: 'Overall' },
         { key: '#each co → area, grade · discipline · remark · attendance', label: 'Co-scholastic, discipline, remarks, attendance' },
+        { key: 'clubs / #each achievements', label: 'Clubs of the session and places won (Co-curricular)' },
         { key: 'descriptive', label: 'Grades only (pre-primary)' },
         { key: 'gradeKey / classTeacher', label: 'The grading key, the class teacher' },
     ],
@@ -136,7 +159,7 @@ defineDocument({
         if (!e || !section) throw badRequest('Set up an exam with marks first to preview the report card');
         const cards = cardsOf(await computeResults('exam', e.id, section.id), await gradesOnly());
         if (!cards.length) throw badRequest('That section has no students');
-        return { data: cards[0], filename: 'report-card-sample.pdf' };
+        return { data: (await withActivities(cards, e.academicYearId))[0], filename: 'report-card-sample.pdf' };
     },
     load: async (params, userId) => {
         const kind = (['exam', 'term', 'final'].includes(params.scope) ? params.scope : 'exam') as ScopeKind;
@@ -152,13 +175,13 @@ defineDocument({
                 if (!a.permissions['exam.mine']) throw forbidden();
                 await assertMine(userId, studentId, kind, id);
             }
-            const [card] = cardsOf(await computeResults(kind, id, e.sectionId, studentId), await gradesOnly());
+            const [card] = await withActivities(cardsOf(await computeResults(kind, id, e.sectionId, studentId), await gradesOnly()), scope.yearId);
             if (!card) throw badRequest('No result for this student');
             return { data: card, filename: `report-card-${card.student.admissionNo.replace(/[^A-Za-z0-9]+/g, '-')}.pdf` };
         }
         const sectionId = uuid(params.section, 'section');
         if (!a.permissions['exam.view'] || !seesInFull(await sectionLimits(userId, scope.yearId), sectionId)) throw forbidden('Report cards are for the class teacher and the office');
-        const cards = cardsOf(await computeResults(kind, id, sectionId), await gradesOnly());
+        const cards = await withActivities(cardsOf(await computeResults(kind, id, sectionId), await gradesOnly()), scope.yearId);
         if (!cards.length) throw badRequest('That section has no students');
         return { data: cards[0], many: cards, filename: `report-cards-${cards[0].student.section}.pdf` };
     },

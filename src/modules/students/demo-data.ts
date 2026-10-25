@@ -28,6 +28,7 @@ import { clearDemoPtm, createDemoPtm } from '../ptm/demo-ptm';
 import { clearDemoVisitors, createDemoVisitors } from '../visitors/demo-visitors';
 import { clearDemoComplaints, createDemoComplaints } from '../complaints/demo-complaints';
 import { clearDemoDiscipline, createDemoDiscipline } from '../discipline/demo-discipline';
+import { clearDemoCocurricular, createDemoCocurricular } from '../cocurricular/demo-cocurricular';
 import { clearDemoFeedback, createDemoFeedback } from '../feedback/demo-feedback';
 import { clearDemoUploads, createDemoUploads } from '../uploads/demo-uploads';
 import { clearDemoAssets, createDemoAssets } from '../assets/demo-assets';
@@ -303,6 +304,7 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     const visitors = await createDemoVisitors();
     const complaints = await createDemoComplaints();
     const discipline = await createDemoDiscipline();
+    const cocurricular = await createDemoCocurricular();
     const feedback = await createDemoFeedback();
     const uploads = await createDemoUploads();
     const assets = await createDemoAssets();
@@ -315,7 +317,7 @@ export const createDemoData = async (options: { perSection?: [number, number] } 
     const accounts = await createDemoAccounts();
 
     await recordAudit({ action: 'demo_data', entity: 'school', changes: { students: students.length, families: families.length, staff: staff.staff, enquiries: enquiries.enquiries, receipts: fees.receipts } });
-    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, library, ptm, visitors, complaints, discipline, feedback, uploads, assets, idcards, inventory, hostel, mess, exams2, payroll, accounts, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
+    return { year: year.name, sections: sections.length, students: students.length, families: families.length, staff, enquiries, fees, timetable, attendance, leave, notices, exams, alerts, homework, questions, tests, learn, transport, library, ptm, visitors, complaints, discipline, cocurricular, feedback, uploads, assets, idcards, inventory, hostel, mess, exams2, payroll, accounts, studentLogins: logins, sampleStudent: students[0]?.admissionNo };
 };
 
 /** Removes everything the demo data created (students, families, demo logins); nothing else. */
@@ -337,6 +339,7 @@ export const clearDemoData = async () => {
     await clearDemoVisitors();
     await clearDemoComplaints();
     await clearDemoDiscipline();
+    await clearDemoCocurricular();
     await clearDemoFeedback();
     await clearDemoUploads();
     await clearDemoAssets();

@@ -31,6 +31,7 @@ export const PRODUCT_MODULES: ProductModule[] = [
     { key: 'visitors', label: 'Visitors & Pickups', description: 'Gate register, passes, early pickups', groups: ['visitor'] },
     { key: 'complaints', label: 'Complaints', description: 'Tickets from parents and staff', groups: ['complaint'] },
     { key: 'discipline', label: 'Discipline', description: 'Incidents, actions, positive notes', groups: ['discipline'] },
+    { key: 'cocurricular', label: 'Houses, Clubs & Competitions', description: 'House points, clubs, competitions, certificates, achievements', groups: ['cocurricular'] },
     { key: 'feedback', label: 'Teacher Feedback', description: 'Feedback rounds and results', groups: ['feedback'] },
     { key: 'files', label: 'Shared Files', description: 'Shared folders and files', groups: ['upload'] },
     { key: 'assets', label: 'Assets', description: 'Asset register, repairs, verification', groups: ['asset'] },

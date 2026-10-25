@@ -203,6 +203,18 @@ export const DEFAULT_GRANTS: Record<string, { key: string; scope?: DataScope }[]
     'mess-incharge': [{ key: 'mess.manage' }, { key: 'mess.counter' }, { key: 'mess.view' }, { key: 'mess.mine' }, { key: 'attendance.checkin' }, { key: 'leave.apply' }, { key: 'complaint.raise' }, { key: 'upload.view' }, { key: 'asset.report' }, { key: 'asset.mine' }, { key: 'idcard.mine' }, { key: 'inventory.request' }, { key: 'payroll.mine' }, { key: 'ai.chat' }],
 };
 
+// Co-curricular: leadership runs it all, teachers run their own clubs, families see their own.
+const COCURRICULAR_GRANTS: Record<string, { key: string; scope?: DataScope }[]> = {
+    'school-admin': [{ key: 'cocurricular.view' }, { key: 'house.manage' }, { key: 'house.points' }, { key: 'club.manage' }, { key: 'competition.manage' }, { key: 'achievement.record' }],
+    principal: [{ key: 'cocurricular.view' }, { key: 'house.manage' }, { key: 'house.points' }, { key: 'club.manage' }, { key: 'competition.manage' }, { key: 'achievement.record' }],
+    teacher: [{ key: 'cocurricular.view' }, { key: 'club.run' }, { key: 'house.points' }, { key: 'achievement.record' }],
+    'class-teacher': [{ key: 'cocurricular.view' }, { key: 'club.run' }, { key: 'house.points' }, { key: 'achievement.record' }],
+    'office-staff': [{ key: 'cocurricular.view' }, { key: 'competition.manage' }, { key: 'achievement.record' }],
+    student: [{ key: 'cocurricular.mine' }],
+    guardian: [{ key: 'cocurricular.mine' }],
+};
+for (const [role, grants] of Object.entries(COCURRICULAR_GRANTS)) DEFAULT_GRANTS[role] = [...(DEFAULT_GRANTS[role] ?? []), ...grants];
+
 /**
  * Adds the default grants that are missing for the current school's default roles. Never removes
  * anything, so it is safe to run again after a module adds new defaults.

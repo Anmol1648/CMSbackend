@@ -198,6 +198,15 @@ model Tenant {
   incidentStudents IncidentStudent[]
   incidentActions  IncidentAction[]
 
+  houseOfficials     HouseOfficial[]
+  housePoints        HousePoint[]
+  clubs              Club[]
+  clubMembers        ClubMember[]
+  clubMeetings       ClubMeeting[]
+  competitions       Competition[]
+  competitionEntries CompetitionEntry[]
+  achievements       Achievement[]
+
   feedbackForms       FeedbackForm[]
   feedbackRounds      FeedbackRound[]
   feedbackResponses   FeedbackResponse[]
@@ -5979,4 +5988,230 @@ model PlatformLead {
 
   @@index([status, createdAt])
   @@map("platform_leads")
+}
+
+// ─── Co-curricular: houses, clubs, competitions ─────────────────────────────
+
+/// A house master (staff) or captain / vice-captain (student) of a house in a year.
+model HouseOfficial {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  /// Master "house".
+  houseId        String   @map("house_id") @db.Uuid
+  /// master | assistant_master | captain | vice_captain | prefect
+  role           String
+  staffId        String?  @map("staff_id") @db.Uuid
+  studentId      String?  @map("student_id") @db.Uuid
+  isDemo         Boolean  @default(false) @map("is_demo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, academicYearId])
+  @@map("house_officials")
+}
+
+/// Points given to (or taken from) a house: from a competition result or an achievement, or by hand.
+model HousePoint {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  houseId        String   @map("house_id") @db.Uuid
+  points         Int
+  reason         String
+  /// Set when the points come from a competition result (removed and given again when results change).
+  competitionId  String?  @map("competition_id") @db.Uuid
+  entryId        String?  @map("entry_id") @db.Uuid
+  achievementId  String?  @map("achievement_id") @db.Uuid
+  /// The student it was for, if any.
+  studentId      String?  @map("student_id") @db.Uuid
+  givenBy        String?  @map("given_by") @db.Uuid
+  givenOn        DateTime @map("given_on") @db.Date
+  isDemo         Boolean  @default(false) @map("is_demo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, academicYearId, houseId])
+  @@index([tenantId, competitionId])
+  @@map("house_points")
+}
+
+/// A club or society (Science, Eco, Music…): who runs it, who may join.
+model Club {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  name           String
+  description    String?
+  /// Master "club_category".
+  categoryId     String?  @map("category_id") @db.Uuid
+  /// Staff who run it (teachers in-charge).
+  inchargeIds    String[] @default([]) @map("incharge_ids") @db.Uuid
+  /// Classes that may join (empty = every class).
+  classIds       String[] @default([]) @map("class_ids") @db.Uuid
+  /// Most members in a year (null = no limit).
+  maxMembers     Int?     @map("max_members")
+  /// When it meets ("Saturdays, 7th period").
+  meets          String?
+  /// Students / parents may ask to join (the in-charge accepts).
+  openToRequests Boolean  @default(true) @map("open_to_requests")
+  isActive       Boolean  @default(true) @map("is_active")
+  isDemo         Boolean  @default(false) @map("is_demo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members  ClubMember[]
+  meetings ClubMeeting[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, name])
+  @@map("clubs")
+}
+
+/// A student in a club for a year (or asking to join).
+model ClubMember {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  clubId         String    @map("club_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  /// member | secretary | president
+  role           String    @default("member")
+  /// active | requested | refused | left
+  status         String    @default("active")
+  requestedBy    String?   @map("requested_by") @db.Uuid
+  requestNote    String?   @map("request_note")
+  /// The in-charge's grade / remark for the year (co-scholastic).
+  grade          String?
+  remark         String?
+  joinedAt       DateTime? @map("joined_at") @db.Timestamptz(6)
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  club   Club   @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([clubId, academicYearId, studentId])
+  @@index([tenantId, studentId])
+  @@map("club_members")
+}
+
+/// A club meeting or activity: what was done, who came, photos.
+model ClubMeeting {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  clubId         String   @map("club_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  date           DateTime @db.Date
+  title          String
+  notes          String?
+  /// Members who came (student ids).
+  presentIds     String[] @default([]) @map("present_ids") @db.Uuid
+  photoIds       String[] @default([]) @map("photo_ids") @db.Uuid
+  recordedBy     String?  @map("recorded_by") @db.Uuid
+  isDemo         Boolean  @default(false) @map("is_demo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  club   Club   @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, clubId, date])
+  @@map("club_meetings")
+}
+
+/// A competition: in the school (class / inter-house) or outside (inter-school, district…), with its entries and results.
+model Competition {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  name           String
+  /// Master "competition_category" (sports, cultural…).
+  categoryId     String?   @map("category_id") @db.Uuid
+  /// Master "competition_level" (inter-house, district…).
+  levelId        String?   @map("level_id") @db.Uuid
+  date           DateTime  @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  venue          String?
+  description    String?
+  /// Classes it is for (empty = all).
+  classIds       String[]  @default([]) @map("class_ids") @db.Uuid
+  /// individual | team
+  kind           String    @default("individual")
+  /// Results give house points (to the team's house, or each student's house).
+  byHouse        Boolean   @default(false) @map("by_house")
+  inchargeId     String?   @map("incharge_id") @db.Uuid
+  clubId         String?   @map("club_id") @db.Uuid
+  /// On the school calendar (its event).
+  schoolEventId  String?   @map("school_event_id") @db.Uuid
+  /// upcoming | done | cancelled
+  status         String    @default("upcoming")
+  /// Results shown to students and parents.
+  resultsOut     Boolean   @default(false) @map("results_out")
+  createdBy      String?   @map("created_by") @db.Uuid
+  isDemo         Boolean   @default(false) @map("is_demo")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entries CompetitionEntry[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, academicYearId, date])
+  @@map("competitions")
+}
+
+/// An entry: a student, or a team (of a house or class), and its result.
+model CompetitionEntry {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  competitionId String   @map("competition_id") @db.Uuid
+  /// The team's name ("Red House", "VIII-A team"); empty for one student.
+  teamName      String?  @map("team_name")
+  houseId       String?  @map("house_id") @db.Uuid
+  studentIds    String[] @default([]) @map("student_ids") @db.Uuid
+  /// 1, 2, 3… (null = took part / no result yet).
+  position      Int?
+  /// "Best speaker", "Gold medal"…
+  award         String?
+  /// House points this result gave (from System Settings → Co-curricular; can be changed).
+  points        Int      @default(0)
+  remark        String?
+  isDemo        Boolean  @default(false) @map("is_demo")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competition Competition @relation(fields: [competitionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, competitionId])
+  @@map("competition_entries")
+}
+
+/// A student's achievement outside the school's own competitions (district chess, olympiad…).
+model Achievement {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  title          String
+  /// Master "competition_category" / "competition_level".
+  categoryId     String?  @map("category_id") @db.Uuid
+  levelId        String?  @map("level_id") @db.Uuid
+  /// "1st", "Gold", "Selected for state"…
+  result         String?
+  organiser      String?
+  date           DateTime @db.Date
+  certificateId  String?  @map("certificate_id") @db.Uuid
+  /// House points given for it (0 = none).
+  points         Int      @default(0)
+  recordedBy     String?  @map("recorded_by") @db.Uuid
+  isDemo         Boolean  @default(false) @map("is_demo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, academicYearId, date])
+  @@map("achievements")
 }

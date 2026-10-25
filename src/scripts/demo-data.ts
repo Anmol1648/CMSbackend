@@ -27,6 +27,7 @@ import { createDemoPtm } from '../modules/ptm/demo-ptm';
 import { createDemoVisitors } from '../modules/visitors/demo-visitors';
 import { createDemoComplaints } from '../modules/complaints/demo-complaints';
 import { createDemoDiscipline } from '../modules/discipline/demo-discipline';
+import { createDemoCocurricular } from '../modules/cocurricular/demo-cocurricular';
 import { createDemoFeedback } from '../modules/feedback/demo-feedback';
 import { createDemoUploads } from '../modules/uploads/demo-uploads';
 import { createDemoAssets } from '../modules/assets/demo-assets';
@@ -41,7 +42,7 @@ import { createDemoMess } from '../modules/mess/demo-mess';
 const out = (line = '') => process.stdout.write(line + '\n');
 
 const main = async () => {
-    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' }, ptm: { type: 'boolean' }, visitors: { type: 'boolean' }, complaints: { type: 'boolean' }, discipline: { type: 'boolean' }, feedback: { type: 'boolean' }, uploads: { type: 'boolean' }, assets: { type: 'boolean' }, idcards: { type: 'boolean' }, inventory: { type: 'boolean' }, exams2: { type: 'boolean' }, payroll: { type: 'boolean' }, accounts: { type: 'boolean' }, hostel: { type: 'boolean' }, mess: { type: 'boolean' } } });
+    const { values } = parseArgs({ options: { school: { type: 'string' }, clear: { type: 'boolean' }, attendance: { type: 'boolean' }, leave: { type: 'boolean' }, notices: { type: 'boolean' }, exams: { type: 'boolean' }, alerts: { type: 'boolean' }, homework: { type: 'boolean' }, questions: { type: 'boolean' }, tests: { type: 'boolean' }, learn: { type: 'boolean' }, syllabus: { type: 'boolean' }, transport: { type: 'boolean' }, library: { type: 'boolean' }, ptm: { type: 'boolean' }, visitors: { type: 'boolean' }, complaints: { type: 'boolean' }, discipline: { type: 'boolean' }, cocurricular: { type: 'boolean' }, feedback: { type: 'boolean' }, uploads: { type: 'boolean' }, assets: { type: 'boolean' }, idcards: { type: 'boolean' }, inventory: { type: 'boolean' }, exams2: { type: 'boolean' }, payroll: { type: 'boolean' }, accounts: { type: 'boolean' }, hostel: { type: 'boolean' }, mess: { type: 'boolean' } } });
     if (!values.school) {
         out('Usage: npm run demo:seed -- --school <code>   |   npm run demo:clear -- --school <code>');
         process.exitCode = 1;
@@ -168,6 +169,12 @@ const main = async () => {
         // Only discipline, for a school that already has its demo people.
         const r = await runAsTenant(tenant.id, createDemoDiscipline);
         out(`${tenant.name}: ${r.incidents} incidents, ${r.positives} positive notes.`);
+        return;
+    }
+    if (values.cocurricular) {
+        // Only houses, clubs and competitions, for a school that already has its demo people.
+        const r = await runAsTenant(tenant.id, createDemoCocurricular);
+        out(`${tenant.name}: ${r.clubs} clubs, ${r.competitions} competitions, ${r.achievements} achievements.`);
         return;
     }
     if (values.complaints) {
