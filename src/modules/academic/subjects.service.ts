@@ -6,6 +6,7 @@ import { badRequest, conflict, notFound } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
 import { cleanName } from '../masters/masters.service';
 import { assertYearOpen } from './years.service';
+import { applyMove, Move, renumber } from '../../core/ordering';
 
 /** The school's subjects, and which ones each class studies in a year. */
 
@@ -94,15 +95,12 @@ export const deleteSubject = async (id: string) => {
     return { id, deleted: true };
 };
 
-export const moveSubject = async (id: string, direction: 'up' | 'down') => {
+export const moveSubject = async (id: string, move: Move) => {
     await getSubject(id);
     await withTransaction(async (tx) => {
         const rows = await tx.subject.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }], select: { id: true, sortOrder: true } });
-        const i = rows.findIndex((r) => r.id === id);
-        const j = direction === 'up' ? i - 1 : i + 1;
-        if (i < 0 || j < 0 || j >= rows.length) return;
-        [rows[i], rows[j]] = [rows[j], rows[i]];
-        for (const [n, r] of rows.entries()) if (r.sortOrder !== (n + 1) * 10) await tx.subject.update({ where: { id: r.id }, data: { sortOrder: (n + 1) * 10 } });
+        const next = applyMove(rows, id, move);
+        if (next) await renumber(next, (rid, sortOrder) => tx.subject.update({ where: { id: rid }, data: { sortOrder } }));
     });
     return listSubjects();
 };

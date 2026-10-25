@@ -11,6 +11,7 @@ import { classesOfYear } from '../academic/year-classes.service';
 import { askAiJson } from '../ai/ai.service';
 import { AI } from '../ai/ai.settings';
 import { QUESTION_TYPES, QUESTIONS, QuestionType, TYPE_LABEL } from './questions.settings';
+import { applyMove, Move, renumber } from '../../core/ordering';
 
 /**
  * Chapters (the syllabus of a class's subject) and the question bank. Teachers work on the subjects
@@ -160,16 +161,14 @@ export const deleteChapter = async (id: string, userId: string) => {
     return { id, deleted: true };
 };
 
-export const moveChapter = async (id: string, direction: 'up' | 'down', userId: string) => {
+export const moveChapter = async (id: string, move: Move, userId: string) => {
     const c = await db.chapter.findFirst({ where: { id } });
     if (!c) throw notFound('Chapter not found');
     await mayEditChapters(userId, c.classId, c.subjectId);
-    const list = await db.chapter.findMany({ where: { classId: c.classId, subjectId: c.subjectId }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }], select: { id: true } });
-    const i = list.findIndex((x) => x.id === id);
-    const j = direction === 'up' ? i - 1 : i + 1;
-    if (j < 0 || j >= list.length) return { moved: false };
-    [list[i], list[j]] = [list[j], list[i]];
-    for (let k = 0; k < list.length; k++) await db.chapter.update({ where: { id: list[k].id }, data: { sortOrder: (k + 1) * 10 } });
+    const list = await db.chapter.findMany({ where: { classId: c.classId, subjectId: c.subjectId }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }], select: { id: true, sortOrder: true } });
+    const next = applyMove(list, id, move);
+    if (!next) return { moved: false };
+    await renumber(next, (rid, sortOrder) => db.chapter.update({ where: { id: rid }, data: { sortOrder } }));
     return { moved: true };
 };
 

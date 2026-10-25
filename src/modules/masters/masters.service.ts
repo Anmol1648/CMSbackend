@@ -18,6 +18,7 @@ import {
     seedsOf,
 } from './masters.registry';
 import type { masterValueFilters } from './masters.schemas';
+import { applyMove, Move, renumber } from '../../core/ordering';
 
 /** Options of master lists (see masters.registry for how lists are declared). */
 
@@ -309,21 +310,15 @@ export const deleteValue = async (key: string, id: string) => {
     return { id, deleted: true, list: def.key };
 };
 
-/** Moves an option one place up or down (lists the school orders by hand). */
-export const moveValue = async (key: string, id: string, direction: 'up' | 'down') => {
+/** Moves an option one place, or next to another option of the same parent (lists the school orders by hand). */
+export const moveValue = async (key: string, id: string, move: Move) => {
     const def = masterDef(key);
     if (def.ordering !== 'manual') throw badRequest(`${def.plural} are sorted by name`);
     const current = await getValue(key, id);
     await withTransaction(async (tx) => {
         const siblings = await tx.masterValue.findMany({ where: { master: key, parentId: current.parentId }, orderBy: orderFor(def), select: { id: true, sortOrder: true } });
-        const i = siblings.findIndex((s) => s.id === id);
-        const j = direction === 'up' ? i - 1 : i + 1;
-        if (i < 0 || j < 0 || j >= siblings.length) return;
-        [siblings[i], siblings[j]] = [siblings[j], siblings[i]];
-        // Renumber 10, 20, 30… and write only the rows whose place changed.
-        for (const [n, s] of siblings.entries()) {
-            if (s.sortOrder !== (n + 1) * 10) await tx.masterValue.update({ where: { id: s.id }, data: { sortOrder: (n + 1) * 10 } });
-        }
+        const next = applyMove(siblings, id, move);
+        if (next) await renumber(next, (rid, sortOrder) => tx.masterValue.update({ where: { id: rid }, data: { sortOrder } }));
     });
     return getValue(key, id);
 };

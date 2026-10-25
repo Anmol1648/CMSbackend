@@ -8,11 +8,12 @@ import { authenticated, can } from '../../middlewares/access';
 import * as years from './years.service';
 import * as classes from './classes.service';
 import * as subjects from './subjects.service';
+import { moveSchema } from '../../core/ordering';
 
 const { parse } = years;
 const view = can('academic.view');
 const manage = can('academic.manage');
-const move = z.strictObject({ direction: z.enum(['up', 'down']) });
+const move = moveSchema;
 const yearQuery = z.object({ year: z.uuid('choose an academic year') });
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -52,7 +53,7 @@ academicRoutes.put('/years/:id/classes', manage, asyncHandler(async (req: Reques
 academicRoutes.post('/classes', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.createClass(parse(classes.classInputSchema, req.body)), 'Class added', 201)));
 academicRoutes.patch('/classes/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.updateClass(req.params.id, parse(classes.classUpdateSchema, req.body)), 'Class saved')));
 academicRoutes.delete('/classes/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.deleteClass(req.params.id), 'Class deleted')));
-academicRoutes.post('/classes/:id/move', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.moveClass(req.params.id, parse(move, req.body).direction), 'Class moved')));
+academicRoutes.post('/classes/:id/move', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.moveClass(req.params.id, parse(move, req.body)), 'Class moved')));
 
 academicRoutes.get('/sections/options', authenticated, asyncHandler(async (req: Request, res: Response) => {
     const q = parse(z.object({ year: z.uuid('choose an academic year'), class: z.uuid().optional() }), req.query);
@@ -78,7 +79,7 @@ academicRoutes.get('/sections/export', view, asyncHandler(async (req: Request, r
 academicRoutes.post('/sections', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.createSection(parse(classes.sectionInputSchema, req.body)), 'Section added', 201)));
 academicRoutes.patch('/sections/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.updateSection(req.params.id, parse(classes.sectionUpdateSchema, req.body)), 'Section saved')));
 academicRoutes.delete('/sections/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.deleteSection(req.params.id), 'Section deleted')));
-academicRoutes.post('/sections/:id/move', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.moveSection(req.params.id, parse(move, req.body).direction), 'Section moved')));
+academicRoutes.post('/sections/:id/move', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await classes.moveSection(req.params.id, parse(move, req.body)), 'Section moved')));
 /** Who can be chosen as class teacher. */
 academicRoutes.get('/teachers/options', manage, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await classes.teacherOptions(), 'Teachers')));
 
@@ -100,7 +101,7 @@ academicRoutes.get('/subjects/export', view, asyncHandler(async (_req: Request, 
 academicRoutes.post('/subjects', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await subjects.createSubject(parse(subjects.subjectInputSchema, req.body)), 'Subject added', 201)));
 academicRoutes.patch('/subjects/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await subjects.updateSubject(req.params.id, parse(subjects.subjectUpdateSchema, req.body)), 'Subject saved')));
 academicRoutes.delete('/subjects/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await subjects.deleteSubject(req.params.id), 'Subject deleted')));
-academicRoutes.post('/subjects/:id/move', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await subjects.moveSubject(req.params.id, parse(move, req.body).direction), 'Subject moved')));
+academicRoutes.post('/subjects/:id/move', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await subjects.moveSubject(req.params.id, parse(move, req.body)), 'Subject moved')));
 
 academicRoutes.get('/class-subjects', view, asyncHandler(async (req: Request, res: Response) => {
     const q = parse(z.object({ year: z.uuid('choose an academic year'), class: z.uuid('choose a class') }), req.query);

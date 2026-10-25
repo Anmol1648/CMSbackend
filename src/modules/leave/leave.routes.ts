@@ -9,6 +9,7 @@ import { getUserAccess } from '../rbac/access.service';
 import * as types from './leave-types.service';
 import * as balances from './balances.service';
 import * as leave from './staff-leave.service';
+import { moveSchema } from '../../core/ordering';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -34,7 +35,7 @@ leaveRoutes.get('/years', authenticated, needAny(ANY), asyncHandler(async (_req:
 leaveRoutes.get('/types', authenticated, needAny(ANY), asyncHandler(async (_req: Request, res: Response) => successResponse(res, await types.leaveTypes(), 'Leave types')));
 leaveRoutes.post('/types', can('leave.setup'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await types.createType(parse(types.typeSchema, req.body)), 'Leave type added', 201)));
 leaveRoutes.put('/types/:id', can('leave.setup'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await types.updateType(req.params.id, parse(types.typeSchema, req.body)), 'Leave type saved')));
-leaveRoutes.post('/types/:id/move', can('leave.setup'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await types.moveType(req.params.id, parse(z.object({ direction: z.enum(['up', 'down']) }), req.body).direction), 'Moved')));
+leaveRoutes.post('/types/:id/move', can('leave.setup'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await types.moveType(req.params.id, parse(moveSchema, req.body)), 'Moved')));
 leaveRoutes.delete('/types/:id', can('leave.setup'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await types.deleteType(req.params.id), 'Leave type removed')));
 
 // The person themself.

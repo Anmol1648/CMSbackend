@@ -10,6 +10,7 @@ import * as gps from './gps.service';
 import { readFile, saveUpload } from '../../core/files';
 import { sendFile, upload } from '../../core/http/files';
 import { getTenantId } from '../../core/context';
+import { moveSchema } from '../../core/ordering';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -56,7 +57,7 @@ transportRoutes.delete('/routes/:id', manage, asyncHandler(async (req: Request, 
 transportRoutes.post('/routes/:id/stops', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.addStop(req.params.id, parse(setup.stopSchema, req.body)), 'Added', 201)));
 transportRoutes.put('/stops/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.updateStop(req.params.id, parse(setup.stopSchema, req.body)), 'Saved')));
 transportRoutes.delete('/stops/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.deleteStop(req.params.id), 'Deleted')));
-transportRoutes.post('/stops/:id/move', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.moveStop(req.params.id, parse(z.strictObject({ direction: z.enum(['up', 'down']) }), req.body).direction), 'Moved')));
+transportRoutes.post('/stops/:id/move', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.moveStop(req.params.id, parse(moveSchema, req.body)), 'Moved')));
 transportRoutes.get('/staff', manage, asyncHandler(async (_req: Request, res: Response) => successResponse(res, await setup.staffOptions(), 'Staff')));
 
 transportRoutes.get('/students', authenticated, viewers, asyncHandler(async (req: Request, res: Response) => successResponse(res, await setup.listStudents(parse(setup.studentsQuery, req.query)), 'Students')));

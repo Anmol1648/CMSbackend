@@ -7,6 +7,7 @@ import { sendFile, upload } from '../../core/http/files';
 import { IMAGE_KINDS, readFile, saveUpload } from '../../core/files';
 import { getUserAccess } from '../rbac/access.service';
 import * as qs from './questions.service';
+import { moveSchema } from '../../core/ordering';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -34,7 +35,7 @@ questionRoutes.post('/chapters', authenticated, needAny(['syllabus.manage']), as
 questionRoutes.post('/chapters/many', authenticated, needAny(['syllabus.manage']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await qs.addChapters(parse(qs.manySchema, req.body), uid(req)), 'Added')));
 questionRoutes.get('/chapters/suggest', authenticated, needAny(['syllabus.manage']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await qs.suggestChapters(parse(qs.chapterQuery, req.query), uid(req)), 'Suggested')));
 questionRoutes.put('/chapters/:id', authenticated, needAny(['syllabus.manage']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await qs.updateChapter(req.params.id, parse(qs.chapterSchema.omit({ classId: true, subjectId: true }), req.body), uid(req)), 'Saved')));
-questionRoutes.post('/chapters/:id/move', authenticated, needAny(['syllabus.manage']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await qs.moveChapter(req.params.id, parse(z.strictObject({ direction: z.enum(['up', 'down']) }), req.body).direction, uid(req)), 'Moved')));
+questionRoutes.post('/chapters/:id/move', authenticated, needAny(['syllabus.manage']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await qs.moveChapter(req.params.id, parse(moveSchema, req.body), uid(req)), 'Moved')));
 questionRoutes.delete('/chapters/:id', authenticated, needAny(['syllabus.manage']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await qs.deleteChapter(req.params.id, uid(req)), 'Deleted')));
 
 // Questions.

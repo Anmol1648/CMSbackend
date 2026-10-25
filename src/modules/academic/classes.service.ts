@@ -8,6 +8,7 @@ import { cleanName } from '../masters/masters.service';
 import { ACADEMIC } from './academic.settings';
 import { assertYearOpen } from './years.service';
 import { classesOfYear, ensureInYear } from './year-classes.service';
+import { applyMove, Move, renumber } from '../../core/ordering';
 
 /** Classes (the same every year) and their sections (per year). */
 
@@ -148,20 +149,17 @@ export const deleteClass = async (id: string) => {
     return { id, deleted: true };
 };
 
-/** Swaps an item with its neighbour and renumbers 10, 20, 30… (only rows whose place changed are written). */
-const reorder = async <T extends { id: string; sortOrder: number }>(rows: T[], id: string, direction: 'up' | 'down', save: (id: string, sortOrder: number) => Promise<unknown>) => {
-    const i = rows.findIndex((r) => r.id === id);
-    const j = direction === 'up' ? i - 1 : i + 1;
-    if (i < 0 || j < 0 || j >= rows.length) return;
-    [rows[i], rows[j]] = [rows[j], rows[i]];
-    for (const [n, r] of rows.entries()) if (r.sortOrder !== (n + 1) * 10) await save(r.id, (n + 1) * 10);
+/** Moves an item and renumbers 10, 20, 30… (only rows whose place changed are written). */
+const reorder = async <T extends { id: string; sortOrder: number }>(rows: T[], id: string, move: Move, save: (id: string, sortOrder: number) => Promise<unknown>) => {
+    const next = applyMove(rows, id, move);
+    if (next) await renumber(next, save);
 };
 
-export const moveClass = async (id: string, direction: 'up' | 'down') => {
+export const moveClass = async (id: string, move: Move) => {
     await getClass(id);
     await withTransaction(async (tx) => {
         const rows = await tx.schoolClass.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }], select: { id: true, sortOrder: true } });
-        await reorder(rows, id, direction, (rid, sortOrder) => tx.schoolClass.update({ where: { id: rid }, data: { sortOrder } }));
+        await reorder(rows, id, move, (rid, sortOrder) => tx.schoolClass.update({ where: { id: rid }, data: { sortOrder } }));
     });
     return listClasses();
 };
@@ -279,11 +277,11 @@ export const deleteSection = async (id: string) => {
     return { id, deleted: true };
 };
 
-export const moveSection = async (id: string, direction: 'up' | 'down') => {
+export const moveSection = async (id: string, move: Move) => {
     const s = await getSection(id);
     await withTransaction(async (tx) => {
         const rows = await tx.section.findMany({ where: { academicYearId: s.academicYearId, classId: s.classId }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }], select: { id: true, sortOrder: true } });
-        await reorder(rows, id, direction, (rid, sortOrder) => tx.section.update({ where: { id: rid }, data: { sortOrder } }));
+        await reorder(rows, id, move, (rid, sortOrder) => tx.section.update({ where: { id: rid }, data: { sortOrder } }));
     });
     return getSection(id);
 };

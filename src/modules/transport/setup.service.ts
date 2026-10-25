@@ -11,6 +11,7 @@ import { fullName } from '../students/students.service';
 import { dayDate, isoOf, todayIST } from '../attendance/attendance.settings';
 import { registerFeeSource } from '../fees/dues.service';
 import { TRANSPORT } from './transport.settings';
+import { applyMove, Move, renumber } from '../../core/ordering';
 
 /**
  * Transport set-up: vehicles, routes (vehicle, driver, helper, times) with their stops in order on
@@ -214,15 +215,13 @@ export const deleteStop = async (id: string) => {
     return { id, deleted: true };
 };
 
-export const moveStop = async (id: string, direction: 'up' | 'down') => {
+export const moveStop = async (id: string, move: Move) => {
     const s = await db.transportStop.findFirst({ where: { id } });
     if (!s) throw notFound('Stop not found');
-    const list = await db.transportStop.findMany({ where: { routeId: s.routeId }, orderBy: { sortOrder: 'asc' }, select: { id: true } });
-    const i = list.findIndex((x) => x.id === id);
-    const j = direction === 'up' ? i - 1 : i + 1;
-    if (j < 0 || j >= list.length) return { moved: false };
-    [list[i], list[j]] = [list[j], list[i]];
-    for (let k = 0; k < list.length; k++) await db.transportStop.update({ where: { id: list[k].id }, data: { sortOrder: (k + 1) * 10 } });
+    const list = await db.transportStop.findMany({ where: { routeId: s.routeId }, orderBy: { sortOrder: 'asc' }, select: { id: true, sortOrder: true } });
+    const next = applyMove(list, id, move);
+    if (!next) return { moved: false };
+    await renumber(next, (rid, sortOrder) => db.transportStop.update({ where: { id: rid }, data: { sortOrder } }));
     return { moved: true };
 };
 

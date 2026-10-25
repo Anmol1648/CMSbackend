@@ -5,6 +5,7 @@ import { getTenantId } from '../../core/context';
 import { badRequest, conflict, notFound } from '../../core/errors';
 import { recordAudit } from '../../core/audit';
 import { LEAVE_TYPE_SEED } from './leave.settings';
+import { applyMove, Move } from '../../core/ordering';
 
 /** Leave types and their rules (Leave → Leave Setup). A school starts with the usual ones. */
 
@@ -99,14 +100,12 @@ export const updateType = async (id: string, input: z.infer<typeof typeSchema>) 
     return leaveTypes();
 };
 
-export const moveType = async (id: string, direction: 'up' | 'down') => {
+export const moveType = async (id: string, move: Move) => {
     const list = await leaveTypes();
-    const i = list.findIndex((t) => t.id === id);
-    if (i < 0) throw notFound('Leave type not found');
-    const j = direction === 'up' ? i - 1 : i + 1;
-    if (j < 0 || j >= list.length) return list;
-    [list[i], list[j]] = [list[j], list[i]];
-    await db.$transaction(list.map((t, k) => db.leaveType.update({ where: { id: t.id }, data: { sortOrder: k + 1 } })));
+    if (!list.some((t) => t.id === id)) throw notFound('Leave type not found');
+    const next = applyMove(list, id, move);
+    if (!next) return list;
+    await db.$transaction(next.map((t, k) => db.leaveType.update({ where: { id: t.id }, data: { sortOrder: k + 1 } })));
     return leaveTypes();
 };
 

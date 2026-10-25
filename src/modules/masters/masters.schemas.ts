@@ -14,4 +14,4 @@ export const masterValueListSpec: ListSpec<typeof masterValueFilters> = {
     filters: masterValueFilters,
 };
 
-export const moveSchema = z.strictObject({ direction: z.enum(['up', 'down']) });
+export { moveSchema } from '../../core/ordering';

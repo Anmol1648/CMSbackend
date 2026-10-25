@@ -13,6 +13,7 @@ import { takers } from '../exams/marks.service';
 import { askAiJson } from '../ai/ai.service';
 import { TESTS } from './tests.settings';
 import { alertResults, alertTestPublished } from './tests.alerts';
+import { applyMove, renumber } from '../../core/ordering';
 
 /**
  * Online tests: a teacher makes a test from approved questions of the bank (picked, or drawn by
@@ -240,19 +241,15 @@ export const removeQuestion = async (id: string, tqId: string, userId: string) =
     return getTest(id, userId);
 };
 
-export const editQuestionSchema = z.strictObject({ marks: z.number().min(0.5).max(100).optional(), move: z.enum(['up', 'down']).optional() });
+export const editQuestionSchema = z.strictObject({ marks: z.number().min(0.5).max(100).optional(), move: z.union([z.enum(['up', 'down']), z.strictObject({ before: z.uuid() }), z.strictObject({ after: z.uuid() })]).optional() });
 export const editTestQuestion = async (id: string, tqId: string, input: z.infer<typeof editQuestionSchema>, userId: string) => {
     await load(id, userId, 'edit');
     await lockedQuestions(id);
     if (input.marks !== undefined) await db.onlineTestQuestion.updateMany({ where: { id: tqId, testId: id }, data: { marks: input.marks } });
     if (input.move) {
-        const list = await db.onlineTestQuestion.findMany({ where: { testId: id }, orderBy: { sortOrder: 'asc' }, select: { id: true } });
-        const i = list.findIndex((x) => x.id === tqId);
-        const j = input.move === 'up' ? i - 1 : i + 1;
-        if (i >= 0 && j >= 0 && j < list.length) {
-            [list[i], list[j]] = [list[j], list[i]];
-            for (let k = 0; k < list.length; k++) await db.onlineTestQuestion.update({ where: { id: list[k].id }, data: { sortOrder: k + 1 } });
-        }
+        const list = await db.onlineTestQuestion.findMany({ where: { testId: id }, orderBy: { sortOrder: 'asc' }, select: { id: true, sortOrder: true } });
+        const next = applyMove(list, tqId, typeof input.move === 'string' ? { direction: input.move } : input.move);
+        if (next) await renumber(next, (rid, sortOrder) => db.onlineTestQuestion.update({ where: { id: rid }, data: { sortOrder } }), 1);
     }
     await recount(id);
     return getTest(id, userId);

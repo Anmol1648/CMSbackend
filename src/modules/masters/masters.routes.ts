@@ -71,7 +71,7 @@ masterRoutes.post('/:key/values/:id/move', authenticated, asyncHandler(async (re
     const def = await manage(req);
     const body = moveSchema.safeParse(req.body ?? {});
     if (!body.success) throw validationError(body.error);
-    successResponse(res, await masters.moveValue(def.key, req.params.id, body.data.direction), 'Option moved');
+    successResponse(res, await masters.moveValue(def.key, req.params.id, body.data), 'Option moved');
 }));
 
 masterRoutes.delete('/:key/values/:id', authenticated, asyncHandler(async (req: Request, res: Response) => {
