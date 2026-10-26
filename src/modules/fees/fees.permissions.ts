@@ -22,7 +22,7 @@ registerMenuItems([
     { key: 'fee-receipts', label: 'Receipts', icon: 'receipt_long', href: '/fees/receipts', group: 'fees', order: 20, permission: 'fee.view' },
     { key: 'fee-dues', label: 'Fee Dues', icon: 'pending_actions', href: '/fees/dues', group: 'fees', order: 30, permission: 'fee.view' },
     { key: 'fee-reports', label: 'Fee Reports', icon: 'monitoring', href: '/fees/reports', group: 'fees', order: 40, permission: 'fee.reports' },
-    { key: 'fee-setup', label: 'Fee Setup', icon: 'tune', href: '/fees/setup', group: 'fees', order: 50, permission: 'fee.setup' },
+    { key: 'fee-setup', app: false, label: 'Fee Setup', icon: 'tune', href: '/fees/setup', group: 'fees', order: 50, permission: 'fee.setup' },
     { key: 'online-payments', label: 'Online Payments', icon: 'credit_card', href: '/fees/online', group: 'fees', order: 60, permission: 'payment.configure' },
     { key: 'my-fees', label: 'My Fees', icon: 'account_balance_wallet', href: '/my-fees', group: 'main', order: 20, permission: 'fee.pay_online' },
 ]);

@@ -15,11 +15,11 @@ registerPermissions({ key: 'library', label: 'Library', order: 44 }, [
 registerMenuGroup({ key: 'library', label: 'Library', order: 17 });
 registerMenuItems([
     { key: 'library-counter', label: 'Issue & Return', icon: 'qr_code_scanner', href: '/library', group: 'library', order: 10, permission: 'library.issue' },
-    { key: 'library-books', label: 'Books', icon: 'local_library', href: '/library/books', group: 'library', order: 20, anyPermission: ['library.view', 'library.manage'] },
+    { key: 'library-books', app: false, label: 'Books', icon: 'local_library', href: '/library/books', group: 'library', order: 20, anyPermission: ['library.view', 'library.manage'] },
     { key: 'library-loans', label: 'Books Out', icon: 'outbox', href: '/library/loans', group: 'library', order: 30, anyPermission: ['library.view', 'library.issue'] },
     { key: 'library-fines', label: 'Fines', icon: 'payments', href: '/library/fines', group: 'library', order: 40, anyPermission: ['library.view', 'library.fines'] },
     { key: 'library-reservations', label: 'Reservations', icon: 'bookmark', href: '/library/reservations', group: 'library', order: 50, anyPermission: ['library.view', 'library.issue'] },
-    { key: 'library-cards', label: 'Library Cards', icon: 'badge', href: '/library/cards', group: 'library', order: 55, anyPermission: ['library.manage', 'library.issue'] },
+    { key: 'library-cards', app: false, label: 'Library Cards', icon: 'badge', href: '/library/cards', group: 'library', order: 55, anyPermission: ['library.manage', 'library.issue'] },
     { key: 'library-stock', label: 'Stock Check', icon: 'inventory', href: '/library/stock', group: 'library', order: 60, permission: 'library.manage' },
     { key: 'my-library', label: 'My Library', icon: 'local_library', href: '/my-library', group: 'main', order: 30, permission: 'library.mine' },
 ]);

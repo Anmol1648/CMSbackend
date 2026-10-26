@@ -13,8 +13,8 @@ registerPermissions({ key: 'questions', label: 'Syllabus & Question Bank', order
 ]);
 
 registerMenuItems([
-    { key: 'question-bank', label: 'Question Bank', icon: 'quiz', href: '/questions', group: 'learning', order: 20, anyPermission: ['question.view', 'question.add', 'question.approve'] },
-    { key: 'syllabus', label: 'Chapters', icon: 'library_books', href: '/questions/chapters', group: 'learning', order: 10, anyPermission: ['syllabus.manage', 'question.add'] },
+    { key: 'question-bank', app: false, label: 'Question Bank', icon: 'quiz', href: '/questions', group: 'learning', order: 20, anyPermission: ['question.view', 'question.add', 'question.approve'] },
+    { key: 'syllabus', app: false, label: 'Chapters', icon: 'library_books', href: '/questions/chapters', group: 'learning', order: 10, anyPermission: ['syllabus.manage', 'question.add'] },
 ]);
 
 registerMasterUsage('question_difficulty', { label: 'questions', count: (ids) => db.question.count({ where: { difficultyId: { in: ids } } }) });

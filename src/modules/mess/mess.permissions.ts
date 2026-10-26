@@ -16,8 +16,8 @@ registerMenuGroup({ key: 'mess', label: 'Mess', order: 30 });
 registerMenuItems([
     { key: 'mess-today', label: 'Mess Today', icon: 'restaurant', href: '/mess', group: 'mess', order: 10, anyPermission: ['mess.manage', 'mess.view', 'mess.setup', 'mess.counter'] },
     { key: 'mess-counter', label: 'Mess Counter', icon: 'qr_code_scanner', href: '/mess/counter', group: 'mess', order: 20, anyPermission: ['mess.counter', 'mess.manage'] },
-    { key: 'mess-members', label: 'Mess Members', icon: 'groups', href: '/mess/members', group: 'mess', order: 30, anyPermission: ['mess.manage', 'mess.view'] },
-    { key: 'mess-menu', label: 'Menu & Plans', icon: 'menu_book', href: '/mess/menu', group: 'mess', order: 40, anyPermission: ['mess.setup', 'mess.manage', 'mess.view'] },
+    { key: 'mess-members', app: false, label: 'Mess Members', icon: 'groups', href: '/mess/members', group: 'mess', order: 30, anyPermission: ['mess.manage', 'mess.view'] },
+    { key: 'mess-menu', app: false, label: 'Menu & Plans', icon: 'menu_book', href: '/mess/menu', group: 'mess', order: 40, anyPermission: ['mess.setup', 'mess.manage', 'mess.view'] },
     { key: 'mess-mine', label: 'My Mess', icon: 'restaurant', href: '/my-mess', group: 'main', order: 42, permission: 'mess.mine' },
 ]);
 

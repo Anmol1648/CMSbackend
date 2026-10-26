@@ -11,7 +11,7 @@ registerPermissions({ key: 'ptm', label: 'Parent–Teacher Meetings', order: 46 
 
 registerMenuGroup({ key: 'ptm', label: 'PTM', order: 18 });
 registerMenuItems([
-    { key: 'ptm-list', label: 'PTMs', icon: 'groups', href: '/ptm', group: 'ptm', order: 10, permission: 'ptm.manage' },
+    { key: 'ptm-list', app: false, label: 'PTMs', icon: 'groups', href: '/ptm', group: 'ptm', order: 10, permission: 'ptm.manage' },
     { key: 'ptm-desk', label: 'PTM Desk', icon: 'how_to_reg', href: '/ptm/desk', group: 'ptm', order: 20, anyPermission: ['ptm.desk', 'ptm.manage'] },
     { key: 'ptm-meet', label: 'My PTM', icon: 'groups', href: '/ptm/meet', group: 'main', order: 31, permission: 'ptm.meet' },
     { key: 'ptm-mine', label: 'PTM', icon: 'groups', href: '/my-ptm', group: 'main', order: 31, permission: 'ptm.mine' },

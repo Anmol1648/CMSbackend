@@ -13,10 +13,10 @@ registerPermissions({ key: 'idcard', label: 'ID cards', order: 59 }, [
 
 registerMenuGroup({ key: 'idcards', label: 'ID Cards', order: 25 });
 registerMenuItems([
-    { key: 'idcards-print', label: 'Print ID Cards', icon: 'badge', href: '/id-cards', group: 'idcards', order: 10, permission: 'idcard.print' },
-    { key: 'idcards-issued', label: 'Cards Given', icon: 'contact_page', href: '/id-cards/issued', group: 'idcards', order: 20, anyPermission: ['idcard.print', 'idcard.view'] },
+    { key: 'idcards-print', app: false, label: 'Print ID Cards', icon: 'badge', href: '/id-cards', group: 'idcards', order: 10, permission: 'idcard.print' },
+    { key: 'idcards-issued', app: false, label: 'Cards Given', icon: 'contact_page', href: '/id-cards/issued', group: 'idcards', order: 20, anyPermission: ['idcard.print', 'idcard.view'] },
     { key: 'idcards-photos', label: 'Photos for Cards', icon: 'photo_camera', href: '/id-cards/photos', group: 'idcards', order: 30, anyPermission: ['idcard.photos', 'idcard.print'] },
-    { key: 'idcards-designs', label: 'Card Designs', icon: 'design_services', href: '/id-cards/designs', group: 'idcards', order: 40, permission: 'idcard.design' },
+    { key: 'idcards-designs', app: false, label: 'Card Designs', icon: 'design_services', href: '/id-cards/designs', group: 'idcards', order: 40, permission: 'idcard.design' },
     { key: 'idcards-verify', label: 'Check an ID Card', icon: 'qr_code_scanner', href: '/id-cards/verify', group: 'idcards', order: 50, permission: 'idcard.verify' },
     { key: 'idcards-mine', label: 'My ID Card', icon: 'badge', href: '/my-id-card', group: 'main', order: 38, permission: 'idcard.mine' },
 ]);

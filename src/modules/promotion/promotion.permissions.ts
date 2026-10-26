@@ -10,6 +10,6 @@ registerPermissions({ key: 'promotion', label: 'Promotion & TC', order: 33 }, [
 ]);
 
 registerMenuItems([
-    { key: 'promotion', label: 'Promotion', icon: 'upgrade', href: '/students/promotion', group: 'students', order: 40, permission: 'promotion.manage' },
-    { key: 'transfer-certificates', label: 'Transfer Certificates', icon: 'assignment_return', href: '/students/tc', group: 'students', order: 45, anyPermission: ['tc.manage', 'tc.clear'] },
+    { key: 'promotion', app: false, label: 'Promotion', icon: 'upgrade', href: '/students/promotion', group: 'students', order: 40, permission: 'promotion.manage' },
+    { key: 'transfer-certificates', app: false, label: 'Transfer Certificates', icon: 'assignment_return', href: '/students/tc', group: 'students', order: 45, anyPermission: ['tc.manage', 'tc.clear'] },
 ]);

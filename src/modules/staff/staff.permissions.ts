@@ -23,7 +23,7 @@ registerPermissions({ key: 'staff', label: 'Staff', order: 35 }, [
 registerMenuGroup({ key: 'staff', label: 'Staff', order: 20 });
 registerMenuItems([
     { key: 'staff', label: 'Staff', icon: 'badge', href: '/staff', group: 'staff', order: 10, permission: 'staff.view' },
-    { key: 'teaching', label: 'Subject Teachers', icon: 'co_present', href: '/staff/teaching', group: 'staff', order: 20, permission: 'teaching.assign' },
+    { key: 'teaching', app: false, label: 'Subject Teachers', icon: 'co_present', href: '/staff/teaching', group: 'staff', order: 20, permission: 'teaching.assign' },
 ]);
 
 auditModel('Staff', 'staff', ['aadhaar', 'pan', 'bankAccountNo', 'pfNumber']);

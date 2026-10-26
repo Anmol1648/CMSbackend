@@ -11,7 +11,7 @@ registerPermissions({ key: 'feedback', label: 'Teacher Feedback', order: 54 }, [
 
 registerMenuGroup({ key: 'feedback', label: 'Teacher Feedback', order: 22 });
 registerMenuItems([
-    { key: 'feedback-rounds', label: 'Feedback Rounds', icon: 'rate_review', href: '/feedback', group: 'feedback', order: 10, permission: 'feedback.manage' },
+    { key: 'feedback-rounds', app: false, label: 'Feedback Rounds', icon: 'rate_review', href: '/feedback', group: 'feedback', order: 10, permission: 'feedback.manage' },
     { key: 'feedback-results', label: 'Feedback Results', icon: 'insights', href: '/feedback/results', group: 'feedback', order: 20, permission: 'feedback.results' },
     { key: 'feedback-own', label: 'My Feedback', icon: 'insights', href: '/feedback/mine', group: 'main', order: 35, permission: 'feedback.own' },
     { key: 'feedback-give', label: 'Teacher Feedback', icon: 'rate_review', href: '/my-feedback', group: 'main', order: 35, permission: 'feedback.give' },

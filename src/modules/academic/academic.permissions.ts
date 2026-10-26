@@ -14,9 +14,9 @@ registerPermissions({ key: 'academic', label: 'Academic setup', order: 15 }, [
 ]);
 
 registerMenuItems([
-    { key: 'academic-years', label: 'Academic Years', icon: 'calendar_month', href: '/academic/years', group: 'configuration', order: 20, permission: 'academic.view' },
-    { key: 'classes', label: 'Classes & Sections', icon: 'meeting_room', href: '/academic/classes', group: 'configuration', order: 30, permission: 'academic.view' },
-    { key: 'subjects', label: 'Subjects', icon: 'menu_book', href: '/academic/subjects', group: 'configuration', order: 40, permission: 'academic.view' },
+    { key: 'academic-years', app: false, label: 'Academic Years', icon: 'calendar_month', href: '/academic/years', group: 'configuration', order: 20, permission: 'academic.view' },
+    { key: 'classes', app: false, label: 'Classes & Sections', icon: 'meeting_room', href: '/academic/classes', group: 'configuration', order: 30, permission: 'academic.view' },
+    { key: 'subjects', app: false, label: 'Subjects', icon: 'menu_book', href: '/academic/subjects', group: 'configuration', order: 40, permission: 'academic.view' },
 ]);
 
 // Field-level history of each record (the subjects of a class are recorded as one "subjects changed" entry).

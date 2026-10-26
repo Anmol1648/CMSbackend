@@ -9,8 +9,8 @@ import { buildMenu } from '../rbac/my-access';
 import { getUserAccess } from '../rbac/access.service';
 
 /**
- * Menu Setup: a school's own names, order, icons and groups for the sidebar, and items or groups it
- * hides. Who may open a page still comes from role permissions.
+ * Menu Setup: a school's own names, order, icons and groups for the sidebar, items or groups it
+ * hides, and which pages the mobile app shows. Who may open a page still comes from role permissions.
  */
 
 /** Every group and item with the built-in values and the school's own (for the setup screen). */
@@ -33,6 +33,8 @@ export const menuSetup = async () => {
             groupKey: c.get(i.key)?.groupKey ?? null,
             sortOrder: c.get(i.key)?.sortOrder ?? null,
             hidden: c.get(i.key)?.hidden ?? false,
+            defaultInApp: i.app ?? true,
+            inApp: c.get(i.key)?.inApp ?? null,
             needs: i.anyPermission ? i.anyPermission.map((k) => perm.get(k) ?? k).join(' or ') : i.permission ? (perm.get(i.permission) ?? i.permission) : 'everyone',
         })),
         roles: await db.role.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
@@ -42,7 +44,7 @@ export const menuSetup = async () => {
 const text = (max: number) => z.string().trim().max(max).nullable().optional();
 export const menuSaveSchema = z.strictObject({
     groups: z.array(z.strictObject({ key: z.string().max(60), label: text(40), sortOrder: z.number().int().min(-999).max(9999).nullable().optional(), hidden: z.boolean().default(false) })).max(200),
-    items: z.array(z.strictObject({ key: z.string().max(60), label: text(60), icon: z.string().trim().regex(/^[a-z0-9_]{2,40}$/, 'must be an icon name like bed or restaurant').nullable().optional(), groupKey: z.string().max(60).nullable().optional(), sortOrder: z.number().int().min(-999).max(9999).nullable().optional(), hidden: z.boolean().default(false) })).max(1000),
+    items: z.array(z.strictObject({ key: z.string().max(60), label: text(60), icon: z.string().trim().regex(/^[a-z0-9_]{2,40}$/, 'must be an icon name like bed or restaurant').nullable().optional(), groupKey: z.string().max(60).nullable().optional(), sortOrder: z.number().int().min(-999).max(9999).nullable().optional(), hidden: z.boolean().default(false), inApp: z.boolean().nullable().optional() })).max(1000),
 });
 export type MenuSave = z.infer<typeof menuSaveSchema>;
 
@@ -65,9 +67,10 @@ export const saveMenu = async (input: MenuSave, userId: string | null) => {
     const i2 = input.items
         .map((i) => {
             const d = items.get(i.key)!;
-            return { tenantId, menuKey: i.key, label: i.label && i.label !== d.label ? i.label : null, icon: i.icon && i.icon !== d.icon ? i.icon : null, groupKey: i.groupKey && i.groupKey !== d.group ? i.groupKey : null, sortOrder: i.sortOrder ?? null, hidden: i.hidden, updatedBy: userId };
+            const inApp = i.inApp === undefined || i.inApp === null || i.inApp === (d.app ?? true) ? null : i.inApp;
+            return { tenantId, menuKey: i.key, label: i.label && i.label !== d.label ? i.label : null, icon: i.icon && i.icon !== d.icon ? i.icon : null, groupKey: i.groupKey && i.groupKey !== d.group ? i.groupKey : null, sortOrder: i.sortOrder ?? null, hidden: i.hidden, inApp, updatedBy: userId };
         })
-        .filter((i) => i.label || i.icon || i.groupKey || i.sortOrder !== null || i.hidden);
+        .filter((i) => i.label || i.icon || i.groupKey || i.sortOrder !== null || i.hidden || i.inApp !== null);
     await withTransaction(async (tx) => {
         await tx.menuGroupCustomization.deleteMany({});
         await tx.menuCustomization.deleteMany({});
@@ -91,11 +94,11 @@ export const resetMenu = async () => {
 /** The sidebar a role would see with the saved set-up (Super Admin: everything). */
 export const previewAs = async (roleId: string) => {
     if (!z.uuid().safeParse(roleId).success) throw notFound('Role not found');
-    const role = await db.role.findFirst({ where: { id: roleId }, select: { isSystem: true, permissions: { select: { permissionKey: true } } } });
+    const role = await db.role.findFirst({ where: { id: roleId }, select: { isSystem: true, permissions: { select: { permissionKey: true, scope: true } } } });
     if (!role) throw notFound('Role not found');
     const permissions: Record<string, string> = {};
     if (role.isSystem) for (const p of listPermissionDefs()) permissions[p.key] = 'all';
-    else for (const p of role.permissions) permissions[p.permissionKey] = 'all';
+    else for (const p of role.permissions) permissions[p.permissionKey] = p.scope;
     return buildMenu(permissions);
 };
 
@@ -105,5 +108,5 @@ export const myMenuNow = async (userId: string) => buildMenu((await getUserAcces
 /** The school's set-up as a template (Platform console), and a template applied to the school. */
 export const exportMenu = async () => {
     const [items, groups] = await Promise.all([db.menuCustomization.findMany(), db.menuGroupCustomization.findMany()]);
-    return { items: items.map(({ menuKey, label, icon, groupKey, sortOrder, hidden }) => ({ key: menuKey, label, icon, groupKey, sortOrder, hidden })), groups: groups.map(({ groupKey, label, sortOrder, hidden }) => ({ key: groupKey, label, sortOrder, hidden })) };
+    return { items: items.map(({ menuKey, label, icon, groupKey, sortOrder, hidden, inApp }) => ({ key: menuKey, label, icon, groupKey, sortOrder, hidden, inApp })), groups: groups.map(({ groupKey, label, sortOrder, hidden }) => ({ key: groupKey, label, sortOrder, hidden })) };
 };

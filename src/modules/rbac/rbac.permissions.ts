@@ -15,6 +15,6 @@ registerMenuGroup({ key: 'setup', label: 'Setup', order: 80 });
 
 registerMenuItems([
     { key: 'home', label: 'Home', icon: 'home', href: '/', group: 'main', order: 0 },
-    { key: 'users', label: 'Users', icon: 'group', href: '/users', group: 'setup', order: 30, permission: 'user.view' },
-    { key: 'roles', label: 'Roles & Permissions', icon: 'admin_panel_settings', href: '/roles', group: 'setup', order: 40, permission: 'role.view' },
+    { key: 'users', app: false, label: 'Users', icon: 'group', href: '/users', group: 'setup', order: 30, permission: 'user.view' },
+    { key: 'roles', app: false, label: 'Roles & Permissions', icon: 'admin_panel_settings', href: '/roles', group: 'setup', order: 40, permission: 'role.view' },
 ]);

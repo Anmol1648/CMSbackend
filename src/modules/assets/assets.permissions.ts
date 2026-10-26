@@ -15,8 +15,8 @@ registerPermissions({ key: 'asset', label: 'Assets', order: 58 }, [
 
 registerMenuGroup({ key: 'assets', label: 'Assets', order: 24 });
 registerMenuItems([
-    { key: 'assets-register', label: 'Asset Register', icon: 'inventory_2', href: '/assets', group: 'assets', order: 10, anyPermission: ['asset.manage', 'asset.view'] },
-    { key: 'assets-repairs', label: 'Repairs & Maintenance', icon: 'build', href: '/assets/repairs', group: 'assets', order: 20, anyPermission: ['asset.repair', 'asset.manage', 'asset.approve_disposal'] },
+    { key: 'assets-register', app: false, label: 'Asset Register', icon: 'inventory_2', href: '/assets', group: 'assets', order: 10, anyPermission: ['asset.manage', 'asset.view'] },
+    { key: 'assets-repairs', app: false, label: 'Repairs & Maintenance', icon: 'build', href: '/assets/repairs', group: 'assets', order: 20, anyPermission: ['asset.repair', 'asset.manage', 'asset.approve_disposal'] },
     { key: 'assets-verify', label: 'Asset Verification', icon: 'fact_check', href: '/assets/verify', group: 'assets', order: 30, permission: 'asset.manage' },
     { key: 'assets-mine', label: 'My Assets', icon: 'devices', href: '/my-assets', group: 'main', order: 37, anyPermission: ['asset.mine', 'asset.report'] },
 ]);

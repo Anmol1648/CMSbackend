@@ -9,4 +9,4 @@ registerPermissions({ key: 'ai', label: 'AI', order: 40 }, [
 ]);
 
 registerMenuGroup({ key: 'learning', label: 'Learning', order: 15 });
-registerMenuItems([{ key: 'ai-setup', label: 'AI Setup', icon: 'smart_toy', href: '/ai', group: 'learning', order: 90, anyPermission: ['ai.setup', 'ai.usage'] }]);
+registerMenuItems([{ key: 'ai-setup', app: false, label: 'AI Setup', icon: 'smart_toy', href: '/ai', group: 'learning', order: 90, anyPermission: ['ai.setup', 'ai.usage'] }]);

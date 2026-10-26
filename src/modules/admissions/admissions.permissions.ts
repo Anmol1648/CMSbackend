@@ -15,7 +15,7 @@ registerPermissions({ key: 'admissions', label: 'Admissions', order: 28 }, [
 registerMenuGroup({ key: 'admissions', label: 'Admissions', order: 5 });
 registerMenuItems([
     { key: 'enquiries', label: 'Enquiries', icon: 'contact_phone', href: '/admissions', group: 'admissions', order: 10, permission: 'enquiry.view' },
-    { key: 'admission-reports', label: 'Admission Reports', icon: 'query_stats', href: '/admissions/reports', group: 'admissions', order: 20, permission: 'enquiry.reports' },
+    { key: 'admission-reports', app: false, label: 'Admission Reports', icon: 'query_stats', href: '/admissions/reports', group: 'admissions', order: 20, permission: 'enquiry.reports' },
 ]);
 
 auditModel('Enquiry', 'enquiry');

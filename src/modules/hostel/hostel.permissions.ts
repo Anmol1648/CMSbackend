@@ -15,7 +15,7 @@ registerPermissions({ key: 'hostel', label: 'Hostel', order: 63 }, [
 
 registerMenuGroup({ key: 'hostel', label: 'Hostel', order: 29 });
 registerMenuItems([
-    { key: 'hostel-rooms', label: 'Rooms & Boarders', icon: 'bed', href: '/hostel', group: 'hostel', order: 10, anyPermission: ['hostel.allot', 'hostel.view', 'hostel.warden', 'hostel.setup'] },
+    { key: 'hostel-rooms', app: false, label: 'Rooms & Boarders', icon: 'bed', href: '/hostel', group: 'hostel', order: 10, anyPermission: ['hostel.allot', 'hostel.view', 'hostel.warden', 'hostel.setup'] },
     { key: 'hostel-roll', label: 'Roll Call', icon: 'how_to_reg', href: '/hostel/roll-call', group: 'hostel', order: 20, permission: 'hostel.warden' },
     { key: 'hostel-leave', label: 'Leave & Passes', icon: 'directions_walk', href: '/hostel/leave', group: 'hostel', order: 30, anyPermission: ['hostel.warden', 'hostel.view'] },
     { key: 'hostel-care', label: 'Sick Bay & Inspections', icon: 'medical_services', href: '/hostel/care', group: 'hostel', order: 40, permission: 'hostel.warden' },

@@ -18,9 +18,9 @@ registerMenuGroup({ key: 'inventory', label: 'Inventory', order: 26 });
 registerMenuItems([
     { key: 'inv-stock', label: 'Stock', icon: 'inventory', href: '/inventory', group: 'inventory', order: 10, anyPermission: ['inventory.view', 'inventory.store', 'inventory.manage'] },
     { key: 'inv-issue', label: 'Issue & Requests', icon: 'outbox', href: '/inventory/issue', group: 'inventory', order: 20, anyPermission: ['inventory.store', 'inventory.approve'] },
-    { key: 'inv-purchase', label: 'Purchase & Receive', icon: 'local_shipping', href: '/inventory/purchase', group: 'inventory', order: 30, anyPermission: ['inventory.purchase', 'inventory.store', 'inventory.approve'] },
-    { key: 'inv-sales', label: 'Student Sales', icon: 'point_of_sale', href: '/inventory/sales', group: 'inventory', order: 40, permission: 'inventory.sell' },
-    { key: 'inv-count', label: 'Stock Count & Write-off', icon: 'fact_check', href: '/inventory/count', group: 'inventory', order: 50, anyPermission: ['inventory.store', 'inventory.approve'] },
+    { key: 'inv-purchase', app: false, label: 'Purchase & Receive', icon: 'local_shipping', href: '/inventory/purchase', group: 'inventory', order: 30, anyPermission: ['inventory.purchase', 'inventory.store', 'inventory.approve'] },
+    { key: 'inv-sales', app: false, label: 'Student Sales', icon: 'point_of_sale', href: '/inventory/sales', group: 'inventory', order: 40, permission: 'inventory.sell' },
+    { key: 'inv-count', app: false, label: 'Stock Count & Write-off', icon: 'fact_check', href: '/inventory/count', group: 'inventory', order: 50, anyPermission: ['inventory.store', 'inventory.approve'] },
     { key: 'inv-mine', label: 'My Requests', icon: 'shopping_basket', href: '/my-requests', group: 'main', order: 39, permission: 'inventory.request' },
 ]);
 

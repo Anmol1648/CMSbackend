@@ -17,7 +17,7 @@ registerMenuItems([
     { key: 'visitor-gate', label: 'Gate', icon: 'door_front', href: '/visitors', group: 'visitors', order: 10, permission: 'visitor.gate' },
     { key: 'visitor-pickup', label: 'Student Pickup', icon: 'escalator_warning', href: '/visitors/pickup', group: 'visitors', order: 20, anyPermission: ['visitor.gate', 'visitor.manage'] },
     { key: 'visitor-log', label: 'Visitor Log', icon: 'list_alt', href: '/visitors/log', group: 'visitors', order: 30, permission: 'visitor.view' },
-    { key: 'visitor-blacklist', label: 'Blacklist', icon: 'block', href: '/visitors/blacklist', group: 'visitors', order: 40, permission: 'visitor.manage' },
+    { key: 'visitor-blacklist', app: false, label: 'Blacklist', icon: 'block', href: '/visitors/blacklist', group: 'visitors', order: 40, permission: 'visitor.manage' },
     { key: 'visitor-mine', label: 'My Visitors', icon: 'door_front', href: '/visitors/mine', group: 'main', order: 32, permission: 'visitor.expect' },
     { key: 'pickup-mine', label: 'My Pickup List', icon: 'escalator_warning', href: '/my-pickup', group: 'main', order: 32, permission: 'visitor.pickup_mine' },
 ]);

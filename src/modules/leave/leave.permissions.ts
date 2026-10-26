@@ -15,7 +15,7 @@ registerMenuGroup({ key: 'leave', label: 'Staff Leave', order: 13 });
 registerMenuItems([
     { key: 'my-leave', label: 'My Leave', icon: 'beach_access', href: '/my-leave', group: 'main', order: 26, permission: 'leave.apply' },
     { key: 'leave-approvals', label: 'Leave Approvals', icon: 'task_alt', href: '/leave/approvals', group: 'leave', order: 10, anyPermission: ['leave.approve', 'leave.approve_all'] },
-    { key: 'leave-register', label: 'Leave Register', icon: 'event_note', href: '/leave', group: 'leave', order: 20, permission: 'leave.view' },
-    { key: 'leave-balances', label: 'Leave Balances', icon: 'account_balance_wallet', href: '/leave/balances', group: 'leave', order: 30, permission: 'leave.view' },
-    { key: 'leave-setup', label: 'Leave Setup', icon: 'tune', href: '/leave/setup', group: 'leave', order: 40, permission: 'leave.setup' },
+    { key: 'leave-register', app: false, label: 'Leave Register', icon: 'event_note', href: '/leave', group: 'leave', order: 20, permission: 'leave.view' },
+    { key: 'leave-balances', app: false, label: 'Leave Balances', icon: 'account_balance_wallet', href: '/leave/balances', group: 'leave', order: 30, permission: 'leave.view' },
+    { key: 'leave-setup', app: false, label: 'Leave Setup', icon: 'tune', href: '/leave/setup', group: 'leave', order: 40, permission: 'leave.setup' },
 ]);

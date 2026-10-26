@@ -13,7 +13,7 @@ registerPermissions({ key: 'upload', label: 'Shared Files', order: 56 }, [
 
 registerMenuGroup({ key: 'shared', label: 'Shared Files', order: 23 });
 registerMenuItems([
-    { key: 'shared-manage', label: 'File Library', icon: 'folder_shared', href: '/files', group: 'shared', order: 10, anyPermission: ['upload.manage', 'upload.add'] },
+    { key: 'shared-manage', app: false, label: 'File Library', icon: 'folder_shared', href: '/files', group: 'shared', order: 10, anyPermission: ['upload.manage', 'upload.add'] },
     { key: 'shared-downloads', label: 'Downloads', icon: 'download', href: '/downloads', group: 'main', order: 36, permission: 'upload.view' },
 ]);
 

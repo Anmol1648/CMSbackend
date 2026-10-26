@@ -16,11 +16,11 @@ registerPermissions({ key: 'transport', label: 'Transport', order: 42 }, [
 registerMenuGroup({ key: 'transport', label: 'Transport', order: 16 });
 registerMenuItems([
     { key: 'transport-live', label: 'Live Map', icon: 'map', href: '/transport', group: 'transport', order: 10, permission: 'transport.track_all' },
-    { key: 'transport-routes', label: 'Routes & Stops', icon: 'route', href: '/transport/routes', group: 'transport', order: 20, anyPermission: ['transport.view', 'transport.manage'] },
-    { key: 'transport-students', label: 'Students’ Transport', icon: 'airline_seat_recline_normal', href: '/transport/students', group: 'transport', order: 30, anyPermission: ['transport.view', 'transport.manage'] },
-    { key: 'transport-vehicles', label: 'Vehicles', icon: 'directions_bus', href: '/transport/vehicles', group: 'transport', order: 40, anyPermission: ['transport.view', 'transport.manage'] },
-    { key: 'transport-trips', label: 'Trips', icon: 'history', href: '/transport/trips', group: 'transport', order: 50, permission: 'transport.track_all' },
-    { key: 'transport-setup', label: 'GPS & Maps', icon: 'satellite_alt', href: '/transport/setup', group: 'transport', order: 60, permission: 'transport.setup' },
+    { key: 'transport-routes', app: false, label: 'Routes & Stops', icon: 'route', href: '/transport/routes', group: 'transport', order: 20, anyPermission: ['transport.view', 'transport.manage'] },
+    { key: 'transport-students', app: false, label: 'Students’ Transport', icon: 'airline_seat_recline_normal', href: '/transport/students', group: 'transport', order: 30, anyPermission: ['transport.view', 'transport.manage'] },
+    { key: 'transport-vehicles', app: false, label: 'Vehicles', icon: 'directions_bus', href: '/transport/vehicles', group: 'transport', order: 40, anyPermission: ['transport.view', 'transport.manage'] },
+    { key: 'transport-trips', app: false, label: 'Trips', icon: 'history', href: '/transport/trips', group: 'transport', order: 50, permission: 'transport.track_all' },
+    { key: 'transport-setup', app: false, label: 'GPS & Maps', icon: 'satellite_alt', href: '/transport/setup', group: 'transport', order: 60, permission: 'transport.setup' },
     { key: 'transport-drive', label: 'My Trip', icon: 'navigation', href: '/transport/drive', group: 'main', order: 29, permission: 'transport.drive' },
     { key: 'transport-mine', label: 'My Bus', icon: 'directions_bus', href: '/my-bus', group: 'main', order: 29, permission: 'transport.track_mine' },
 ]);

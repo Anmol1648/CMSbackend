@@ -7,6 +7,6 @@ registerPermissions({ key: 'dashboard', label: 'Dashboard', order: 5 }, [
 ]);
 
 registerMenuItems([
-    { key: 'dashboard-setup', label: 'Dashboard Setup', icon: 'dashboard_customize', href: '/dashboard/setup', group: 'setup', order: 90, permission: 'dashboard.setup' },
-    { key: 'widget-builder', label: 'Widget Builder', icon: 'widgets', href: '/dashboard/widgets', group: 'setup', order: 91, permission: 'dashboard.build' },
+    { key: 'dashboard-setup', app: false, label: 'Dashboard Setup', icon: 'dashboard_customize', href: '/dashboard/setup', group: 'setup', order: 90, permission: 'dashboard.setup' },
+    { key: 'widget-builder', app: false, label: 'Widget Builder', icon: 'widgets', href: '/dashboard/widgets', group: 'setup', order: 91, permission: 'dashboard.build' },
 ]);

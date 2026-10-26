@@ -7,7 +7,7 @@ registerPermissions({ key: 'audit', label: 'Audit trail', order: 95 }, [
     { resource: 'audit', action: 'view', label: 'See the audit trail (who changed what, sign-ins, failed sign-ins)' },
 ]);
 
-registerMenuItems([{ key: 'audit', label: 'Audit Trail', icon: 'history', href: '/audit', group: 'setup', order: 60, permission: 'audit.view' }]);
+registerMenuItems([{ key: 'audit', app: false, label: 'Audit Trail', icon: 'history', href: '/audit', group: 'setup', order: 60, permission: 'audit.view' }]);
 
 export const AUDIT = {
     retentionDays: defineSetting<number>({

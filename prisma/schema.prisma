@@ -561,6 +561,8 @@ model MenuCustomization {
   groupKey  String?  @map("group_key")
   /// A Material Symbols icon name instead of its own
   icon      String?
+  /// Shown in the mobile app or not, instead of the page's default (null = the default)
+  inApp     Boolean? @map("in_app")
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy String?  @map("updated_by") @db.Uuid
 

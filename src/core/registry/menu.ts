@@ -17,6 +17,10 @@ export interface MenuItemDef {
     anyPermission?: string[];
     /** Shown only when this says so for the school (e.g. a feature switched on in System Settings). */
     visible?: () => Promise<boolean>;
+    /** Shown only when the permission is held with one of these scopes (e.g. not to parents, whose "own" scope is for their child). */
+    scopes?: string[];
+    /** In the mobile app by default (true when left out); desk pages say false. Schools change it in Menu Setup. */
+    app?: boolean;
 }
 
 export interface MenuGroupDef {

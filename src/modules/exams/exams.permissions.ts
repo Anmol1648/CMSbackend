@@ -25,12 +25,12 @@ registerMenuGroup({ key: 'exams', label: 'Exams', order: 13 });
 registerMenuItems([
     { key: 'exam-marks', label: 'Enter Marks', icon: 'edit_square', href: '/exams/marks', group: 'exams', order: 10, anyPermission: ['exam.marks', 'exam.marks_any'] },
     { key: 'exam-results', label: 'Results & Report Cards', icon: 'grading', href: '/exams/results', group: 'exams', order: 20, permission: 'exam.view' },
-    { key: 'exam-list', label: 'Exams & Date Sheets', icon: 'event_note', href: '/exams', group: 'exams', order: 30, permission: 'exam.setup' },
-    { key: 'exam-setup', label: 'Grading & Result Rules', icon: 'rule', href: '/exams/setup', group: 'exams', order: 40, permission: 'exam.setup' },
-    { key: 'exam-admit', label: 'Admit Cards & Seating', icon: 'event_seat', href: '/exams/hall', group: 'exams', order: 32, anyPermission: ['exam.admit', 'exam.seating'] },
-    { key: 'exam-papers', label: 'Question Papers', icon: 'description', href: '/exams/papers', group: 'exams', order: 34, anyPermission: ['exam.papers', 'exam.marks'] },
+    { key: 'exam-list', app: false, label: 'Exams & Date Sheets', icon: 'event_note', href: '/exams', group: 'exams', order: 30, permission: 'exam.setup' },
+    { key: 'exam-setup', app: false, label: 'Grading & Result Rules', icon: 'rule', href: '/exams/setup', group: 'exams', order: 40, permission: 'exam.setup' },
+    { key: 'exam-admit', app: false, label: 'Admit Cards & Seating', icon: 'event_seat', href: '/exams/hall', group: 'exams', order: 32, anyPermission: ['exam.admit', 'exam.seating'] },
+    { key: 'exam-papers', app: false, label: 'Question Papers', icon: 'description', href: '/exams/papers', group: 'exams', order: 34, anyPermission: ['exam.papers', 'exam.marks'] },
     { key: 'exam-analysis', label: 'Result Analysis', icon: 'monitoring', href: '/exams/analysis', group: 'exams', order: 25, anyPermission: ['exam.analysis', 'exam.view'] },
-    { key: 'exam-after', label: 'Re-checks & Supplementary', icon: 'restart_alt', href: '/exams/after', group: 'exams', order: 36, anyPermission: ['exam.recheck', 'exam.setup', 'exam.marks'] },
+    { key: 'exam-after', app: false, label: 'Re-checks & Supplementary', icon: 'restart_alt', href: '/exams/after', group: 'exams', order: 36, anyPermission: ['exam.recheck', 'exam.setup', 'exam.marks'] },
     { key: 'my-duties', label: 'My Invigilation', icon: 'supervisor_account', href: '/my-duties', group: 'main', order: 28, anyPermission: ['exam.marks', 'exam.marks_any'] },
     { key: 'my-results', label: 'My Results', icon: 'workspace_premium', href: '/my-results', group: 'main', order: 27, permission: 'exam.mine' },
 ]);

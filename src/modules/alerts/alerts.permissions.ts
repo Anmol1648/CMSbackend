@@ -26,11 +26,11 @@ registerMenuItems([
     { key: 'notifications', label: 'Notifications', icon: 'notifications', href: '/notifications', group: 'main', order: 5 },
     { key: 'compose', label: 'Compose', icon: 'edit', href: '/messages/compose', group: 'messaging', order: 10, permission: 'message.send' },
     { key: 'messages-sent', label: 'Sent Messages', icon: 'outbox', href: '/messages', group: 'messaging', order: 20, anyPermission: ['message.send', 'message.view_sent'] },
-    { key: 'message-templates', label: 'Message Templates', icon: 'article', href: '/messages/templates', group: 'messaging', order: 30, permission: 'alert.templates' },
-    { key: 'alerts-builtin', label: 'Built-in Alerts', icon: 'notifications_active', href: '/alerts', group: 'messaging', order: 40, permission: 'alert.setup' },
-    { key: 'alerts-custom', label: 'Custom Alerts', icon: 'auto_awesome', href: '/alerts/custom', group: 'messaging', order: 50, permission: 'alert.custom' },
-    { key: 'alerts-log', label: 'Alert Log', icon: 'receipt_long', href: '/alerts/log', group: 'messaging', order: 60, permission: 'alert.log' },
-    { key: 'alerts-channels', label: 'Channels', icon: 'cell_tower', href: '/alerts/channels', group: 'messaging', order: 70, permission: 'alert.setup' },
+    { key: 'message-templates', app: false, label: 'Message Templates', icon: 'article', href: '/messages/templates', group: 'messaging', order: 30, permission: 'alert.templates' },
+    { key: 'alerts-builtin', app: false, label: 'Built-in Alerts', icon: 'notifications_active', href: '/alerts', group: 'messaging', order: 40, permission: 'alert.setup' },
+    { key: 'alerts-custom', app: false, label: 'Custom Alerts', icon: 'auto_awesome', href: '/alerts/custom', group: 'messaging', order: 50, permission: 'alert.custom' },
+    { key: 'alerts-log', app: false, label: 'Alert Log', icon: 'receipt_long', href: '/alerts/log', group: 'messaging', order: 60, permission: 'alert.log' },
+    { key: 'alerts-channels', app: false, label: 'Channels', icon: 'cell_tower', href: '/alerts/channels', group: 'messaging', order: 70, permission: 'alert.setup' },
 ]);
 
 registerMasterUsage('message_category', {

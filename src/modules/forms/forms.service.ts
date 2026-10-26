@@ -154,12 +154,16 @@ export const saveForm = async (key: string, input: z.infer<typeof saveFormSchema
     return getForm(key);
 };
 
-/** What a form needs to draw itself: the school's names for fields and its active extra fields. */
+/**
+ * What a form needs to draw itself: the school's names for fields, its active extra fields, and the
+ * built-in fields it hides or makes required (the mobile app draws every form from this).
+ */
 export const formExtras = async (key: FormKey, userId?: string) => {
     const f = FORMS[key];
     const s = await getSettings({ labels: f.settings.labels, custom: f.settings.custom });
     const access = userId ? await getUserAccess(userId) : null;
-    return { labels: s.labels, custom: s.custom.filter((c) => c.active && canSee(c, access)) };
+    const [hidden, required] = await Promise.all([f.settings.hidden ? getSetting(f.settings.hidden) : [], f.settings.required ? getSetting(f.settings.required) : []]);
+    return { labels: s.labels, custom: s.custom.filter((c) => c.active && canSee(c, access)), hidden, required };
 };
 
 /** A record's extra field values, without the ones this person may not see. */

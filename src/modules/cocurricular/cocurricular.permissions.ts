@@ -19,9 +19,9 @@ registerPermissions({ key: 'cocurricular', label: 'Co-curricular', order: 53 }, 
 
 registerMenuGroup({ key: 'cocurricular', label: 'Co-curricular', order: 22 });
 registerMenuItems([
-    { key: 'houses', label: 'Houses', icon: 'shield', href: '/houses', group: 'cocurricular', order: 10, anyPermission: ['cocurricular.view', 'house.manage', 'house.points'], visible: () => getSetting(ACADEMIC.housesEnabled) },
-    { key: 'clubs', label: 'Clubs', icon: 'diversity_3', href: '/clubs', group: 'cocurricular', order: 20, anyPermission: ['cocurricular.view', 'club.manage', 'club.run'] },
-    { key: 'competitions', label: 'Competitions', icon: 'emoji_events', href: '/competitions', group: 'cocurricular', order: 30, anyPermission: ['cocurricular.view', 'competition.manage'] },
+    { key: 'houses', app: false, label: 'Houses', icon: 'shield', href: '/houses', group: 'cocurricular', order: 10, anyPermission: ['cocurricular.view', 'house.manage', 'house.points'], visible: () => getSetting(ACADEMIC.housesEnabled) },
+    { key: 'clubs', app: false, label: 'Clubs', icon: 'diversity_3', href: '/clubs', group: 'cocurricular', order: 20, anyPermission: ['cocurricular.view', 'club.manage', 'club.run'] },
+    { key: 'competitions', app: false, label: 'Competitions', icon: 'emoji_events', href: '/competitions', group: 'cocurricular', order: 30, anyPermission: ['cocurricular.view', 'competition.manage'] },
     { key: 'achievements', label: 'Achievements', icon: 'military_tech', href: '/achievements', group: 'cocurricular', order: 40, anyPermission: ['cocurricular.view', 'achievement.record'] },
     { key: 'my-activities', label: 'Activities', icon: 'emoji_events', href: '/my-activities', group: 'main', order: 35, permission: 'cocurricular.mine' },
 ]);

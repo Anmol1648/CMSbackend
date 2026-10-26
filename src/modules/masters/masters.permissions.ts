@@ -14,7 +14,7 @@ registerPermissions({ key: 'masters', label: 'Masters', order: 20 }, [
 ]);
 
 registerMenuGroup({ key: 'configuration', label: 'Configuration', order: 70 });
-registerMenuItems([{ key: 'masters', label: 'Masters', icon: 'list_alt', href: '/masters', group: 'configuration', order: 90, permission: 'masters.view' }]);
+registerMenuItems([{ key: 'masters', app: false, label: 'Masters', icon: 'list_alt', href: '/masters', group: 'configuration', order: 90, permission: 'masters.view' }]);
 
 // Every change to an option is kept with old and new values (shown in its History).
 auditModel('MasterValue', 'master_value');

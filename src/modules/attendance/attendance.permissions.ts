@@ -30,6 +30,7 @@ registerMenuItems([
     { key: 'attendance-staff', label: 'Staff Attendance', icon: 'badge', href: '/attendance/staff', group: 'attendance', order: 30, permission: 'attendance.staff' },
     {
         key: 'attendance-faces',
+        app: false,
         label: 'Faces & Phones',
         icon: 'face',
         href: '/attendance/faces',
@@ -42,9 +43,9 @@ registerMenuItems([
             return s.face || s.liveness || s.phone !== 'off';
         },
     },
-    { key: 'attendance-devices', label: 'Attendance Devices', icon: 'fingerprint', href: '/attendance/devices', group: 'attendance', order: 36, permission: 'attendance.staff' },
-    { key: 'attendance-locations', label: 'Check-in Locations', icon: 'location_on', href: '/attendance/locations', group: 'attendance', order: 34, permission: 'attendance.staff' },
-    { key: 'attendance-holidays', label: 'Holidays', icon: 'event_busy', href: '/attendance/holidays', group: 'attendance', order: 40, permission: 'attendance.holidays' },
+    { key: 'attendance-devices', app: false, label: 'Attendance Devices', icon: 'fingerprint', href: '/attendance/devices', group: 'attendance', order: 36, permission: 'attendance.staff' },
+    { key: 'attendance-locations', app: false, label: 'Check-in Locations', icon: 'location_on', href: '/attendance/locations', group: 'attendance', order: 34, permission: 'attendance.staff' },
+    { key: 'attendance-holidays', app: false, label: 'Holidays', icon: 'event_busy', href: '/attendance/holidays', group: 'attendance', order: 40, permission: 'attendance.holidays' },
     { key: 'my-attendance', label: 'My Attendance', icon: 'calendar_month', href: '/my-attendance', group: 'main', order: 25, permission: 'attendance.mine' },
     { key: 'my-check-in', label: 'Check In', icon: 'login', href: '/my-check-in', group: 'main', order: 5, permission: 'attendance.checkin' },
     { key: 'my-staff-attendance', label: 'My Staff Attendance', icon: 'calendar_month', href: '/my-staff-attendance', group: 'main', order: 6, permission: 'attendance.checkin' },

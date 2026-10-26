@@ -15,7 +15,7 @@ registerMenuGroup({ key: 'timetable', label: 'Timetable', order: 17 });
 registerMenuItems([
     { key: 'timetable', label: 'Timetable', icon: 'calendar_view_week', href: '/timetable', group: 'timetable', order: 10, permission: 'timetable.view' },
     { key: 'substitutions', label: 'Substitutions', icon: 'swap_horiz', href: '/timetable/substitutions', group: 'timetable', order: 20, permission: 'timetable.substitute' },
-    { key: 'timetable-setup', label: 'Timetable Setup', icon: 'schedule', href: '/timetable/setup', group: 'timetable', order: 30, permission: 'timetable.manage' },
+    { key: 'timetable-setup', app: false, label: 'Timetable Setup', icon: 'schedule', href: '/timetable/setup', group: 'timetable', order: 30, permission: 'timetable.manage' },
     { key: 'my-timetable', label: 'My Timetable', icon: 'event_note', href: '/my-timetable', group: 'main', order: 15, permission: 'timetable.mine' },
 ]);
 

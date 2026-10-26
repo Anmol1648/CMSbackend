@@ -16,10 +16,10 @@ registerPermissions({ key: 'payroll', label: 'Payroll', order: 61 }, [
 
 registerMenuGroup({ key: 'payroll', label: 'Payroll', order: 27 });
 registerMenuItems([
-    { key: 'payroll-run', label: 'Monthly Payroll', icon: 'payments', href: '/payroll', group: 'payroll', order: 10, anyPermission: ['payroll.run', 'payroll.approve', 'payroll.view'] },
-    { key: 'payroll-salaries', label: 'Staff Salaries', icon: 'account_balance_wallet', href: '/payroll/salaries', group: 'payroll', order: 20, permission: 'payroll.salary' },
-    { key: 'payroll-loans', label: 'Loans & Advances', icon: 'savings', href: '/payroll/loans', group: 'payroll', order: 30, anyPermission: ['payroll.loans', 'payroll.view'] },
-    { key: 'payroll-setup', label: 'Salary Structures', icon: 'tune', href: '/payroll/setup', group: 'payroll', order: 40, permission: 'payroll.setup' },
+    { key: 'payroll-run', app: false, label: 'Monthly Payroll', icon: 'payments', href: '/payroll', group: 'payroll', order: 10, anyPermission: ['payroll.run', 'payroll.approve', 'payroll.view'] },
+    { key: 'payroll-salaries', app: false, label: 'Staff Salaries', icon: 'account_balance_wallet', href: '/payroll/salaries', group: 'payroll', order: 20, permission: 'payroll.salary' },
+    { key: 'payroll-loans', app: false, label: 'Loans & Advances', icon: 'savings', href: '/payroll/loans', group: 'payroll', order: 30, anyPermission: ['payroll.loans', 'payroll.view'] },
+    { key: 'payroll-setup', app: false, label: 'Salary Structures', icon: 'tune', href: '/payroll/setup', group: 'payroll', order: 40, permission: 'payroll.setup' },
     { key: 'payroll-mine', label: 'My Payslips', icon: 'receipt_long', href: '/my-payslips', group: 'main', order: 40, permission: 'payroll.mine' },
 ]);
 

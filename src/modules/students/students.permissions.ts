@@ -24,8 +24,8 @@ registerPermissions({ key: 'students', label: 'Students', order: 30 }, [
 
 registerMenuGroup({ key: 'students', label: 'Students', order: 10 });
 registerMenuItems([
-    { key: 'students', label: 'Students', icon: 'groups', href: '/students', group: 'students', order: 10, permission: 'student.view' },
-    { key: 'admission', label: 'New Admission', icon: 'person_add', href: '/students/new', group: 'students', order: 20, permission: 'student.create' },
+    { key: 'students', label: 'Students', icon: 'groups', href: '/students', group: 'students', order: 10, permission: 'student.view', scopes: ['all', 'assigned'] },
+    { key: 'admission', app: false, label: 'New Admission', icon: 'person_add', href: '/students/new', group: 'students', order: 20, permission: 'student.create' },
 ]);
 
 // History of every change (Aadhaar and medical notes are left out of it).
