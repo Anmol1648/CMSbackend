@@ -30,8 +30,12 @@ const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
 };
 const meta = (req: Request) => ({ ip: req.ip, userAgent: req.header('user-agent')?.slice(0, 300) });
 
-/** Sends tokens: access token in the body, refresh token in the httpOnly cookie. */
+/** The mobile app (header X-Client: app): no cookies; it keeps the refresh token in secure storage. */
+const fromApp = (req: Request) => req.header('x-client') === 'app';
+
+/** Sends tokens: access token in the body, refresh token in the httpOnly cookie (the app: in the body). */
 const signedIn = (res: Response, result: auth.SignedIn, message: string, extra: object = {}) => {
+    if (fromApp(res.req)) return successResponse(res, { mfaRequired: false, ...result, ...extra }, message);
     setRefreshCookie(res, result.refreshToken, result.refreshExpiresAt);
     const { refreshToken: _r, refreshExpiresAt: _e, ...body } = result;
     return successResponse(res, { mfaRequired: false, ...body, ...extra }, message);
@@ -54,7 +58,8 @@ authRoutes.post('/mfa/verify', publicRoute, mfaLimiter, asyncHandler(async (req:
 // ?with=profile also returns "who am I" and "my access": a page load restores everything in one request.
 authRoutes.post('/refresh', publicRoute, asyncHandler(async (req: Request, res: Response) => {
     try {
-        const result = await auth.refresh(readRefreshCookie(req), req.hostTenant);
+        const presented = fromApp(req) ? (typeof req.body?.refreshToken === 'string' ? req.body.refreshToken : undefined) : readRefreshCookie(req);
+        const result = await auth.refresh(presented, req.hostTenant);
         if (req.query.with !== 'profile') return signedIn(res, result, 'Session renewed');
         const [me, access] = await Promise.all([auth.me(result.user.id), result.mustChangePassword ? null : myAccess(result.user.id)]);
         return signedIn(res, result, 'Session renewed', { me: { ...me, mustChangePassword: result.mustChangePassword }, access });

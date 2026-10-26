@@ -206,6 +206,7 @@ model Tenant {
   competitions       Competition[]
   competitionEntries CompetitionEntry[]
   achievements       Achievement[]
+  deviceTokens       DeviceToken[]
 
   feedbackForms       FeedbackForm[]
   feedbackRounds      FeedbackRound[]
@@ -6226,4 +6227,24 @@ model Achievement {
   @@index([tenantId, studentId])
   @@index([tenantId, academicYearId, date])
   @@map("achievements")
+}
+
+/// A phone with the mobile app, signed in as a user: where push notifications go.
+model DeviceToken {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  /// The Expo push token (ExponentPushToken[...]).
+  token      String
+  /// android | ios
+  platform   String
+  appVersion String?  @map("app_version")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, token])
+  @@index([tenantId, userId])
+  @@map("device_tokens")
 }

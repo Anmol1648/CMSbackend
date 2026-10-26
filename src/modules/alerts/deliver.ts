@@ -8,6 +8,7 @@ import { ALERTS, Channel } from './alerts.settings';
 import { findAlertDef } from './alerts.registry';
 import { Recipient, recipientId } from './recipients';
 import { kickQueue } from './queue';
+import { pushNotifications } from '../mobile/mobile.service';
 
 /**
  * Sending one message to many people: picks each person's channels (the school's, their own
@@ -146,6 +147,8 @@ export const deliver = async (out: Outgoing, people: (Recipient & { role?: strin
     const freshNotes = keys.length ? notifications.filter((n) => freshInApp.has(n.userId)) : notifications;
     for (let i = 0; i < fresh.length; i += 1000) await db.messageDelivery.createMany({ data: fresh.slice(i, i + 1000), skipDuplicates: true });
     for (let i = 0; i < freshNotes.length; i += 1000) await db.notification.createMany({ data: freshNotes.slice(i, i + 1000) });
+    // …and to their phones, if they have the app.
+    void pushNotifications(freshNotes);
     // CC (typed addresses): one copy each, by email.
     for (const cc of out.cc ?? []) {
         await db.messageDelivery.create({ data: { tenantId, messageId: out.messageId ?? null, alertKey: out.alertKey ?? null, userId: null, recipientName: cc, recipientKind: 'other', channel: 'email', address: cc, status: on.email ? 'queued' : 'skipped', reason: on.email ? null : 'email is switched off', subject: fill(out.subject, { ...(out.vars ?? {}), name: '' }), body: fill(out.body, { ...(out.vars ?? {}), name: '' }), attachmentIds: out.attachmentIds ?? [] } });
