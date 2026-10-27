@@ -69,19 +69,43 @@ const accessToken = async (sa: ServiceAccount) => {
     return cached.token;
 };
 
+/**
+ * How each priority arrives on phones (Masters → Priorities → "On phones"): the app's Android
+ * channels klytos_urgent / _important / _normal / _quiet. A priority without the choice falls back
+ * by its code (emergency → urgent, important → important, the rest → normal).
+ */
+export const PHONE_KINDS = ['urgent', 'important', 'normal', 'quiet'] as const;
+type PhoneKind = (typeof PHONE_KINDS)[number];
+const phoneKinds = async (): Promise<(code: string | undefined) => PhoneKind> => {
+    const rows = await db.masterValue.findMany({ where: { master: 'alert_priority' }, select: { code: true, extra: true } });
+    const set = new Map(rows.map((r) => [r.code ?? '', (r.extra as Record<string, unknown> | null)?.phone]));
+    return (code) => {
+        const v = set.get(code ?? 'normal');
+        if (typeof v === 'string' && (PHONE_KINDS as readonly string[]).includes(v)) return v as PhoneKind;
+        return code === 'emergency' ? 'urgent' : code === 'important' ? 'important' : 'normal';
+    };
+};
+
 /** Sends in-app notifications to the people's phones (never throws: push is a bonus to in-app). */
 export const pushNotifications = async (notes: { userId: string; title: string; body: string; link?: string | null; priority?: string }[]) => {
     try {
         const sa = serviceAccount();
         if (!sa || !notes.length) return;
-        const tokens = await db.deviceToken.findMany({ where: { userId: { in: [...new Set(notes.map((n) => n.userId))] } }, select: { token: true, userId: true } });
+        const userIds = [...new Set(notes.map((n) => n.userId))];
+        const tokens = await db.deviceToken.findMany({ where: { userId: { in: userIds } }, select: { token: true, userId: true } });
         if (!tokens.length) return;
-        const bearer = await accessToken(sa);
+        const [bearer, kindOf, unread] = await Promise.all([
+            accessToken(sa),
+            phoneKinds(),
+            // The number on the app's icon: what each person has not read yet.
+            db.notification.groupBy({ by: ['userId'], where: { userId: { in: [...new Set(tokens.map((t) => t.userId))] }, readAt: null }, _count: { _all: true } }),
+        ]);
+        const unreadOf = new Map(unread.map((u) => [u.userId, u._count._all]));
         const url = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
         const gone: string[] = [];
         for (const n of notes) {
             const body = n.body.length > 180 ? `${n.body.slice(0, 177)}…` : n.body;
-            const high = n.priority && n.priority !== 'normal';
+            const kind = kindOf(n.priority);
             for (const t of tokens.filter((x) => x.userId === n.userId)) {
                 const res = await fetch(url, {
                     method: 'POST',
@@ -90,9 +114,19 @@ export const pushNotifications = async (notes: { userId: string; title: string; 
                         message: {
                             token: t.token,
                             notification: { title: n.title, body },
-                            data: { link: n.link ?? '' },
-                            android: { priority: high ? 'HIGH' : 'NORMAL', notification: { channel_id: 'default', sound: 'default' } },
-                            apns: { payload: { aps: { sound: 'default' } } },
+                            // The app opens this page when the notification is tapped.
+                            data: { link: n.link ?? '', kind },
+                            android: {
+                                priority: kind === 'urgent' || kind === 'important' ? 'HIGH' : 'NORMAL',
+                                notification: {
+                                    channel_id: `klytos_${kind}`,
+                                    ...(kind === 'quiet' ? {} : { sound: 'default' }),
+                                    color: '#1A365D',
+                                    notification_count: unreadOf.get(n.userId) ?? 1,
+                                    ...(kind === 'urgent' ? { notification_priority: 'PRIORITY_MAX', visibility: 'PUBLIC' } : {}),
+                                },
+                            },
+                            apns: { payload: { aps: { ...(kind === 'quiet' ? {} : { sound: 'default' }), badge: unreadOf.get(n.userId) ?? 1, ...(kind === 'urgent' ? { 'interruption-level': 'time-sensitive' } : {}) } } },
                         },
                     }),
                 });

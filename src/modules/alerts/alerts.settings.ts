@@ -133,7 +133,7 @@ defineMaster({
     key: 'alert_priority',
     label: 'Priority',
     plural: 'Priorities',
-    description: 'How important a notification is: whether it stays on top until read and pops up on screen.',
+    description: 'How important a notification is: whether it stays on top until read, pops up on screen, and how it arrives on phones.',
     group: 'alerts',
     order: 30,
     code: 'required',
@@ -141,10 +141,21 @@ defineMaster({
     fields: [
         { key: 'pinned', label: 'Stays on top until read', type: 'boolean' },
         { key: 'toast', label: 'Pops up on screen', type: 'boolean' },
+        {
+            key: 'phone',
+            label: 'On phones (mobile app)',
+            type: 'select',
+            options: [
+                { value: 'urgent', label: 'Urgent: pops up with a loud sound' },
+                { value: 'important', label: 'Important: pops up with a sound' },
+                { value: 'normal', label: 'Normal: a sound, in the tray' },
+                { value: 'quiet', label: 'Quiet: in the tray, no sound' },
+            ],
+        },
     ],
     seed: [
-        { name: 'Normal', code: 'normal', extra: { pinned: false, toast: false } },
-        { name: 'Important', code: 'important', extra: { pinned: true, toast: true } },
-        { name: 'Emergency', code: 'emergency', extra: { pinned: true, toast: true } },
+        { name: 'Normal', code: 'normal', extra: { pinned: false, toast: false, phone: 'normal' } },
+        { name: 'Important', code: 'important', extra: { pinned: true, toast: true, phone: 'important' } },
+        { name: 'Emergency', code: 'emergency', extra: { pinned: true, toast: true, phone: 'urgent' } },
     ],
 });
