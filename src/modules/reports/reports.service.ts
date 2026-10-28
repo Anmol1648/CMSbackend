@@ -136,13 +136,45 @@ export const listReports = async (userId: string) => {
     };
 };
 
+const SCOPE_WIDTH: Record<string, number> = { all: 3, assigned: 2, own: 1 };
+
+/**
+ * The classes and sections this person may pick in a report's Class / Section filters: a class
+ * teacher only their own sections, a parent only their children's. Null = no limit. The report's
+ * data is limited by its own run; this only keeps the filter lists to what can show anything.
+ */
+const classLimits = async (def: ReportDef, a: Awaited<ReturnType<typeof access>>, userId: string) => {
+    if (a.isSuperAdmin || !def.filters.some((f) => f.type === 'class' || f.type === 'section')) return null;
+    const scopes = def.permissions.map((p) => a.permissions[p]).filter(Boolean) as string[];
+    const scope = scopes.sort((x, y) => (SCOPE_WIDTH[y] ?? 0) - (SCOPE_WIDTH[x] ?? 0))[0] ?? 'all';
+    if (scope === 'all') return null;
+    const year = await currentYear();
+    const sections = await db.section.findMany({
+        where: {
+            ...(year ? { academicYearId: year.id } : {}),
+            ...(scope === 'assigned'
+                ? { OR: [{ classTeacher: { userId } }, { teachingAssignments: { some: { staff: { userId } } } }] }
+                : { enrolments: { some: { ...(year ? { academicYearId: year.id } : {}), student: { OR: [{ userId }, { family: { guardians: { some: { userId } } } }] } } } }),
+        },
+        select: { id: true, classId: true },
+    });
+    return { classIds: Array.from(new Set(sections.map((s) => s.classId))), sectionIds: sections.map((s) => s.id) };
+};
+
 export const getReport = async (key: string, userId: string) => {
     const { def, canDesign } = await defFor(key, userId);
     const design = await designInUse(def);
-    const filters = await Promise.all(
-        def.filters.map(async (f) => ({ ...f, value: (await resolveFilters({ ...def, filters: [{ ...f, required: false }] }, {}))[f.key] ?? '' }))
-    );
     const a = await access(userId);
+    const limits = await classLimits(def, a, userId);
+    const filters = await Promise.all(
+        def.filters.map(async (f) => {
+            const value = (await resolveFilters({ ...def, filters: [{ ...f, required: false }] }, {}))[f.key] ?? '';
+            // Only one class / section to choose from: it is chosen already.
+            if (limits && f.type === 'class' && limits.classIds.length === 1) return { ...f, value: limits.classIds[0] };
+            if (limits && f.type === 'section' && limits.sectionIds.length === 1) return { ...f, value: limits.sectionIds[0] };
+            return { ...f, value };
+        })
+    );
     return {
         key: def.key,
         category: def.category,
@@ -150,6 +182,7 @@ export const getReport = async (key: string, userId: string) => {
         description: def.description,
         orientation: def.orientation,
         filters,
+        limits,
         columns: def.columns,
         engine: design ? design.label : 'Built-in table layout',
         canDesign,
