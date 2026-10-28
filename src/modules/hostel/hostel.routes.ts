@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { asyncHandler, successResponse } from '../../core/index';
 import { forbidden, validationError } from '../../core/errors';
 import { authenticated, can } from '../../middlewares/access';
+import { sendFile } from '../../core/http/files';
 import { getUserAccess } from '../rbac/access.service';
+import { passPdf, passPng } from './hostel.print';
 import * as h from './hostel.service';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
@@ -54,6 +56,14 @@ hostelRoutes.post('/leave/:id/answer', can('hostel.warden'), asyncHandler(async 
 }));
 hostelRoutes.post('/leave/:id/cancel', authenticated, needAny(['warden', 'mine']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await h.cancelLeave(req.params.id, uid(req)), 'Cancelled')));
 hostelRoutes.get('/leave/:id/pass', authenticated, needAny(['warden', 'view', 'mine']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await h.passSlip(req.params.id, uid(req)), 'Pass')));
+// The pass to print (A5 PDF) or to show on a phone (picture), for the same people who can read it.
+hostelRoutes.get('/leave/:id/pass/pdf', authenticated, needAny(['warden', 'view', 'mine']), asyncHandler(async (req: Request, res: Response) => {
+    const p = await passPdf(req.params.id, uid(req));
+    sendFile(res, p.fileName, 'application/pdf', p.pdf, { inline: true });
+}));
+hostelRoutes.get('/leave/:id/pass/png', authenticated, needAny(['warden', 'view', 'mine']), asyncHandler(async (req: Request, res: Response) => {
+    sendFile(res, 'leave-pass.png', 'image/png', await passPng(req.params.id, uid(req)), { inline: true });
+}));
 hostelRoutes.post('/gate/scan', can('hostel.gate'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await h.scanPass(parse(z.object({ code: z.string().trim().min(4).max(20) }), req.body).code, uid(req)), 'Done')));
 hostelRoutes.get('/gate/out', can('hostel.gate'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await h.listLeaves({ show: 'out' }, uid(req)), 'Out')));
 
