@@ -10,6 +10,7 @@ import { getUserAccess } from '../rbac/access.service';
 import * as inv from './inventory.service';
 import * as pur from './purchase.service';
 import * as sal from './sales.service';
+import { poPdf, salePdf } from './inventory.print';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -85,6 +86,10 @@ inventoryRoutes.post('/counts/:id/submit', can('inventory.store'), asyncHandler(
 inventoryRoutes.get('/pos', authenticated, needAny(['purchase', 'store', 'approve', 'view']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await pur.listPOs(parse(pur.posQuery, req.query)), 'Orders')));
 inventoryRoutes.post('/pos', can('inventory.purchase'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await pur.savePO(null, parse(pur.poSchema, req.body), uid(req)), 'Saved', 201)));
 inventoryRoutes.get('/pos/:id', authenticated, needAny(['purchase', 'store', 'approve', 'view']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await pur.poView(req.params.id), 'Order')));
+inventoryRoutes.get('/pos/:id/pdf', authenticated, needAny(['purchase', 'store', 'approve', 'view']), asyncHandler(async (req: Request, res: Response) => {
+    const r = await poPdf(req.params.id);
+    sendFile(res, r.fileName, 'application/pdf', r.pdf, { inline: true });
+}));
 inventoryRoutes.put('/pos/:id', can('inventory.purchase'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await pur.savePO(req.params.id, parse(pur.poSchema, req.body), uid(req)), 'Saved')));
 inventoryRoutes.post('/pos/:id/submit', can('inventory.purchase'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await pur.submitPO(req.params.id, uid(req)), 'Sent')));
 inventoryRoutes.post('/pos/:id/answer', can('inventory.approve'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await pur.answerPO(req.params.id, parse(z.object({ approve: z.boolean() }), req.body).approve, uid(req)), 'Answered')));
@@ -99,4 +104,8 @@ inventoryRoutes.get('/students', can('inventory.sell'), asyncHandler(async (req:
 inventoryRoutes.get('/sales', can('inventory.sell'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await sal.listSales(parse(sal.salesQuery, req.query)), 'Sales')));
 inventoryRoutes.post('/sales', can('inventory.sell'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await sal.sell(parse(sal.saleSchema, req.body), uid(req)), 'Sold', 201)));
 inventoryRoutes.get('/sales/:id', can('inventory.sell'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await sal.saleView(req.params.id), 'Sale')));
+inventoryRoutes.get('/sales/:id/pdf', can('inventory.sell'), asyncHandler(async (req: Request, res: Response) => {
+    const r = await salePdf(req.params.id);
+    sendFile(res, r.fileName, 'application/pdf', r.pdf, { inline: true });
+}));
 inventoryRoutes.post('/sales/:id/cancel', can('inventory.sell'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await sal.cancelSale(req.params.id, uid(req)), 'Cancelled')));

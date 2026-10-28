@@ -8,6 +8,7 @@ import { sendFile, upload } from '../../core/http/files';
 import { db } from '../../core/db';
 import { getUserAccess } from '../rbac/access.service';
 import * as as from './assets.service';
+import { labelsPdf } from './assets.print';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -64,6 +65,11 @@ assetRoutes.post('/verifications/:id/found', can('asset.manage'), asyncHandler(a
 assetRoutes.post('/verifications/:id/close', can('asset.manage'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await as.closeVerification(req.params.id, parse(z.object({ moveMisplaced: z.boolean().default(false) }), req.body).moveMisplaced, uid(req)), 'Closed')));
 
 // The register.
+assetRoutes.get('/labels/pdf', authenticated, needAny(['asset.manage', 'asset.view']), asyncHandler(async (req: Request, res: Response) => {
+    const l = await labelsPdf(parse(as.labelsQuery, req.query));
+    if (!l.count) throw badRequest('No assets there');
+    sendFile(res, 'asset-labels.pdf', 'application/pdf', l.pdf, { inline: true });
+}));
 assetRoutes.get('/labels', authenticated, needAny(['asset.manage', 'asset.view']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await as.labels(parse(as.labelsQuery, req.query)), 'Labels')));
 assetRoutes.get('/code/:code', authenticated, viewers, asyncHandler(async (req: Request, res: Response) => successResponse(res, await as.byCode(req.params.code), 'Asset')));
 assetRoutes.get('/', authenticated, viewers, asyncHandler(async (req: Request, res: Response) => successResponse(res, await as.listAssets(parse(as.listQuery, req.query)), 'Assets')));
