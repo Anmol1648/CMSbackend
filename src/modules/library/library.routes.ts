@@ -9,6 +9,7 @@ import { getUserAccess } from '../rbac/access.service';
 import * as books from './books.service';
 import * as desk from './circulation.service';
 import * as lib from './library.service';
+import { cardsPdf, labelsPdf } from './library.print';
 import { cards, cardsQuery, memberCard, memberPhoto, myMembers, schoolLogo, searchMembers } from './members.service';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
@@ -48,6 +49,11 @@ libraryRoutes.delete('/books/:id', manage, asyncHandler(async (req: Request, res
 libraryRoutes.post('/books/:id/copies', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await books.addCopies(req.params.id, parse(books.copiesSchema, req.body), uid(req)), 'Added', 201)));
 libraryRoutes.put('/copies/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await books.updateCopy(req.params.id, parse(books.copySchema, req.body)), 'Saved')));
 libraryRoutes.delete('/copies/:id', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await books.deleteCopy(req.params.id), 'Deleted')));
+libraryRoutes.get('/labels/pdf', manage, asyncHandler(async (req: Request, res: Response) => {
+    const l = await labelsPdf(parse(books.labelsQuery, req.query));
+    if (!l.count) throw badRequest('No copies there');
+    sendFile(res, 'book-labels.pdf', 'application/pdf', l.pdf, { inline: true });
+}));
 libraryRoutes.get('/labels', manage, asyncHandler(async (req: Request, res: Response) => successResponse(res, await books.labels(parse(books.labelsQuery, req.query)), 'Labels')));
 libraryRoutes.post('/files', manage, upload.single('file'), asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw badRequest('Choose a file');
@@ -72,6 +78,11 @@ libraryRoutes.get('/members/:kind/:id', authenticated, needAny(['library.issue',
 }));
 // Library cards (printed with a barcode of the admission no / employee code).
 libraryRoutes.get('/cards', authenticated, needAny(['library.manage', 'library.issue']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await cards(parse(cardsQuery, req.query)), 'Cards')));
+libraryRoutes.get('/cards/pdf', authenticated, needAny(['library.manage', 'library.issue']), asyncHandler(async (req: Request, res: Response) => {
+    const c = await cardsPdf(parse(cardsQuery, req.query));
+    if (!c.count) throw badRequest('No one here');
+    sendFile(res, 'library-cards.pdf', 'application/pdf', c.pdf, { inline: true });
+}));
 libraryRoutes.get('/cards/logo', authenticated, needAny(['library.manage', 'library.issue']), asyncHandler(async (_req: Request, res: Response) => {
     const id = await schoolLogo();
     if (!id) throw badRequest('No logo');

@@ -12,7 +12,7 @@ import { logger } from '../logger';
  * except embedded data: URLs is refused (no reaching into the server's network).
  */
 
-export type PaperSize = 'A4' | 'A5' | 'A4_HALF' | 'THERMAL_80';
+export type PaperSize = 'A4' | 'A5' | 'A6' | 'A4_HALF' | 'THERMAL_80';
 
 export interface Paper {
     size: PaperSize;
@@ -24,6 +24,8 @@ export interface Paper {
 const SIZES: Record<PaperSize, { width: string; height: string | null }> = {
     A4: { width: '210mm', height: '297mm' },
     A5: { width: '148mm', height: '210mm' },
+    // A visitor pass.
+    A6: { width: '105mm', height: '148mm' },
     // Half an A4 sheet (two receipts per sheet, cut in the middle).
     A4_HALF: { width: '210mm', height: '148.5mm' },
     // An 80 mm receipt roll: the page is as long as the content.

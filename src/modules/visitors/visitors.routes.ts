@@ -8,6 +8,7 @@ import { sendFile, upload } from '../../core/http/files';
 import { getUserAccess } from '../rbac/access.service';
 import * as gate from './visitors.service';
 import * as pickup from './pickup.service';
+import { passPdf } from './visitors.print';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -55,6 +56,10 @@ visitorRoutes.get('/hosts', atGate, asyncHandler(async (req: Request, res: Respo
 visitorRoutes.post('/enter', atGate, asyncHandler(async (req: Request, res: Response) => successResponse(res, await gate.enter(parse(gate.entrySchema, req.body), uid(req)), 'In', 201)));
 visitorRoutes.post('/out', atGate, asyncHandler(async (req: Request, res: Response) => successResponse(res, await gate.checkOut(parse(z.object({ key: z.string().trim().min(3).max(60) }), req.body).key, uid(req)), 'Out')));
 visitorRoutes.get('/visits/:id', authenticated, needAny(['visitor.gate', 'visitor.view', 'visitor.expect']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await gate.visitView(req.params.id), 'Visit')));
+visitorRoutes.get('/visits/:id/pass/pdf', atGate, asyncHandler(async (req: Request, res: Response) => {
+    const p = await passPdf(req.params.id);
+    sendFile(res, p.fileName, 'application/pdf', p.pdf, { inline: true });
+}));
 visitorRoutes.get('/visits/:id/pass', atGate, asyncHandler(async (req: Request, res: Response) => successResponse(res, await gate.pass(req.params.id), 'Pass')));
 
 // Staff: their visitors.
