@@ -8,6 +8,7 @@ import { sendFile, upload } from '../../core/http/files';
 import { db } from '../../core/db';
 import { getUserAccess } from '../rbac/access.service';
 import * as ic from './idcards.service';
+import { cardsPdf, cardsPdfSchema, myCardPdf, myCardPng, previewPng, previewSchema } from './idcards.print';
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
     const r = schema.safeParse(body ?? {});
@@ -47,6 +48,10 @@ idCardRoutes.get('/designs/:id/signature', authenticated, any, asyncHandler(asyn
     if (!d?.signatureFileId) throw notFound('No signature');
     await send(res, d.signatureFileId);
 }));
+/** The design being edited, drawn on a sample person (PNG, for the app's design screen). */
+idCardRoutes.post('/designs/preview', can('idcard.design'), asyncHandler(async (req: Request, res: Response) => {
+    sendFile(res, 'card.png', 'image/png', await previewPng(parse(previewSchema, req.body)), { inline: true });
+}));
 /** A design image just uploaded (preview before saving). */
 idCardRoutes.get('/images/:fileId', can('idcard.design'), asyncHandler(async (req: Request, res: Response) => send(res, req.params.fileId)));
 
@@ -57,6 +62,11 @@ idCardRoutes.get('/search', can('idcard.print'), asyncHandler(async (req: Reques
     successResponse(res, await ic.search(q.type, q.q), 'People');
 }));
 idCardRoutes.post('/print', can('idcard.print'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await ic.print(parse(ic.printSchema, req.body), uid(req)), 'Recorded')));
+
+/** The cards as a PDF to print (A4 sheets or one side per page), from the app; doesn't record a print (POST /print does). */
+idCardRoutes.post('/pdf', can('idcard.print'), asyncHandler(async (req: Request, res: Response) => {
+    sendFile(res, 'id-cards.pdf', 'application/pdf', await cardsPdf(parse(cardsPdfSchema, req.body)), { inline: true });
+}));
 
 // Cards given.
 idCardRoutes.get('/cards', authenticated, needAny(['idcard.print', 'idcard.view']), asyncHandler(async (req: Request, res: Response) => successResponse(res, await ic.listCards(parse(ic.cardsQuery, req.query)), 'Cards')));
@@ -85,4 +95,14 @@ idCardRoutes.post('/photo-requests/:id/answer', can('idcard.print'), asyncHandle
 
 // My ID card.
 idCardRoutes.get('/mine', can('idcard.mine'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await ic.myCards(uid(req)), 'My card')));
+idCardRoutes.get('/mine/:type/:id/card.png', can('idcard.mine'), asyncHandler(async (req: Request, res: Response) => {
+    const type = parse(z.enum(['student', 'staff']), req.params.type);
+    const side = parse(z.enum(['front', 'back']).default('front'), req.query.side);
+    sendFile(res, `card-${side}.png`, 'image/png', await myCardPng(uid(req), type, req.params.id, side), { inline: true });
+}));
+idCardRoutes.get('/mine/:type/:id/pdf', can('idcard.mine'), asyncHandler(async (req: Request, res: Response) => {
+    const type = parse(z.enum(['student', 'staff']), req.params.type);
+    const c = await myCardPdf(uid(req), type, req.params.id);
+    sendFile(res, `${c.name.replace(/[^\w]+/g, '-')}-id-card.pdf`, 'application/pdf', c.pdf, { inline: true });
+}));
 idCardRoutes.post('/mine/photo/:studentId', can('idcard.mine'), upload.single('image'), asyncHandler(async (req: Request, res: Response) => successResponse(res, await ic.sendPhoto(req.params.studentId, image(req), uid(req)), 'Sent', 201)));

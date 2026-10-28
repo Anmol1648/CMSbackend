@@ -72,7 +72,7 @@ const fmt = (d: Date | null | undefined) => (d ? d.toLocaleDateString('en-IN', {
 /** Where to load a person's photo (only through this module's checked route). */
 const photoPath = (type: HolderType, id: string, fileId: string | null) => (fileId ? `idcards/photo/${type}/${id}?v=${fileId}` : null);
 
-const school = async () => {
+export const school = async () => {
     const p = await db.schoolProfile.findFirst({ include: { tenant: { select: { code: true } } } });
     if (!p) return { name: '', short: '', address: '', phone: '', logoUrl: null as string | null };
     return {
@@ -504,7 +504,7 @@ export const answerRequest = async (id: string, approve: boolean, note: string |
 
 // ─── My ID card ──────────────────────────────────────────────────────────────
 
-const mine = async (userId: string) => {
+export const mine = async (userId: string) => {
     const [staff, students] = await Promise.all([db.staff.findFirst({ where: { userId }, select: { id: true } }), db.student.findMany({ where: { status: 'active', OR: [{ userId }, { family: { guardians: { some: { userId } } } }] }, select: { id: true } })]);
     return { staffId: staff?.id ?? null, studentIds: students.map((s) => s.id) };
 };

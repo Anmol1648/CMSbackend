@@ -123,6 +123,31 @@ export const htmlToPdf = async (html: string, paper: Paper, footer?: string): Pr
     }
 };
 
+/**
+ * Renders the HTML to a PNG picture `size` millimetres wide and high (an ID card shown in the app),
+ * at `scale` device pixels per CSS pixel. Same safety as PDFs: no scripts, nothing fetched.
+ */
+export const htmlToPng = async (html: string, size: { widthMm: number; heightMm: number }, scale = 4): Promise<Buffer> => {
+    const b = await browser();
+    const page = await b.newPage();
+    try {
+        await page.setJavaScriptEnabled(false);
+        await page.setRequestInterception(true);
+        page.on('request', (r) => (r.url().startsWith('data:') ? r.continue() : r.abort()));
+        const width = Math.ceil(size.widthMm * 3.78);
+        const height = Math.ceil(size.heightMm * 3.78);
+        await page.setViewport({ width, height, deviceScaleFactor: scale });
+        await page.setContent(html, { waitUntil: 'load', timeout: 20_000 });
+        const png = await page.screenshot({ type: 'png', omitBackground: false, clip: { x: 0, y: 0, width, height } });
+        return Buffer.from(png);
+    } catch (err) {
+        logger.error('Picture rendering failed', { error: (err as Error).message });
+        throw new AppError('The picture could not be made. Please try again.', 500, ErrorCode.INTERNAL_SERVER_ERROR);
+    } finally {
+        await page.close().catch(() => undefined);
+    }
+};
+
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** Closes the shared browser (tests, shutdown). */
